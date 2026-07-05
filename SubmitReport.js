@@ -241,6 +241,40 @@ function processSubmitQueue() {
   }
 }
 
+function syncDashboardDataQueue() {
+  try {
+    var before = _submitCountQueueJobs_();
+    processSubmitQueue();
+    var after = _submitCountQueueJobs_();
+    var processed = Math.max(before - after, 0);
+
+    if (before > 0 && after >= before) {
+      return {
+        success: false,
+        message: 'Queue ch\u01b0a \u0111\u01b0\u1ee3c x\u1eed l\u00fd. Vui l\u00f2ng th\u1eed l\u1ea1i sau.',
+        before: before,
+        after: after,
+        processed: processed
+      };
+    }
+
+    return {
+      success: true,
+      message: before === 0
+        ? 'Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u \u0111ang ch\u1edd \u0111\u1ed3ng b\u1ed9.'
+        : '\u0110\u00e3 \u0111\u1ed3ng b\u1ed9 ' + processed + ' job queue.',
+      before: before,
+      after: after,
+      processed: processed
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: 'L\u1ed7i \u0111\u1ed3ng b\u1ed9 d\u1eef li\u1ec7u: ' + (error && error.message ? error.message : error)
+    };
+  }
+}
+
 function _submitReadPayload_(payload) {
   return {
     pipeNoStr: _submitTrim_(payload['w-so-ong']),
@@ -492,6 +526,18 @@ function _submitQueueMaxJobsPerRun_() {
     ? Number(SUBMIT_QUEUE_MAX_JOBS_PER_RUN)
     : 30;
   return maxJobs > 0 ? maxJobs : 30;
+}
+
+function _submitCountQueueJobs_() {
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var count = 0;
+
+  for (var key in all) {
+    if (key.indexOf(SUBMIT_QUEUE_PROPERTY_PREFIX) === 0) count++;
+  }
+
+  return count;
 }
 
 function _submitGetSpreadsheet_() {

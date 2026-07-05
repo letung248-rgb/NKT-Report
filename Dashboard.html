@@ -129,6 +129,12 @@
         }
 
         .alert { padding: 1rem; background: rgba(239,68,68,0.2); color: var(--accent-danger); border: 1px solid var(--accent-danger); border-radius: 0.5rem; margin-bottom: 1rem; display: none; }
+        .sync-btn { border: 1px solid var(--border-color); background: var(--accent-primary); color: white; border-radius: 9999px; padding: 0.5rem 0.9rem; display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; white-space: nowrap; }
+        .sync-btn:hover:not(:disabled) { filter: brightness(0.95); }
+        .sync-btn:disabled { opacity: 0.65; cursor: wait; }
+        .sync-message { display: none; font-size: 0.8rem; font-weight: 600; }
+        .sync-message.success { display: block; color: var(--accent-success); }
+        .sync-message.error { display: block; color: var(--accent-danger); }
     </style>
 </head>
 <body>
@@ -167,6 +173,10 @@
                 <div id="factoryHealth" class="badge tp" style="margin-left: 0.5rem;">Bình thường</div>
             </div>
             <div style="display: flex; align-items: center; gap: 1rem;">
+                <button type="button" id="syncDataBtn" class="sync-btn" onclick="syncDashboardData()">
+                    <i class="ph ph-arrows-clockwise"></i>
+                    <span id="syncDataBtnText">Đồng bộ dữ liệu</span>
+                </button>
                 <div style="position: relative;">
                     <i class="ph ph-magnifying-glass" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
                     <input type="text" id="pipeSearch" placeholder="Tìm số ống..." 
@@ -174,6 +184,7 @@
                            onkeypress="handleSearch(event)">
                 </div>
                 <div style="color: var(--text-secondary); font-size: 0.875rem;" id="lastUpdate"></div>
+                <div id="syncDataMessage" class="sync-message"></div>
             </div>
         </header>
 
@@ -413,6 +424,48 @@
             const el = document.getElementById('errorAlert');
             el.innerText = msg;
             el.style.display = msg ? 'block' : 'none';
+        }
+
+        function showSyncStatus(msg, type) {
+            const el = document.getElementById('syncDataMessage');
+            el.innerText = msg || '';
+            el.className = 'sync-message' + (msg ? ' ' + type : '');
+        }
+
+        function setSyncButtonLoading(isLoading) {
+            const btn = document.getElementById('syncDataBtn');
+            const text = document.getElementById('syncDataBtnText');
+            btn.disabled = isLoading;
+            text.innerText = isLoading ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu';
+        }
+
+        function syncDashboardData() {
+            if (typeof google === 'undefined' || !google.script) {
+                showSyncStatus('Ứng dụng cần chạy trên Google Apps Script môi trường thật.', 'error');
+                return;
+            }
+
+            setSyncButtonLoading(true);
+            showSyncStatus('', '');
+            showError('');
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (!res || !res.success) {
+                        showSyncStatus((res && res.message) || 'Đồng bộ dữ liệu thất bại.', 'error');
+                        setSyncButtonLoading(false);
+                        return;
+                    }
+
+                    showSyncStatus(res.message || 'Đồng bộ dữ liệu thành công.', 'success');
+                    setSyncButtonLoading(false);
+                    loadDashboard();
+                })
+                .withFailureHandler(err => {
+                    showSyncStatus('Lỗi đồng bộ dữ liệu: ' + err, 'error');
+                    setSyncButtonLoading(false);
+                })
+                .syncDashboardDataQueue();
         }
         
         function toggleLoader(show) {
