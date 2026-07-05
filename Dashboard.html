@@ -143,6 +143,24 @@
         .queue-status-pill.idle { background: rgba(59,130,246,0.15); color: var(--accent-primary); }
         .queue-status-pill.processing { background: rgba(245,158,11,0.18); color: var(--accent-warning); }
         .queue-status-pill.done { background: rgba(16,185,129,0.18); color: var(--accent-success); }
+        .daily-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .daily-field { display: flex; flex-direction: column; gap: 0.4rem; }
+        .daily-field label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+        .daily-field input { border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-base); color: var(--text-primary); padding: 0.55rem 0.75rem; font-size: 0.95rem; min-width: 180px; }
+        .daily-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+        .daily-state { display: none; padding: 1rem; border: 1px solid var(--border-color); border-radius: 0.75rem; background: var(--bg-surface); color: var(--text-secondary); font-weight: 600; margin-bottom: 1rem; }
+        .daily-state.loading, .daily-state.empty { display: block; }
+        .daily-state.error { display: block; border-color: var(--accent-danger); background: rgba(239,68,68,0.1); color: var(--accent-danger); }
+        .daily-state.warning { display: block; border-color: var(--accent-warning); background: rgba(245,158,11,0.12); color: var(--accent-warning); }
+        .daily-summary-grid { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr); gap: 1rem; margin-bottom: 1rem; }
+        .daily-mini-list { display: flex; flex-direction: column; gap: 0.7rem; }
+        .daily-mini-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--text-secondary); font-size: 0.9rem; }
+        .daily-mini-row strong { color: var(--text-primary); }
+        .daily-results { display: none; }
+        @media (max-width: 900px) {
+            .daily-summary-grid { grid-template-columns: 1fr; }
+            .daily-toolbar { align-items: stretch; }
+        }
     </style>
 </head>
 <body>
@@ -393,9 +411,82 @@
             </section>
 
             <section id="view-daily-report" style="display: none;">
+                <div class="view-header">
+                    <button class="btn-back" onclick="backToDashboard()"><i class="ph ph-arrow-left"></i> Quay lại</button>
+                    <h2>Báo cáo ngày</h2>
+                </div>
+
                 <div class="card">
-                    <div class="card-header">Báo cáo ngày</div>
-                    <div style="color: var(--text-secondary); font-weight: 600;">Đang phát triển</div>
+                    <div class="daily-toolbar">
+                        <div class="daily-field">
+                            <label for="dailyReportDate">Ngày báo cáo</label>
+                            <input type="date" id="dailyReportDate" onchange="loadDailyReportData()">
+                        </div>
+                        <div class="daily-actions">
+                            <button type="button" id="dailyLoadBtn" class="sync-btn" onclick="loadDailyReportData()">
+                                <i class="ph ph-magnifying-glass"></i>
+                                <span id="dailyLoadBtnText">Tải dữ liệu</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="dailyQueueNotice" class="daily-state warning"></div>
+                    <div id="dailyReportState" class="daily-state empty">Chọn ngày để tải báo cáo.</div>
+                </div>
+
+                <div id="dailyReportResults" class="daily-results">
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-title">Giao dịch trong ngày</div>
+                            <div class="kpi-value" id="dailyKpiTransactions">0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-title">Số ống phát sinh</div>
+                            <div class="kpi-value text-primary" id="dailyKpiPipes">0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-title">Tổng số lượng</div>
+                            <div class="kpi-value text-purple" id="dailyKpiQty">0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-title">Đạt / cần xử lý</div>
+                            <div class="kpi-value"><span class="text-success" id="dailyKpiOk">0</span> / <span class="text-warning" id="dailyKpiIssue">0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="daily-summary-grid">
+                        <div class="card">
+                            <div class="card-header">Theo nguyên công</div>
+                            <div class="daily-mini-list" id="dailyProcessList"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">Theo ca</div>
+                            <div class="daily-mini-list" id="dailyShiftList"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">Giao dịch ngày <span id="dailyReportTitleDate"></span></div>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Thời gian nhận</th>
+                                        <th>Ca</th>
+                                        <th>Nguyên công</th>
+                                        <th>Số ống</th>
+                                        <th>SL</th>
+                                        <th>Loại ống</th>
+                                        <th>Tình trạng</th>
+                                        <th>Lỗi</th>
+                                        <th>Giàn</th>
+                                        <th>Người TH1</th>
+                                        <th>Người TH2</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dailyReportTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -447,6 +538,7 @@
         let currentPipeList = [];
         let currentListTitle = "";
         let currentQueueStatus = null;
+        let dailyReportLoadedDate = "";
 
         function showError(msg) {
             const el = document.getElementById('errorAlert');
@@ -488,6 +580,53 @@
             const pill = document.getElementById('queueStatusPill');
             pill.innerText = statusText;
             pill.className = 'queue-status-pill ' + statusClass;
+
+            updateDailyQueueNotice();
+        }
+
+        function escapeHtml(value) {
+            return (value === null || value === undefined ? '' : value.toString())
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getTodayInputValue() {
+            const today = new Date();
+            today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+            return today.toISOString().slice(0, 10);
+        }
+
+        function setDailyLoading(isLoading) {
+            const btn = document.getElementById('dailyLoadBtn');
+            const text = document.getElementById('dailyLoadBtnText');
+            if (!btn || !text) return;
+            btn.disabled = isLoading;
+            text.innerText = isLoading ? 'Đang tải...' : 'Tải dữ liệu';
+        }
+
+        function setDailyState(message, type) {
+            const state = document.getElementById('dailyReportState');
+            if (!state) return;
+            state.innerText = message || '';
+            state.className = 'daily-state ' + (type || 'empty');
+            state.style.display = message ? 'block' : 'none';
+        }
+
+        function updateDailyQueueNotice() {
+            const notice = document.getElementById('dailyQueueNotice');
+            if (!notice) return;
+
+            const pendingJobs = currentQueueStatus ? Number(currentQueueStatus.pendingJobs || 0) : 0;
+            if (pendingJobs > 0) {
+                notice.innerText = 'Queue còn ' + pendingJobs + ' job đang chờ. Số liệu ngày có thể chưa bao gồm các báo cáo vừa gửi.';
+                notice.style.display = 'block';
+            } else {
+                notice.innerText = '';
+                notice.style.display = 'none';
+            }
         }
 
         function loadQueueStatus() {
@@ -850,6 +989,109 @@
             if(mAbout) mAbout.classList.remove('active');
         }
 
+        function renderDailyMiniList(elementId, stats) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+
+            const items = (stats || []).slice(0, 8);
+            if (items.length === 0) {
+                el.innerHTML = '<div style="color: var(--text-secondary); font-weight: 600;">Không có dữ liệu</div>';
+                return;
+            }
+
+            el.innerHTML = items.map(item => `
+                <div class="daily-mini-row">
+                    <span>${escapeHtml(item.name)}</span>
+                    <strong>${escapeHtml(item.count)}</strong>
+                </div>
+            `).join('');
+        }
+
+        function renderDailyReport(data) {
+            const results = document.getElementById('dailyReportResults');
+            const rows = data.rows || [];
+            const kpi = data.kpi || {};
+
+            document.getElementById('dailyReportTitleDate').innerText = data.date || '';
+            document.getElementById('dailyKpiTransactions').innerText = kpi.transactions || 0;
+            document.getElementById('dailyKpiPipes').innerText = kpi.pipes || 0;
+            document.getElementById('dailyKpiQty').innerText = kpi.qty || 0;
+            document.getElementById('dailyKpiOk').innerText = kpi.ok || 0;
+            document.getElementById('dailyKpiIssue').innerText = kpi.repairOrReject || 0;
+
+            renderDailyMiniList('dailyProcessList', data.processStats || []);
+            renderDailyMiniList('dailyShiftList', data.shiftStats || []);
+
+            const tbody = document.getElementById('dailyReportTable');
+            tbody.innerHTML = rows.map(r => `
+                <tr>
+                    <td>${escapeHtml(r.receiveTime || r.date)}</td>
+                    <td>${escapeHtml(r.shift)}</td>
+                    <td>${escapeHtml(r.process)}</td>
+                    <td><strong>${escapeHtml(r.pipeNo)}</strong></td>
+                    <td>${escapeHtml(r.qty)}</td>
+                    <td>${escapeHtml(r.size)}</td>
+                    <td><span class="badge ${escapeHtml(r.statusGroup || 'dxl')}">${escapeHtml(r.status || '')}</span></td>
+                    <td class="text-danger">${escapeHtml(r.defectReason)}</td>
+                    <td>${escapeHtml(r.rig)}</td>
+                    <td>${escapeHtml(r.worker1)}</td>
+                    <td>${escapeHtml(r.worker2)}</td>
+                </tr>
+            `).join('');
+
+            results.style.display = rows.length > 0 ? 'block' : 'none';
+            if (rows.length === 0) {
+                setDailyState('Không có giao dịch nào trong ngày đã chọn.', 'empty');
+            } else {
+                setDailyState('', 'empty');
+                document.getElementById('dailyReportState').style.display = 'none';
+            }
+        }
+
+        function loadDailyReportData() {
+            const input = document.getElementById('dailyReportDate');
+            const dateText = input ? input.value : '';
+            if (!dateText) {
+                setDailyState('Chọn ngày để tải báo cáo.', 'empty');
+                document.getElementById('dailyReportResults').style.display = 'none';
+                return;
+            }
+
+            if (typeof google === 'undefined' || !google.script) {
+                setDailyState('Ứng dụng cần chạy trên Google Apps Script môi trường thật.', 'error');
+                document.getElementById('dailyReportResults').style.display = 'none';
+                return;
+            }
+
+            dailyReportLoadedDate = dateText;
+            setDailyLoading(true);
+            setDailyState('Đang tải báo cáo ngày...', 'loading');
+            document.getElementById('dailyReportResults').style.display = 'none';
+            showError('');
+            loadQueueStatus();
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    setDailyLoading(false);
+                    if (dateText !== dailyReportLoadedDate) return;
+
+                    if (!res || !res.success) {
+                        setDailyState((res && res.error) || 'Không tải được báo cáo ngày.', 'error');
+                        document.getElementById('dailyReportResults').style.display = 'none';
+                        return;
+                    }
+
+                    renderDailyReport(res);
+                })
+                .withFailureHandler(err => {
+                    setDailyLoading(false);
+                    if (dateText !== dailyReportLoadedDate) return;
+                    setDailyState('Lỗi kết nối Server: ' + err, 'error');
+                    document.getElementById('dailyReportResults').style.display = 'none';
+                })
+                .getDailyReportData(dateText);
+        }
+
         function showDailyReport() {
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
@@ -863,6 +1105,11 @@
             if(mDash) mDash.classList.remove('active');
             if(mDailyReport) mDailyReport.classList.add('active');
             if(mAbout) mAbout.classList.remove('active');
+
+            const dailyInput = document.getElementById('dailyReportDate');
+            if (dailyInput && !dailyInput.value) dailyInput.value = getTodayInputValue();
+            updateDailyQueueNotice();
+            loadDailyReportData();
         }
         
         function showAbout() {

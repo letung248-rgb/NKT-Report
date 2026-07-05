@@ -572,6 +572,138 @@ function getDashboardData() {
   }
 }
 
+function formatDashboardDate_(value) {
+  const parsed = parseDashboardDate(value);
+  if (!parsed) return (value || "").toString().trim();
+
+  let d = parsed.getDate().toString().padStart(2, "0");
+  let m = (parsed.getMonth() + 1).toString().padStart(2, "0");
+  let y = parsed.getFullYear();
+  return d + "/" + m + "/" + y;
+}
+
+function formatDashboardDateTime_(value) {
+  if (!value) return "";
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (isNaN(parsed.getTime())) return value.toString().trim();
+
+  let d = parsed.getDate().toString().padStart(2, "0");
+  let m = (parsed.getMonth() + 1).toString().padStart(2, "0");
+  let y = parsed.getFullYear();
+  let h = parsed.getHours().toString().padStart(2, "0");
+  let min = parsed.getMinutes().toString().padStart(2, "0");
+  return d + "/" + m + "/" + y + " " + h + ":" + min;
+}
+
+function parseDailyReportDate_(dateText) {
+  const text = (dateText || "").toString().trim();
+  let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+  }
+  return parseDashboardDate(text);
+}
+
+function isSameDashboardDay_(left, right) {
+  const leftDate = parseDashboardDate(left);
+  const rightDate = parseDashboardDate(right);
+  if (!leftDate || !rightDate) return false;
+
+  return leftDate.getFullYear() === rightDate.getFullYear()
+    && leftDate.getMonth() === rightDate.getMonth()
+    && leftDate.getDate() === rightDate.getDate();
+}
+
+function getDailyStatusGroup_(transaction) {
+  const businessStatus = classifyBusinessStatus(transaction, "", null);
+  if (businessStatus === "THANH_PHAM") return "tp";
+  if (businessStatus === "LOAI") return "hong";
+  if (businessStatus === "CHO_SUA") return "cs";
+  return "dxl";
+}
+
+function summarizeDailyList_(items, field) {
+  const summary = {};
+  for (let item of items) {
+    let key = item[field] || "Khác";
+    if (!summary[key]) summary[key] = 0;
+    summary[key]++;
+  }
+  return Object.keys(summary).map(k => ({ name: k, count: summary[k] })).sort((a, b) => b.count - a.count);
+}
+
+function getDailyReportData(dateText) {
+  try {
+    const reportDate = parseDailyReportDate_(dateText);
+    if (!reportDate) {
+      return { success: false, error: "Ngày báo cáo không hợp lệ." };
+    }
+
+    const transactions = getRawTransactions();
+    const dailyTransactions = transactions.filter(txn => isSameDashboardDay_(txn.date, reportDate));
+
+    dailyTransactions.sort((a, b) => {
+      let timeA = new Date(a.receiveTime).getTime() || 0;
+      let timeB = new Date(b.receiveTime).getTime() || 0;
+      if (timeA !== timeB) return timeB - timeA;
+
+      let idA = (a.id || "").toString();
+      let idB = (b.id || "").toString();
+      return idB.localeCompare(idA);
+    });
+
+    const pipeMap = {};
+    let totalQty = 0;
+    let okCount = 0;
+    let repairOrRejectCount = 0;
+
+    const rows = dailyTransactions.map(txn => {
+      if (txn.pipeNo) pipeMap[txn.pipeNo] = true;
+      totalQty += Number(txn.qty || 0);
+
+      const statusText = normalizeString(txn.status);
+      const statusGroup = getDailyStatusGroup_(txn);
+      if (statusGroup === "tp" || statusText === "ok" || statusText.includes("dat")) okCount++;
+      if (statusGroup === "cs" || statusGroup === "hong") repairOrRejectCount++;
+
+      return {
+        date: formatDashboardDate_(txn.date),
+        receiveTime: formatDashboardDateTime_(txn.receiveTime),
+        shift: txn.shift,
+        process: txn.process,
+        pipeNo: txn.pipeNo,
+        qty: txn.qty,
+        size: txn.size,
+        status: txn.status,
+        statusGroup: statusGroup,
+        defectReason: txn.defectReason,
+        rig: txn.rig,
+        worker1: txn.worker1,
+        worker2: txn.worker2,
+        rowIdx: txn.rowIdx
+      };
+    });
+
+    return {
+      success: true,
+      date: formatDashboardDate_(reportDate),
+      dateText: dateText,
+      kpi: {
+        transactions: dailyTransactions.length,
+        pipes: Object.keys(pipeMap).length,
+        qty: totalQty,
+        ok: okCount,
+        repairOrReject: repairOrRejectCount
+      },
+      processStats: summarizeDailyList_(dailyTransactions, "process"),
+      shiftStats: summarizeDailyList_(dailyTransactions, "shift"),
+      rows: rows
+    };
+  } catch (e) {
+    return { success: false, error: e.toString(), stack: e.stack };
+  }
+}
+
 /**
  * Sprint 1.0 - Data Source Validator
  * Hàm kiểm tra và chuẩn hóa dữ liệu từ Google Sheet (Data Validator)
