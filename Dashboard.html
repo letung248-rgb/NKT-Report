@@ -135,6 +135,14 @@
         .sync-message { display: none; font-size: 0.8rem; font-weight: 600; }
         .sync-message.success { display: block; color: var(--accent-success); }
         .sync-message.error { display: block; color: var(--accent-danger); }
+        .queue-status-panel { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.875rem 1rem; margin-bottom: 1rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 0.75rem; box-shadow: var(--card-shadow); }
+        .queue-status-item { display: flex; flex-direction: column; gap: 0.2rem; min-width: 120px; }
+        .queue-status-label { color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; }
+        .queue-status-value { color: var(--text-primary); font-size: 0.95rem; font-weight: 700; }
+        .queue-status-pill { border-radius: 9999px; padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+        .queue-status-pill.idle { background: rgba(59,130,246,0.15); color: var(--accent-primary); }
+        .queue-status-pill.processing { background: rgba(245,158,11,0.18); color: var(--accent-warning); }
+        .queue-status-pill.done { background: rgba(16,185,129,0.18); color: var(--accent-success); }
     </style>
 </head>
 <body>
@@ -197,6 +205,18 @@
             <div id="errorAlert" class="alert"></div>
 
             <section id="view-dashboard" style="display: none;">
+                <div class="queue-status-panel">
+                    <div class="queue-status-item">
+                        <span class="queue-status-label">Queue đang chờ</span>
+                        <span class="queue-status-value" id="queuePendingJobs">0 job</span>
+                    </div>
+                    <div class="queue-status-item">
+                        <span class="queue-status-label">Đồng bộ gần nhất</span>
+                        <span class="queue-status-value" id="queueLastSync">Chưa có</span>
+                    </div>
+                    <span class="queue-status-pill idle" id="queueStatusPill">Idle</span>
+                </div>
+
                 <!-- AI Alert Center -->
                 <div class="card" id="alertCenter" style="display: none; background: rgba(245,158,11,0.1); border-color: var(--accent-warning);">
                     <div class="card-header" style="color: var(--accent-warning); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i class="ph ph-warning"></i> Trung tâm cảnh báo</div>
@@ -419,6 +439,7 @@
         let globalDashboardData = null;
         let currentPipeList = [];
         let currentListTitle = "";
+        let currentQueueStatus = null;
 
         function showError(msg) {
             const el = document.getElementById('errorAlert');
@@ -439,6 +460,38 @@
             text.innerText = isLoading ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu';
         }
 
+        function formatQueueSyncTime(value) {
+            if (!value) return 'Chưa có';
+            const parsed = new Date(value);
+            if (isNaN(parsed.getTime())) return value;
+            return parsed.toLocaleString('vi-VN');
+        }
+
+        function renderQueueStatus(status) {
+            if (!status || !status.success) return;
+            currentQueueStatus = status;
+
+            const pendingJobs = Number(status.pendingJobs || 0);
+            const statusText = status.status || 'Idle';
+            const statusClass = statusText.toLowerCase();
+
+            document.getElementById('queuePendingJobs').innerText = pendingJobs + ' job';
+            document.getElementById('queueLastSync').innerText = formatQueueSyncTime(status.lastSyncAt);
+
+            const pill = document.getElementById('queueStatusPill');
+            pill.innerText = statusText;
+            pill.className = 'queue-status-pill ' + statusClass;
+        }
+
+        function loadQueueStatus() {
+            if (typeof google === 'undefined' || !google.script) return;
+
+            google.script.run
+                .withSuccessHandler(renderQueueStatus)
+                .withFailureHandler(() => {})
+                .getSubmitQueueStatus();
+        }
+
         function syncDashboardData() {
             if (typeof google === 'undefined' || !google.script) {
                 showSyncStatus('Ứng dụng cần chạy trên Google Apps Script môi trường thật.', 'error');
@@ -446,6 +499,9 @@
             }
 
             setSyncButtonLoading(true);
+            if (currentQueueStatus) {
+                renderQueueStatus(Object.assign({}, currentQueueStatus, { status: 'Processing' }));
+            }
             showSyncStatus('', '');
             showError('');
 
@@ -454,16 +510,19 @@
                     if (!res || !res.success) {
                         showSyncStatus((res && res.message) || 'Đồng bộ dữ liệu thất bại.', 'error');
                         setSyncButtonLoading(false);
+                        if (res && res.queueStatus) renderQueueStatus(res.queueStatus);
                         return;
                     }
 
                     showSyncStatus(res.message || 'Đồng bộ dữ liệu thành công.', 'success');
+                    if (res.queueStatus) renderQueueStatus(res.queueStatus);
                     setSyncButtonLoading(false);
                     loadDashboard();
                 })
                 .withFailureHandler(err => {
                     showSyncStatus('Lỗi đồng bộ dữ liệu: ' + err, 'error');
                     setSyncButtonLoading(false);
+                    loadQueueStatus();
                 })
                 .syncDashboardDataQueue();
         }
@@ -496,6 +555,7 @@
                             }
                             globalDashboardData = res;
                             renderDashboard(res);
+                            loadQueueStatus();
                             let now = new Date();
                             document.getElementById('lastUpdate').innerText = "Cập nhật lúc: " + now.toLocaleTimeString();
                         } catch (err) {

@@ -2,6 +2,7 @@ var SUBMIT_FAST_ACK_ENABLED = true;
 var SUBMIT_FAST_ACK_MAX_ROWS = 120;
 var SUBMIT_QUEUE_PROPERTY_PREFIX = 'SUBMIT_QUEUE_JOB_';
 var SUBMIT_QUEUE_TRIGGER_PENDING_KEY = 'SUBMIT_QUEUE_TRIGGER_PENDING';
+var SUBMIT_QUEUE_LAST_SYNC_KEY = 'SUBMIT_QUEUE_LAST_SYNC_AT';
 var SUBMIT_QUEUE_TRIGGER_STALE_MS = 10 * 60 * 1000;
 var SUBMIT_QUEUE_TRIGGER_DELAY_MS = 60 * 1000;
 var SUBMIT_QUEUE_MAX_PROPERTY_CHARS = 7500;
@@ -223,6 +224,10 @@ function processSubmitQueue() {
       props.deleteProperty(processedKeys[d]);
     }
 
+    if (processedKeys.length > 0) {
+      props.setProperty(SUBMIT_QUEUE_LAST_SYNC_KEY, new Date().toISOString());
+    }
+
     var remaining = keys.length - processedKeys.length;
     if (remaining > 0) {
       _submitEnsureQueueTrigger_(props, true);
@@ -247,6 +252,7 @@ function syncDashboardDataQueue() {
     processSubmitQueue();
     var after = _submitCountQueueJobs_();
     var processed = Math.max(before - after, 0);
+    var queueStatus = getSubmitQueueStatus();
 
     if (before > 0 && after >= before) {
       return {
@@ -254,7 +260,8 @@ function syncDashboardDataQueue() {
         message: 'Queue ch\u01b0a \u0111\u01b0\u1ee3c x\u1eed l\u00fd. Vui l\u00f2ng th\u1eed l\u1ea1i sau.',
         before: before,
         after: after,
-        processed: processed
+        processed: processed,
+        queueStatus: queueStatus
       };
     }
 
@@ -265,12 +272,37 @@ function syncDashboardDataQueue() {
         : '\u0110\u00e3 \u0111\u1ed3ng b\u1ed9 ' + processed + ' job queue.',
       before: before,
       after: after,
-      processed: processed
+      processed: processed,
+      queueStatus: queueStatus
     };
   } catch (error) {
     return {
       success: false,
       message: 'L\u1ed7i \u0111\u1ed3ng b\u1ed9 d\u1eef li\u1ec7u: ' + (error && error.message ? error.message : error)
+    };
+  }
+}
+
+function getSubmitQueueStatus() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var pendingJobs = _submitCountQueueJobs_(props);
+    var lastSyncAt = props.getProperty(SUBMIT_QUEUE_LAST_SYNC_KEY) || '';
+    var status = pendingJobs > 0 ? 'Processing' : (lastSyncAt ? 'Done' : 'Idle');
+
+    return {
+      success: true,
+      pendingJobs: pendingJobs,
+      lastSyncAt: lastSyncAt,
+      status: status
+    };
+  } catch (error) {
+    return {
+      success: false,
+      pendingJobs: 0,
+      lastSyncAt: '',
+      status: 'Idle',
+      message: 'L\u1ed7i \u0111\u1ecdc tr\u1ea1ng th\u00e1i queue: ' + (error && error.message ? error.message : error)
     };
   }
 }
@@ -528,8 +560,8 @@ function _submitQueueMaxJobsPerRun_() {
   return maxJobs > 0 ? maxJobs : 30;
 }
 
-function _submitCountQueueJobs_() {
-  var props = PropertiesService.getScriptProperties();
+function _submitCountQueueJobs_(props) {
+  props = props || PropertiesService.getScriptProperties();
   var all = props.getProperties();
   var count = 0;
 
