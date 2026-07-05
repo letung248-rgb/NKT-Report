@@ -599,7 +599,12 @@ function parseDailyReportDate_(dateText) {
   const text = (dateText || "").toString().trim();
   let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (match) {
-    return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+    const y = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const d = parseInt(match[3], 10);
+    const parsed = new Date(y, m - 1, d);
+    if (parsed.getFullYear() !== y || parsed.getMonth() !== m - 1 || parsed.getDate() !== d) return null;
+    return parsed;
   }
   return parseDashboardDate(text);
 }
