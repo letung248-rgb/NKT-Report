@@ -7,6 +7,15 @@
   - `docs/README.md`
   - `docs/08_CHANGE_POLICY.md`
   - `docs/09_FUTURE_REFACTOR.md`
+- Added Phase 5A E2E verification planning document:
+  - `docs/10_E2E_TEST_MATRIX.md`
+- Added Phase 5B acceptance and release checklists:
+  - `docs/11_ACCEPTANCE_CHECKLIST.md`
+  - `docs/12_RELEASE_CHECKLIST.md`
+- Added Phase 5C E2E execution planning document:
+  - `docs/13_E2E_EXECUTION_PLAN.md`
+- Added Phase 6.1 test execution sessions document:
+  - `docs/14_TEST_EXECUTION_SESSIONS.md`
 - Compared documentation against current source files:
   - `Code.js`
   - `SubmitReport.js`
@@ -44,6 +53,46 @@
 - Added `docs/README.md` to define reading order, source-of-truth files, and review/approve/commit workflow.
 - Added `docs/08_CHANGE_POLICY.md` to define change governance and flow/data protection rules.
 - Added `docs/09_FUTURE_REFACTOR.md` to record future refactor candidates without approving implementation.
+- Added `docs/10_E2E_TEST_MATRIX.md` to define the Phase 5A end-to-end verification matrix before any code changes.
+- Added `docs/11_ACCEPTANCE_CHECKLIST.md` to define acceptance gates before release approval.
+- Added `docs/12_RELEASE_CHECKLIST.md` to define release, deployment, and rollback gates.
+- Added `docs/13_E2E_EXECUTION_PLAN.md` to guide execution of the E2E matrix without changing code.
+- Added `docs/14_TEST_EXECUTION_SESSIONS.md` to organize E2E execution into prioritized QA sessions.
+
+## Phase 5A E2E Verification Plan
+
+- Added test objectives for Worker submit, queue/process, Google Sheet write, Dashboard read/render, and KPI Thanh pham.
+- Added test scope and out-of-scope boundaries.
+- Added 12 NOT RUN test cases covering Worker UI submit, queue delay, Dashboard refresh, KPI Thanh pham rule paths, duplicate submit behavior, missing required fields, bundle lookup, and empty/no-match Dashboard behavior.
+- No business rule content was changed.
+
+## Phase 5B Acceptance And Release Checklists
+
+- Added Worker, Google Sheet, Dashboard, Business Rule, Regression, and Result acceptance checklist sections.
+- Added Git, Documentation, Source, Testing, Deployment, and Rollback release checklist sections.
+- No source code, Google Sheet structure, business rule, or architecture content was changed.
+
+## Phase 5C E2E Execution Plan
+
+- Added environment preparation checklist for Apps Script deployment, Google Sheet, Dashboard URL, Worker URL, test account, test data, bundle range, and evidence storage.
+- Added recommended execution order from Worker UI through queue flush, Sheet verification, Dashboard refresh, KPI comparison, and evidence capture.
+- Added execution table for all 12 E2E test cases with owner, inputs, steps, Sheet checks, Dashboard checks, KPI checks, evidence, PASS/FAIL, Root Cause, and Bug ID fields.
+- Added FAIL handling flow: collect evidence, do not modify code, analyze root cause, open bug task, review, approve, then fix in a separate phase.
+- Added final result definitions for Ready for Bug Fix Phase, Ready for Production Candidate, and Retest Required.
+- No source code, Google Sheet structure, business rule, or architecture content was changed.
+
+## Phase 6.1 Test Execution Sessions
+
+- Converted the E2E Test Matrix into five prioritized execution sessions:
+  - Session 1: Worker Basic Flow
+  - Session 2: Queue Processing
+  - Session 3: Dashboard
+  - Session 4: KPI Thanh pham
+  - Session 5: Edge Cases
+- Added goals, preconditions, test data, execution steps, observed screens, Sheet checks, Dashboard checks, evidence requirements, PASS criteria, and FAIL criteria for each session.
+- No PASS/FAIL results were recorded.
+- No bug tasks were created.
+- No source code, Google Sheet structure, business rule, or architecture content was changed.
 
 ## Legacy Check
 
