@@ -150,7 +150,7 @@ function isThanhPhamKpiPipe(pipe) {
     let pName = normalizeString(t.process);
     let sName = normalizeString(t.status);
     let note = normalizeString(t.notes);
-    return (pName.includes("ep thuy luc") && sName === "ok") || note.includes("ong rua lai khong ep");
+    return (pName.includes("ep thuy luc") && (sName === "ok" || sName === "dat")) || note.includes("ong rua lai khong ep");
   });
 }
 
