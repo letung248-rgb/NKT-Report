@@ -660,16 +660,18 @@
     </div>
 
     <script>
-        Chart.defaults.color = '#64748b';
-        Chart.defaults.borderColor = '#e2e8f0';
-        let charts = {};
-        
         let globalDashboardData = null;
         let currentPipeList = [];
         let currentListTitle = "";
         let currentQueueStatus = null;
         let dailyReportLoadedDate = "";
         let monthlyReportLoadedMonth = "";
+        let charts = {};
+
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.color = '#64748b';
+            Chart.defaults.borderColor = '#e2e8f0';
+        }
 
         function showError(msg) {
             const el = document.getElementById('errorAlert');

@@ -222,7 +222,6 @@ function getRawTransactions() {
       rowIdx: i + 1
     });
   }
-  Logger.log("Raw transactions count: " + transactions.length);
   return transactions;
 }
 
