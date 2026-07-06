@@ -84,6 +84,222 @@ function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
 }
 
 /**
+ * Sprint Error Analysis - dictionary/classifier only, no KPI rule changes.
+ */
+const ERROR_DICTIONARY = [
+  { code: "XI_CA_2_DAU", label: "Xì cả 2 đầu", category: "Chờ sửa", process: "Ép thủy lực", severity: "High", color: "#f97316", keywords: ["xi ca 2 dau"] },
+  { code: "XI_PIN", label: "Xì pin", category: "Chờ sửa", process: "Ép thủy lực", severity: "High", color: "#f97316", keywords: ["xi pin"] },
+  { code: "XI_BOX", label: "Xì box", category: "Chờ sửa", process: "Ép thủy lực", severity: "High", color: "#f97316", keywords: ["xi box"] },
+  { code: "KHONG_DU_CHIEU_DAY", label: "Không đủ chiều dày", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["khong du chieu day"] },
+  { code: "THIEU_CHIEU_DAY", label: "Thiếu chiều dày", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["thieu chieu day"] },
+  { code: "KHUYET_TAT_NGANG", label: "Khuyết tật ngang", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["khuyet tat ngang"] },
+  { code: "KHUYET_TAT_DOC", label: "Khuyết tật dọc", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["khuyet tat doc"] },
+  { code: "RO_THAN_AN_MON", label: "Rỗ thân, ăn mòn", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["ro than an mon", "ro than, an mon"] },
+  { code: "RO_THAN", label: "Rỗ thân", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["ro than"] },
+  { code: "TAC_PARAFFIN", label: "Tắc paraffin", category: "Loại", process: "Thông nòng", severity: "Medium", color: "#ef4444", keywords: ["tac paraffin"] },
+  { code: "TAC_ONG", label: "Tắc ống", category: "Loại", process: "Thông nòng", severity: "Medium", color: "#ef4444", keywords: ["tac ong"] },
+  { code: "LOAI_NDT", label: "Loại NDT", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["loai ndt"] },
+  { code: "TIEN_LAI_KHONG_DAT", label: "Tiện lại không đạt", category: "Loại", process: "Tiện ren", severity: "High", color: "#ef4444", keywords: ["tien lai khong dat"] },
+  { code: "HONG_REN_VA_COUPLING", label: "Hỏng ren và coupling", category: "Chờ sửa", process: "Tiện ren + Thay coupling", severity: "High", color: "#f97316", keywords: ["hong ren va coupling"] },
+  { code: "HONG_REN", label: "Hỏng ren", category: "Chờ sửa", process: "Tiện ren", severity: "Medium", color: "#f59e0b", keywords: ["hong ren"] },
+  { code: "HONG_COUPLING", label: "Hỏng coupling", category: "Chờ sửa", process: "Thay coupling", severity: "Medium", color: "#f59e0b", keywords: ["hong coupling"] },
+  { code: "KHONG_LAP_DUOC_COUPLING", label: "Không lắp được coupling", category: "Chờ sửa", process: "Thay coupling", severity: "Medium", color: "#f59e0b", keywords: ["khong lap duoc coupling"] },
+  { code: "KHAC", label: "Khác", category: "Khác", process: "", severity: "Medium", color: "#6b7280", keywords: ["khac"] },
+  { code: "LOAI", label: "Loại", category: "Loại", process: "", severity: "High", color: "#ef4444", keywords: ["loai"] },
+  { code: "CHO_SUA", label: "Chờ sửa", category: "Chờ sửa", process: "", severity: "Medium", color: "#f59e0b", keywords: ["cho sua"] },
+  { code: "HONG", label: "Hỏng", category: "Chờ sửa", process: "", severity: "Medium", color: "#f59e0b", keywords: ["hong", "loi"] }
+];
+
+const ERROR_MASTER_DEFAULT = {
+  category: "Khác",
+  process: "",
+  severity: "Medium",
+  color: "#6b7280"
+};
+
+function noErrorClassification_() {
+  return {
+    code: "NONE",
+    label: "Không lỗi",
+    source: "",
+    raw: ""
+  };
+}
+
+function getErrorMasterMeta_(code) {
+  for (let i = 0; i < ERROR_DICTIONARY.length; i++) {
+    if (ERROR_DICTIONARY[i].code === code) {
+      return {
+        category: ERROR_DICTIONARY[i].category || ERROR_MASTER_DEFAULT.category,
+        process: ERROR_DICTIONARY[i].process || ERROR_MASTER_DEFAULT.process,
+        severity: ERROR_DICTIONARY[i].severity || ERROR_MASTER_DEFAULT.severity,
+        color: ERROR_DICTIONARY[i].color || ERROR_MASTER_DEFAULT.color
+      };
+    }
+  }
+
+  return Object.assign({}, ERROR_MASTER_DEFAULT);
+}
+
+function addErrorCandidate_(candidates, source, raw) {
+  if (raw === null || raw === undefined) return;
+  const text = raw.toString().trim();
+  if (!text) return;
+  candidates.push({ source: source, raw: text });
+}
+
+function getErrorCandidates_(pipe) {
+  const candidates = [];
+  if (!pipe) return candidates;
+
+  addErrorCandidate_(candidates, "currentReason", pipe.currentReason);
+  addErrorCandidate_(candidates, "defectReason", pipe.defectReason);
+  addErrorCandidate_(candidates, "currentStatus", pipe.currentStatus);
+  addErrorCandidate_(candidates, "status", pipe.status);
+  addErrorCandidate_(candidates, "recordStatus", pipe.recordStatus);
+  addErrorCandidate_(candidates, "importStatus", pipe.importStatus);
+  addErrorCandidate_(candidates, "notes", pipe.notes);
+
+  if (pipe.currentBusinessStatus === "LOAI" || pipe.currentBusinessStatus === "CHO_SUA") {
+    addErrorCandidate_(candidates, "currentBusinessStatus", pipe.currentBusinessStatus);
+  }
+
+  const history = pipe.history || [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const txn = history[i];
+    addErrorCandidate_(candidates, "history.defectReason", txn.defectReason);
+    addErrorCandidate_(candidates, "history.status", txn.status);
+    addErrorCandidate_(candidates, "history.recordStatus", txn.recordStatus);
+    addErrorCandidate_(candidates, "history.importStatus", txn.importStatus);
+    addErrorCandidate_(candidates, "history.notes", txn.notes);
+  }
+
+  return candidates;
+}
+
+function matchErrorDictionary_(source, raw) {
+  const text = normalizeText(raw);
+  const compact = compactText(raw);
+  if (!text) return null;
+
+  const candidates = [];
+  for (let i = 0; i < ERROR_DICTIONARY.length; i++) {
+    const entry = ERROR_DICTIONARY[i];
+    for (let j = 0; j < entry.keywords.length; j++) {
+      const keyword = normalizeText(entry.keywords[j]);
+      const compactKeyword = compactText(entry.keywords[j]);
+      if (!keyword) continue;
+      candidates.push({
+        entry: entry,
+        keyword: keyword,
+        compactKeyword: compactKeyword,
+        length: Math.max(keyword.length, compactKeyword.length)
+      });
+    }
+  }
+
+  candidates.sort((a, b) => b.length - a.length);
+
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    if (text.indexOf(candidate.keyword) !== -1 || compact.indexOf(candidate.compactKeyword) !== -1) {
+      return {
+        code: candidate.entry.code,
+        label: candidate.entry.label,
+        source: source,
+        raw: raw
+      };
+    }
+  }
+
+  return null;
+}
+
+function classifyError(pipe) {
+  const candidates = getErrorCandidates_(pipe);
+  for (let i = 0; i < candidates.length; i++) {
+    const matched = matchErrorDictionary_(candidates[i].source, candidates[i].raw);
+    if (matched) return matched;
+  }
+
+  return noErrorClassification_();
+}
+
+function resolveErrorAnalysisItems_(data) {
+  if (Array.isArray(data)) return data;
+  if (data && data.pipeLists && Array.isArray(data.pipeLists.all)) return data.pipeLists.all;
+  if (data && Array.isArray(data.pipes)) return data.pipes;
+  return buildPipeEngine();
+}
+
+function buildErrorAnalysis(data) {
+  const items = resolveErrorAnalysisItems_(data);
+  const summaryByCode = {};
+  const samples = [];
+  let errorCount = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const error = classifyError(items[i]);
+    if (error.code === "NONE") continue;
+
+    errorCount++;
+    if (!summaryByCode[error.code]) {
+      const meta = getErrorMasterMeta_(error.code);
+      summaryByCode[error.code] = {
+        code: error.code,
+        label: error.label,
+        category: meta.category,
+        process: meta.process,
+        severity: meta.severity,
+        color: meta.color,
+        count: 0
+      };
+    }
+    summaryByCode[error.code].count++;
+
+    if (samples.length < 50) {
+      samples.push({
+        code: error.code,
+        label: error.label,
+        source: error.source,
+        raw: error.raw,
+        pipeNo: item.pipeNo || "",
+        entryNo: item.currentEntryNo || item.entryNo || "",
+        worker: item.currentWorker1 || item.worker1 || "",
+        rig: item.rig || "",
+        date: item.currentDate || item.date || ""
+      });
+    }
+  }
+
+  const total = items.length;
+  const byError = Object.keys(summaryByCode).map(code => {
+    const row = summaryByCode[code];
+    return {
+      code: row.code,
+      label: row.label,
+      count: row.count,
+      rate: total > 0 ? Number(((row.count / total) * 100).toFixed(1)) : 0,
+      category: row.category || ERROR_MASTER_DEFAULT.category,
+      process: row.process || ERROR_MASTER_DEFAULT.process,
+      severity: row.severity || ERROR_MASTER_DEFAULT.severity,
+      color: row.color || ERROR_MASTER_DEFAULT.color
+    };
+  }).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+  return {
+    summary: {
+      total: total,
+      errorCount: errorCount,
+      errorRate: total > 0 ? Number(((errorCount / total) * 100).toFixed(1)) : 0
+    },
+    byError: byError,
+    samples: samples
+  };
+}
+
+/**
  * 4. Xác định Current State của Pipe
  */
 function getCurrentPipeState(pipe) {
@@ -795,6 +1011,71 @@ function getMonthlyReportData(monthText) {
       processStats: summarizeDailyList_(monthlyTransactions, "process"),
       sizeStats: summarizeMonthlyQtyList_(monthlyTransactions, "size"),
       planRows: planRows
+    };
+  } catch (e) {
+    return { success: false, error: e.toString(), stack: e.stack };
+  }
+}
+
+function getErrorAnalysisData() {
+  try {
+    const pipes = buildPipeEngine();
+    const analysis = buildErrorAnalysis(pipes);
+    const errorPipes = [];
+
+    for (let i = 0; i < pipes.length; i++) {
+      const error = classifyError(pipes[i]);
+      if (error.code !== "NONE") {
+        errorPipes.push({ pipe: pipes[i], error: error });
+      }
+    }
+
+    let loaiCount = 0;
+    let choSuaCount = 0;
+
+    const rows = errorPipes.map(item => {
+      const pipe = item.pipe;
+      const error = item.error;
+
+      if (pipe.currentBusinessStatus === "LOAI") loaiCount++;
+      if (pipe.currentBusinessStatus === "CHO_SUA") choSuaCount++;
+
+      return {
+        pipeNo: pipe.pipeNo,
+        size: pipe.size || "Khác",
+        rig: pipe.rig || "Khác",
+        businessStatus: pipe.currentBusinessStatus,
+        statusGroup: pipe.currentBusinessStatus === "LOAI" ? "hong" : "cs",
+        process: pipe.currentProcess || "Khác",
+        reason: error.label,
+        error: error,
+        errorCode: error.code,
+        errorSource: error.source,
+        errorRaw: error.raw
+      };
+    });
+
+    return {
+      success: true,
+      summary: analysis.summary,
+      byError: analysis.byError,
+      samples: analysis.samples,
+      kpi: {
+        total: rows.length,
+        loai: loaiCount,
+        choSua: choSuaCount,
+        reasons: analysis.byError.length
+      },
+      reasonStats: analysis.byError.map(item => ({
+        name: item.label,
+        count: item.count,
+        code: item.code,
+        rate: item.rate
+      })),
+      processStats: summarizeDailyList_(rows, "process"),
+      sizeStats: summarizeDailyList_(rows, "size"),
+      rigStats: summarizeDailyList_(rows, "rig"),
+      rows: rows
     };
   } catch (e) {
     return { success: false, error: e.toString(), stack: e.stack };
