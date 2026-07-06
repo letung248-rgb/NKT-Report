@@ -215,6 +215,7 @@ function getRawTransactions() {
       wellProfile: (getDataValue(row, tableInfo, "wellProfile") || "").toString().trim(),
       worker1: (getDataValue(row, tableInfo, "worker1") || "").toString().trim(),
       worker2: (getDataValue(row, tableInfo, "worker2") || "").toString().trim(),
+      recordStatus: (getDataValue(row, tableInfo, "recordStatus") || "").toString().trim(),
       receiveTime: normalizeReceiveTime(dateVal, rawReceiveTime),
       notes: (getDataValue(row, tableInfo, "notes") || "").toString().trim(),
       id: (id || "").toString().trim(),
@@ -462,3 +463,13 @@ function normalizeString(value) {
   return str;
 }
 
+function normalizeText(value) {
+  return normalizeString(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactText(text) {
+  return normalizeText(text).replace(/\s+/g, "");
+}
