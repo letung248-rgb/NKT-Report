@@ -167,6 +167,7 @@ function getErrorCandidates_(pipe) {
   const history = pipe.history || [];
   for (let i = history.length - 1; i >= 0; i--) {
     const txn = history[i];
+    if (!txn) continue;
     addErrorCandidate_(candidates, "history.defectReason", txn.defectReason);
     addErrorCandidate_(candidates, "history.status", txn.status);
     addErrorCandidate_(candidates, "history.recordStatus", txn.recordStatus);
@@ -177,17 +178,30 @@ function getErrorCandidates_(pipe) {
   return candidates;
 }
 
+function normalizeErrorText_(value) {
+  if (typeof normalizeText === "function") return normalizeText(value);
+  return normalizeString(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactErrorText_(value) {
+  if (typeof compactText === "function") return compactText(value);
+  return normalizeErrorText_(value).replace(/\s+/g, "");
+}
+
 function matchErrorDictionary_(source, raw) {
-  const text = normalizeText(raw);
-  const compact = compactText(raw);
+  const text = normalizeErrorText_(raw);
+  const compact = compactErrorText_(raw);
   if (!text) return null;
 
   const candidates = [];
   for (let i = 0; i < ERROR_DICTIONARY.length; i++) {
     const entry = ERROR_DICTIONARY[i];
     for (let j = 0; j < entry.keywords.length; j++) {
-      const keyword = normalizeText(entry.keywords[j]);
-      const compactKeyword = compactText(entry.keywords[j]);
+      const keyword = normalizeErrorText_(entry.keywords[j]);
+      const compactKeyword = compactErrorText_(entry.keywords[j]);
       if (!keyword) continue;
       candidates.push({
         entry: entry,
