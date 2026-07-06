@@ -325,7 +325,8 @@ function _submitReadPayload_(payload) {
     worker2: _submitTrim_(payload['w-nguoi-th-2']),
     note: _submitTrim_(payload['w-ghi-chu']),
     worker1: _submitTrim_(payload.worker1),
-    waterMeter: _submitTrim_(payload['w-dong-ho'])
+    waterMeter: _submitTrim_(payload['w-dong-ho']),
+    pressure: _submitTrim_(payload['w-ap-suat'])
   };
 }
 
@@ -342,6 +343,8 @@ function _submitBuildRows_(data, pipeList, now, formulaForTarget, startRow) {
     var rowFromWell = data.fromWell || (data.bundleCode && formulaForTarget ? formulaForTarget('well', rowNumber) : '');
     var rowFromRig = data.fromRig || (data.bundleCode && formulaForTarget ? formulaForTarget('rig', rowNumber) : '');
     var rowWellProfile = data.wellProfile || (data.bundleCode && formulaForTarget ? formulaForTarget('profile', rowNumber) : '');
+    var rowNote = data.note || '';
+    if (data.pressure) rowNote = rowNote ? rowNote + ' | Ap suat: ' + data.pressure : 'Ap suat: ' + data.pressure;
 
     rows.push([
       reportDateText,
@@ -365,8 +368,8 @@ function _submitBuildRows_(data, pipeList, now, formulaForTarget, startRow) {
       data.worker2,
       '',
       receiveTimeText,
-      data.note
-        ? data.note + ' | S\u1ed1 \u0111\u00e3 nh\u1eadp BC: ' + data.pipeNoStr
+      rowNote
+        ? rowNote + ' | S\u1ed1 \u0111\u00e3 nh\u1eadp BC: ' + data.pipeNoStr
         : 'S\u1ed1 \u0111\u00e3 nh\u1eadp BC: ' + data.pipeNoStr,
       baseId + '-' + i + '-' + Math.floor(Math.random() * 10000)
     ]);
