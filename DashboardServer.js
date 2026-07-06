@@ -150,7 +150,7 @@ function isThanhPhamKpiPipe(pipe) {
     let pName = normalizeString(t.process);
     let sName = normalizeString(t.status);
     let note = normalizeString(t.notes);
-    return (pName.includes("ep thuy luc") && (sName === "ok" || sName === "dat")) || note.includes("ong rua lai khong ep");
+    return (pName.includes("ep thuy luc") && sName === "ok") || note.includes("ong rua lai khong ep");
   });
 }
 
@@ -442,19 +442,15 @@ function getDashboardData() {
     }
     
     for (let p of tpPipes) {
-       // Tìm transaction ép thủy lực đạt trong history
-       let epThuyLucDatTxn = p.history.find(t => {
-           let pName = normalizeString(t.process);
-           let sName = normalizeString(t.status);
-           return pName.includes("ep thuy luc") && (sName.includes("dat") || sName.includes("thanh pham"));
-       });
+       // Tim transaction khop KPI Thanh pham trong history.
+       let thanhPhamKpiTxn = p.history.find(t => isThanhPhamKpiPipe({ history: [t] }));
        
-       if (!epThuyLucDatTxn) {
+       if (!thanhPhamKpiTxn) {
            continue; // Không tính vào actual planning nếu không có
        }
 
        pStats.total.actual++;
-       let dateVal = epThuyLucDatTxn.date;
+       let dateVal = thanhPhamKpiTxn.date;
        let dateStr = "Không rõ";
        let monthStr = "Không rõ";
        if (dateVal instanceof Date) {
