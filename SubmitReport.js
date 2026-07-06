@@ -19,7 +19,7 @@ function submitReport(payload) {
     var dataSheetName = _submitGetDataSheetName_();
     var data = _submitReadPayload_(payload);
     var pipeList = _submitParsePipeList_(data.pipeNoStr);
-    if (pipeList.length === 0) pipeList.push('');
+    if (pipeList.length === 0) return _submitError_('Thieu so ong hop le.', timing, tStart);
 
     var now = new Date();
 
