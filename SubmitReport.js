@@ -326,7 +326,8 @@ function _submitReadPayload_(payload) {
     note: _submitTrim_(payload['w-ghi-chu']),
     worker1: _submitTrim_(payload.worker1),
     waterMeter: _submitTrim_(payload['w-dong-ho']),
-    pressure: _submitTrim_(payload['w-ap-suat'])
+    pressure: _submitTrim_(payload['w-ap-suat']),
+    thickness: _submitTrim_(payload['w-chieu-day'])
   };
 }
 
@@ -345,6 +346,7 @@ function _submitBuildRows_(data, pipeList, now, formulaForTarget, startRow) {
     var rowWellProfile = data.wellProfile || (data.bundleCode && formulaForTarget ? formulaForTarget('profile', rowNumber) : '');
     var rowNote = data.note || '';
     if (data.pressure) rowNote = rowNote ? rowNote + ' | Ap suat: ' + data.pressure : 'Ap suat: ' + data.pressure;
+    if (data.thickness) rowNote = rowNote ? rowNote + ' | Chieu day: ' + data.thickness : 'Chieu day: ' + data.thickness;
 
     rows.push([
       reportDateText,
