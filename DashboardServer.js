@@ -615,6 +615,42 @@ function isSameDashboardDay_(left, right) {
     && leftDate.getDate() === rightDate.getDate();
 }
 
+function parseMonthlyReportMonth_(monthText) {
+  const text = (monthText || "").toString().trim();
+  const match = text.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+
+  const y = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (m < 1 || m > 12) return null;
+  return { year: y, monthIndex: m - 1 };
+}
+
+function isSameDashboardMonth_(value, monthInfo) {
+  if (!value || !monthInfo) return false;
+
+  const text = value.toString ? value.toString().trim() : "";
+  let match = text.match(/^(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    return parseInt(match[2], 10) === monthInfo.year
+      && parseInt(match[1], 10) - 1 === monthInfo.monthIndex;
+  }
+
+  match = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (match) {
+    return parseInt(match[1], 10) === monthInfo.year
+      && parseInt(match[2], 10) - 1 === monthInfo.monthIndex;
+  }
+
+  const parsed = parseDashboardDate(value);
+  if (!parsed) return false;
+  return parsed.getFullYear() === monthInfo.year && parsed.getMonth() === monthInfo.monthIndex;
+}
+
+function formatDashboardMonth_(monthInfo) {
+  return (monthInfo.monthIndex + 1).toString().padStart(2, "0") + "/" + monthInfo.year;
+}
+
 function getDailyStatusGroup_(transaction) {
   const businessStatus = classifyBusinessStatus(transaction, "", null);
   if (businessStatus === "THANH_PHAM") return "tp";
@@ -629,6 +665,16 @@ function summarizeDailyList_(items, field) {
     let key = item[field] || "Khác";
     if (!summary[key]) summary[key] = 0;
     summary[key]++;
+  }
+  return Object.keys(summary).map(k => ({ name: k, count: summary[k] })).sort((a, b) => b.count - a.count);
+}
+
+function summarizeMonthlyQtyList_(items, field) {
+  const summary = {};
+  for (let item of items) {
+    let key = item[field] || "Khác";
+    if (!summary[key]) summary[key] = 0;
+    summary[key] += Number(item.qty || 0);
   }
   return Object.keys(summary).map(k => ({ name: k, count: summary[k] })).sort((a, b) => b.count - a.count);
 }
@@ -699,6 +745,56 @@ function getDailyReportData(dateText) {
       processStats: summarizeDailyList_(dailyTransactions, "process"),
       shiftStats: summarizeDailyList_(dailyTransactions, "shift"),
       rows: rows
+    };
+  } catch (e) {
+    return { success: false, error: e.toString(), stack: e.stack };
+  }
+}
+
+function getMonthlyReportData(monthText) {
+  try {
+    const reportMonth = parseMonthlyReportMonth_(monthText);
+    if (!reportMonth) {
+      return { success: false, error: "Tháng báo cáo không hợp lệ." };
+    }
+
+    const transactions = getRawTransactions();
+    const monthlyTransactions = transactions.filter(txn => isSameDashboardMonth_(txn.date, reportMonth));
+    const plans = getPlanData().filter(plan => {
+      return isSameDashboardMonth_(plan.month, reportMonth) || isSameDashboardMonth_(plan.date, reportMonth);
+    });
+
+    const pipeMap = {};
+    let totalQty = 0;
+    for (let txn of monthlyTransactions) {
+      if (txn.pipeNo) pipeMap[txn.pipeNo] = true;
+      totalQty += Number(txn.qty || 0);
+    }
+
+    let planQty = 0;
+    const planRows = plans.map(plan => {
+      planQty += Number(plan.qty || 0);
+      return {
+        date: plan.date,
+        size: plan.size || "Khác",
+        qty: Number(plan.qty || 0)
+      };
+    });
+
+    return {
+      success: true,
+      month: formatDashboardMonth_(reportMonth),
+      monthText: monthText,
+      kpi: {
+        transactions: monthlyTransactions.length,
+        pipes: Object.keys(pipeMap).length,
+        qty: totalQty,
+        plan: planQty,
+        generatedPipes: Object.keys(pipeMap).length
+      },
+      processStats: summarizeDailyList_(monthlyTransactions, "process"),
+      sizeStats: summarizeMonthlyQtyList_(monthlyTransactions, "size"),
+      planRows: planRows
     };
   } catch (e) {
     return { success: false, error: e.toString(), stack: e.stack };
