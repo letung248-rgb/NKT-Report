@@ -98,6 +98,7 @@ function submitReport(payload) {
     var tSet = Date.now();
     sheet.getRange(startRow, 1, rows.length, 23).setValues(rows);
     timing.setValues = Date.now() - tSet;
+    invalidateDashboardDataCache_();
 
     if (lock) {
       lock.releaseLock();
@@ -145,6 +146,7 @@ function processSubmitQueue() {
   var tStart = Date.now();
   var timing = {};
   var lock = LockService.getScriptLock();
+  var didWriteDashboardData = false;
 
   if (!lock.tryLock(30000)) {
     Logger.log('processSubmitQueue skipped: queue lock busy.');
@@ -217,8 +219,11 @@ function processSubmitQueue() {
         timing.setValues = (timing.setValues || 0) + (Date.now() - tWrite);
         timing.rows += sheetRows.length;
         timing.startRow = timing.startRow || startRow;
+        if (sheetName === _submitGetDataSheetName_()) didWriteDashboardData = true;
       }
     }
+
+    if (didWriteDashboardData) invalidateDashboardDataCache_();
 
     for (var d = 0; d < processedKeys.length; d++) {
       props.deleteProperty(processedKeys[d]);
@@ -413,6 +418,8 @@ function _submitAppendRowsFast_(sheetName, rows, timing) {
       var body = response.getContentText();
       return { success: false, message: 'Sheets API ' + code + ': ' + body.substring(0, 250) };
     }
+
+    invalidateDashboardDataCache_();
 
     return {
       success: true,

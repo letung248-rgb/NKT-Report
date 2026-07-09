@@ -2,6 +2,25 @@
  * Lấy đối tượng Spreadsheet
  */
 let __SS_CACHE = null;
+const DASH_DATA_CACHE_TTL_SECONDS = 300;
+const DASH_DATA_CACHE_VERSION_KEY = "DASH_DATA_VER";
+const DASH_DATA_CACHE_KEY_PREFIX = "dashboard:data:transactions:v1:";
+const DASH_DATA_CACHE_MAX_BYTES = 90 * 1024;
+const DASH_DATA_CACHE_FIELDS = [
+  "date", "shift", "process", "qty", "pipeNo", "entryNo", "status",
+  "defectReason", "importStatus", "washingCount", "waterMeter", "size",
+  "bundleCode", "compartment", "well", "rig", "wellProfile", "worker1",
+  "worker2", "recordStatus", "receiveTime", "notes", "id", "rowIdx"
+];
+const DASH_DATA_CACHE_DATE_FIELDS = {
+  date: true,
+  receiveTime: true
+};
+const DASH_PLAN_CACHE_TTL_SECONDS = 300;
+const DASH_PLAN_CACHE_VERSION_KEY = "DASH_PLAN_VER";
+const DASH_PLAN_CACHE_KEY_PREFIX = "dashboard:plan:v1:";
+const DASH_PLAN_CACHE_MAX_BYTES = 90 * 1024;
+const DASH_PLAN_CACHE_FIELDS = ["date", "month", "size", "qty"];
 
 function getSpreadsheet() {
   if (__SS_CACHE) return __SS_CACHE;
@@ -17,6 +36,176 @@ function getSpreadsheet() {
 
   __SS_CACHE = SpreadsheetApp.getActiveSpreadsheet();
   return __SS_CACHE;
+}
+
+function getDashboardDataCacheVersion_() {
+  try {
+    return PropertiesService.getScriptProperties().getProperty(DASH_DATA_CACHE_VERSION_KEY) || "0";
+  } catch (error) {
+    Logger.log("getDashboardDataCacheVersion_ error: " + error);
+    return "0";
+  }
+}
+
+function getDashboardDataCacheKey_(version) {
+  return DASH_DATA_CACHE_KEY_PREFIX + (version || getDashboardDataCacheVersion_());
+}
+
+function serializeDashboardTransactionsCache_(transactions) {
+  const rows = (transactions || []).map(function(transaction) {
+    return DASH_DATA_CACHE_FIELDS.map(function(field) {
+      const value = transaction[field];
+      return DASH_DATA_CACHE_DATE_FIELDS[field] && value instanceof Date ? value.getTime() : value;
+    });
+  });
+  const json = JSON.stringify(rows);
+  const blob = Utilities.newBlob(json, "application/json", "dashboard-transactions.json");
+  const zipped = Utilities.gzip(blob);
+  return Utilities.base64Encode(zipped.getBytes());
+}
+
+function deserializeDashboardTransactionsCache_(payload) {
+  const bytes = Utilities.base64Decode(payload);
+  const zipped = Utilities.newBlob(bytes, "application/octet-stream", "dashboard-transactions.gz");
+  const json = Utilities.ungzip(zipped).getDataAsString();
+  const rows = JSON.parse(json);
+
+  return (rows || []).map(function(row) {
+    const transaction = {};
+    for (let i = 0; i < DASH_DATA_CACHE_FIELDS.length; i++) {
+      const field = DASH_DATA_CACHE_FIELDS[i];
+      const value = row[i];
+      transaction[field] = DASH_DATA_CACHE_DATE_FIELDS[field] && typeof value === "number"
+        ? new Date(value)
+        : value;
+    }
+    return transaction;
+  });
+}
+
+function readDashboardDataCache_() {
+  try {
+    const cacheKey = getDashboardDataCacheKey_();
+    const payload = CacheService.getScriptCache().get(cacheKey);
+    if (payload === null) return null;
+    Logger.log("DASH_CACHE data hit | key=" + cacheKey);
+    return deserializeDashboardTransactionsCache_(payload);
+  } catch (error) {
+    Logger.log("DASH_CACHE data read error | " + error);
+    return null;
+  }
+}
+
+function writeDashboardDataCache_(transactions) {
+  try {
+    const cacheKey = getDashboardDataCacheKey_();
+    const payload = serializeDashboardTransactionsCache_(transactions);
+    const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    if (payloadBytes > DASH_DATA_CACHE_MAX_BYTES) {
+      Logger.log("DASH_CACHE data write skipped payload too large | key=" + cacheKey + " | payloadBytes=" + payloadBytes);
+      return false;
+    }
+
+    CacheService.getScriptCache().put(
+      cacheKey,
+      payload,
+      DASH_DATA_CACHE_TTL_SECONDS
+    );
+    Logger.log("DASH_CACHE data write ok | key=" + cacheKey + " | payloadBytes=" + payloadBytes + " | ttl=" + DASH_DATA_CACHE_TTL_SECONDS);
+    return true;
+  } catch (error) {
+    Logger.log("writeDashboardDataCache_ error: " + error);
+    return false;
+  }
+}
+
+function invalidateDashboardDataCache_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const currentVersion = props.getProperty(DASH_DATA_CACHE_VERSION_KEY) || "0";
+    CacheService.getScriptCache().remove(getDashboardDataCacheKey_(currentVersion));
+    props.setProperty(DASH_DATA_CACHE_VERSION_KEY, String(Date.now()));
+    return true;
+  } catch (error) {
+    Logger.log("invalidateDashboardDataCache_ error: " + error);
+    return false;
+  }
+}
+
+function getDashboardPlanCacheVersion_() {
+  try {
+    return PropertiesService.getScriptProperties().getProperty(DASH_PLAN_CACHE_VERSION_KEY) || "0";
+  } catch (error) {
+    Logger.log("getDashboardPlanCacheVersion_ error: " + error);
+    return "0";
+  }
+}
+
+function getDashboardPlanCacheKey_(version) {
+  return DASH_PLAN_CACHE_KEY_PREFIX + (version || getDashboardPlanCacheVersion_());
+}
+
+function serializeDashboardPlansCache_(plans) {
+  const rows = (plans || []).map(function(plan) {
+    return DASH_PLAN_CACHE_FIELDS.map(function(field) {
+      return plan[field];
+    });
+  });
+  const json = JSON.stringify(rows);
+  const blob = Utilities.newBlob(json, "application/json", "dashboard-plans.json");
+  const zipped = Utilities.gzip(blob);
+  return Utilities.base64Encode(zipped.getBytes());
+}
+
+function deserializeDashboardPlansCache_(payload) {
+  const bytes = Utilities.base64Decode(payload);
+  const zipped = Utilities.newBlob(bytes, "application/octet-stream", "dashboard-plans.gz");
+  const json = Utilities.ungzip(zipped).getDataAsString();
+  const rows = JSON.parse(json);
+
+  return (rows || []).map(function(row) {
+    const plan = {};
+    for (let i = 0; i < DASH_PLAN_CACHE_FIELDS.length; i++) {
+      plan[DASH_PLAN_CACHE_FIELDS[i]] = row[i];
+    }
+    return plan;
+  });
+}
+
+function readDashboardPlanCache_() {
+  try {
+    const cacheKey = getDashboardPlanCacheKey_();
+    const payload = CacheService.getScriptCache().get(cacheKey);
+    if (payload === null) return null;
+    Logger.log("DASH_CACHE plan hit | key=" + cacheKey);
+    return deserializeDashboardPlansCache_(payload);
+  } catch (error) {
+    Logger.log("DASH_CACHE plan read error | " + error);
+    return null;
+  }
+}
+
+function writeDashboardPlanCache_(plans) {
+  try {
+    const cacheKey = getDashboardPlanCacheKey_();
+    const payload = serializeDashboardPlansCache_(plans);
+    const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    if (payloadBytes > DASH_PLAN_CACHE_MAX_BYTES) {
+      Logger.log("DASH_CACHE plan write skipped payload too large | key=" + cacheKey + " | payloadBytes=" + payloadBytes);
+      return false;
+    }
+
+    CacheService.getScriptCache().put(
+      cacheKey,
+      payload,
+      DASH_PLAN_CACHE_TTL_SECONDS
+    );
+    Logger.log("DASH_CACHE plan write ok payloadBytes=" + payloadBytes + " | key=" + cacheKey + " | ttl=" + DASH_PLAN_CACHE_TTL_SECONDS);
+    return true;
+  } catch (error) {
+    Logger.log("DASH_CACHE plan write error | " + error);
+    return false;
+  }
 }
 
 const DATA_COLUMN_ALIASES = {
@@ -171,13 +360,20 @@ function parseDashboardDate(value) {
  * 1. Đọc dữ liệu thô từ Sheet Data
  */
 function getRawTransactions() {
+  const cachedTransactions = readDashboardDataCache_();
+  if (cachedTransactions !== null) return cachedTransactions;
+  Logger.log("DASH_CACHE data miss | key=" + getDashboardDataCacheKey_());
+
   const ss = getSpreadsheet();
   if (!ss) return [];
   const sheet = ss.getSheetByName(SHEET_DATA);
   if (!sheet) return [];
   
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
+  if (data.length <= 1) {
+    writeDashboardDataCache_([]);
+    return [];
+  }
 
   const tableInfo = getDataTableInfo(data);
   
@@ -222,6 +418,8 @@ function getRawTransactions() {
       rowIdx: i + 1
     });
   }
+
+  writeDashboardDataCache_(transactions);
   return transactions;
 }
 
@@ -229,13 +427,20 @@ function getRawTransactions() {
  * 2. Đọc dữ liệu từ Sheet Kế hoạch
  */
 function getPlanData() {
+  const cachedPlans = readDashboardPlanCache_();
+  if (cachedPlans !== null) return cachedPlans;
+  Logger.log("DASH_CACHE plan miss | key=" + getDashboardPlanCacheKey_());
+
   const ss = getSpreadsheet();
   if (!ss) return [];
   const sheet = ss.getSheetByName(SHEET_PLAN);
   if (!sheet) return [];
   
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return []; // Bỏ qua tiêu đề
+  if (data.length <= 1) {
+    writeDashboardPlanCache_([]);
+    return []; // Bỏ qua tiêu đề
+  }
   
   let header = data[0];
   let dateIdx = 0;
@@ -277,6 +482,7 @@ function getPlanData() {
       qty: qty
     });
   }
+  writeDashboardPlanCache_(plans);
   return plans;
 }
 

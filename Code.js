@@ -158,6 +158,7 @@ function submitReportLegacy_(payload) {
     range.setHorizontalAlignment('center').setVerticalAlignment('middle');
     sheet.getRange(startRow, 1, rows.length, 1).setNumberFormat('dd/MM/yyyy');
     sheet.getRange(startRow, 21, rows.length, 1).setNumberFormat('HH:mm:ss');
+    invalidateDashboardDataCache_();
 
     return {
       success: true,
