@@ -1199,21 +1199,25 @@ function adminReadDashboardSnapshot() {
 function adminGetDashboardSnapshotStatus() {
   try {
     const snapshot = readDashboardSnapshot_();
-    return {
+    const result = {
       success: true,
       hasSnapshot: !!snapshot,
       snapshotMeta: snapshot && snapshot.snapshotMeta ? snapshot.snapshotMeta : {},
       topLevelKeys: snapshot ? Object.keys(snapshot) : [],
       error: ""
     };
+    Logger.log(JSON.stringify(result));
+    return result;
   } catch (error) {
-    return {
+    const result = {
       success: false,
       hasSnapshot: false,
       snapshotMeta: {},
       topLevelKeys: [],
       error: error.toString()
     };
+    Logger.log(JSON.stringify(result));
+    return result;
   }
 }
 
