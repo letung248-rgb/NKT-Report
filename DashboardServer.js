@@ -1184,6 +1184,39 @@ function refreshDashboardSnapshot_() {
   }
 }
 
+// Maintenance/admin wrapper for Apps Script editor and clasp run.
+function adminRefreshDashboardSnapshot() {
+  Logger.log("DASH_SNAPSHOT admin refresh requested");
+  return refreshDashboardSnapshot_();
+}
+
+// Maintenance/admin wrapper for Apps Script editor and clasp run. Does not build.
+function adminReadDashboardSnapshot() {
+  return readDashboardSnapshot_();
+}
+
+// Maintenance/admin wrapper for checking snapshot availability without building.
+function adminGetDashboardSnapshotStatus() {
+  try {
+    const snapshot = readDashboardSnapshot_();
+    return {
+      success: true,
+      hasSnapshot: !!snapshot,
+      snapshotMeta: snapshot && snapshot.snapshotMeta ? snapshot.snapshotMeta : {},
+      topLevelKeys: snapshot ? Object.keys(snapshot) : [],
+      error: ""
+    };
+  } catch (error) {
+    return {
+      success: false,
+      hasSnapshot: false,
+      snapshotMeta: {},
+      topLevelKeys: [],
+      error: error.toString()
+    };
+  }
+}
+
 function formatDashboardDate_(value) {
   const parsed = parseDashboardDate(value);
   if (!parsed) return (value || "").toString().trim();
