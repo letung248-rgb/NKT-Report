@@ -245,10 +245,10 @@
                 <!-- KPI -->
                 <div class="kpi-grid">
                     <div class="kpi-card"><span class="kpi-title">Tổng số ống</span><span class="kpi-value text-primary" id="kpi-tong">0</span></div>
-                    <div class="kpi-card clickable" onclick="showPipeList('Thành phẩm', globalDashboardData.pipeLists.tp)"><span class="kpi-title">Thành phẩm</span><span class="kpi-value text-success" id="kpi-tp">0</span></div>
-                    <div class="kpi-card clickable" onclick="showPipeList('Chờ sửa', globalDashboardData.pipeLists.cs)"><span class="kpi-title">Chờ sửa</span><span class="kpi-value text-warning" id="kpi-cs">0</span></div>
-                    <div class="kpi-card clickable" onclick="showPipeList('Hỏng / Loại', globalDashboardData.pipeLists.hong)"><span class="kpi-title">Hỏng / Loại</span><span class="kpi-value text-danger" id="kpi-hong">0</span></div>
-                    <div class="kpi-card clickable" onclick="showPipeList('Đang xử lý', globalDashboardData.pipeLists.dxl)"><span class="kpi-title">Đang xử lý</span><span class="kpi-value text-primary" id="kpi-dxl">0</span></div>
+                    <div class="kpi-card clickable" onclick="loadDashboardPipeList('tp')"><span class="kpi-title">Thành phẩm</span><span class="kpi-value text-success" id="kpi-tp">0</span></div>
+                    <div class="kpi-card clickable" onclick="loadDashboardPipeList('cs')"><span class="kpi-title">Chờ sửa</span><span class="kpi-value text-warning" id="kpi-cs">0</span></div>
+                    <div class="kpi-card clickable" onclick="loadDashboardPipeList('hong')"><span class="kpi-title">Hỏng / Loại</span><span class="kpi-value text-danger" id="kpi-hong">0</span></div>
+                    <div class="kpi-card clickable" onclick="loadDashboardPipeList('dxl')"><span class="kpi-title">Đang xử lý</span><span class="kpi-value text-primary" id="kpi-dxl">0</span></div>
                     <div class="kpi-card"><span class="kpi-title">% Thành phẩm</span><span class="kpi-value text-purple" id="kpi-percent">0%</span></div>
                 </div>
 
@@ -727,6 +727,17 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function escapeJsString(value) {
+            return (value === null || value === undefined ? '' : value.toString())
+                .replace(/&/g, '&amp;')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\r?\n/g, ' ');
+        }
+
         function getTodayInputValue() {
             const today = new Date();
             today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
@@ -919,8 +930,6 @@
             data.shiftStats = data.shiftStats || [];
             data.queueStats = data.queueStats || [];
             data.recent = data.recent || [];
-            data.pipeLists = data.pipeLists || {};
-            data.processPipeLists = data.processPipeLists || {};
             data.planStats = data.planStats || {};
             data.kpi = data.kpi || { total: 0, tp: 0, cs: 0, hong: 0, dxl: 0, tpPercent: 0 };
             
@@ -1073,7 +1082,7 @@
             });
             let qBody = document.getElementById('queueTable');
             qBody.innerHTML = qStats.map(p => `
-                <tr class="tr-clickable" onclick="showQueueList('${p.name}')">
+                <tr class="tr-clickable" onclick="showQueueList('${escapeJsString(p.name)}')">
                     <td>${p.name}</td>
                     <td><strong>${p.count}</strong></td>
                 </tr>
@@ -1127,12 +1136,66 @@
         }
 
         // Drilldown Logic
-        function showQueueList(processName) {
-            let list = globalDashboardData.processPipeLists[processName] || [];
-            showPipeList(processName, list);
+        function getDashboardStatusTitle(statusKey) {
+            const titles = {
+                tp: 'Thành phẩm',
+                cs: 'Chờ sửa',
+                hong: 'Hỏng / Loại',
+                dxl: 'Đang xử lý',
+                all: 'Tất cả'
+            };
+            return titles[statusKey] || statusKey;
         }
 
-        function showPipeList(title, pipeArray) {
+        function canCallDashboardEndpoint() {
+            if (typeof google !== 'undefined' && google.script && google.script.run) return true;
+            showError('Ứng dụng cần chạy trên Google Apps Script môi trường thật.');
+            return false;
+        }
+
+        function loadDashboardPipeList(statusKey) {
+            if (!canCallDashboardEndpoint()) return;
+            showPipeList(getDashboardStatusTitle(statusKey), [], true);
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (!res || !res.success) {
+                        showError((res && res.error) || 'Không tải được danh sách ống.');
+                        backToDashboard();
+                        return;
+                    }
+                    showError('');
+                    showPipeList(res.title || getDashboardStatusTitle(statusKey), res.pipes || []);
+                })
+                .withFailureHandler(err => {
+                    showError('Lỗi kết nối Server: ' + err);
+                    backToDashboard();
+                })
+                .getDashboardPipeList(statusKey);
+        }
+
+        function showQueueList(processName) {
+            if (!canCallDashboardEndpoint()) return;
+            showPipeList(processName, [], true);
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (!res || !res.success) {
+                        showError((res && res.error) || 'Không tải được danh sách queue.');
+                        backToDashboard();
+                        return;
+                    }
+                    showError('');
+                    showPipeList(res.processName || processName, res.pipes || []);
+                })
+                .withFailureHandler(err => {
+                    showError('Lỗi kết nối Server: ' + err);
+                    backToDashboard();
+                })
+                .getDashboardProcessPipeList(processName);
+        }
+
+        function showPipeList(title, pipeArray, isLoading) {
             currentListTitle = title;
             currentPipeList = pipeArray || [];
             document.getElementById('view-dashboard').style.display = 'none';
@@ -1142,9 +1205,14 @@
             if(document.getElementById('view-monthly-report')) document.getElementById('view-monthly-report').style.display = 'none';
             if(document.getElementById('view-error-analysis')) document.getElementById('view-error-analysis').style.display = 'none';
             
-            document.getElementById('list-title').innerText = "Danh sách " + title + " (" + currentPipeList.length + " ống)";
+            document.getElementById('list-title').innerText = isLoading ? "Đang tải danh sách " + title + "..." : "Danh sách " + title + " (" + currentPipeList.length + " ống)";
             
             let tbody = document.getElementById('pipeListTable');
+            if (isLoading) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-secondary);">Đang tải dữ liệu...</td></tr>`;
+                return;
+            }
+
             tbody.innerHTML = currentPipeList.map((p, idx) => {
                 let badgeClass = p.currentBusinessStatus === 'THANH_PHAM' ? 'tp' : p.currentBusinessStatus === 'LOAI' ? 'hong' : p.currentBusinessStatus === 'CHO_SUA' ? 'cs' : 'dxl';
                 return `
@@ -1523,48 +1591,89 @@
 
         function handleSearch(e) {
             if (e.key === 'Enter') {
-                let query = e.target.value;
+                let query = (e.target.value || '').trim();
                 if (!query) return;
-                
-                let normalize = str => {
-                    let s = (str || '').toString().trim().replace(/\s+/g, '');
-                    let s2 = s.replace(/^0+/, '');
-                    return s2 === '' && s.length > 0 ? '0' : s2;
-                };
-                
-                let normQuery = normalize(query);
-                let foundPipe = null;
-                let allPipes = globalDashboardData.pipeLists.all || [];
-                
-                for (let p of allPipes) {
-                    if (normalize(p.pipeNo) === normQuery) {
-                        foundPipe = p;
-                        break;
-                    }
-                }
-                
-                if (foundPipe) {
-                    showError('');
-                    e.target.value = '';
-                    currentListTitle = "Kết quả tìm kiếm";
-                    currentPipeList = [foundPipe];
-                    showPipePassport(0);
-                } else {
-                    showError("Không tìm thấy số ống.");
-                    setTimeout(() => showError(''), 3000);
-                }
+
+                showError('');
+                e.target.disabled = true;
+                currentListTitle = "Kết quả tìm kiếm";
+                currentPipeList = [];
+                loadDashboardPassport(query, true, () => {
+                    e.target.disabled = false;
+                });
             }
         }
 
         function showPipePassport(idx) {
             let p = currentPipeList[idx];
+            if (!p || !p.pipeNo) return;
+            loadDashboardPassport(p.pipeNo, false);
+        }
+
+        function showPassportLoading(pipeNo) {
+            document.getElementById('view-pipe-list').style.display = 'none';
+            document.getElementById('view-pipe-passport').style.display = 'block';
+            if(document.getElementById('view-daily-report')) document.getElementById('view-daily-report').style.display = 'none';
+            if(document.getElementById('view-monthly-report')) document.getElementById('view-monthly-report').style.display = 'none';
+            if(document.getElementById('view-error-analysis')) document.getElementById('view-error-analysis').style.display = 'none';
+
+            document.getElementById('passport-title').innerText = "Đang tải hồ sơ ống: " + pipeNo;
+            document.getElementById('pp-pipeNo').innerText = pipeNo || '';
+            document.getElementById('pp-size').innerText = '';
+            document.getElementById('pp-rig').innerText = '';
+            document.getElementById('pp-well').innerText = '';
+            document.getElementById('pp-pressure').innerText = '0';
+            document.getElementById('pp-thread').innerText = '0';
+            document.getElementById('pp-coupling').innerText = '0';
+            document.getElementById('pp-status').innerText = '';
+            document.getElementById('pp-process').innerText = '';
+            document.getElementById('pp-reason').innerText = '';
+            document.getElementById('pp-nextProcess').innerText = '';
+            document.getElementById('passportTimeline').innerHTML = `<div style="color: var(--text-secondary); font-weight: 600;">Đang tải dữ liệu...</div>`;
+        }
+
+        function loadDashboardPassport(pipeNo, fromSearch, onDone) {
+            if (!canCallDashboardEndpoint()) {
+                if (onDone) onDone();
+                return;
+            }
+
+            showPassportLoading(pipeNo);
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (onDone) onDone();
+                    if (!res || !res.success) {
+                        showError((res && res.error) || 'Không tải được hồ sơ ống.');
+                        if (fromSearch) backToDashboard();
+                        else backToList();
+                        return;
+                    }
+
+                    showError('');
+                    if (fromSearch) {
+                        currentListTitle = "Kết quả tìm kiếm";
+                        currentPipeList = [res.pipe];
+                    }
+                    renderPipePassport(res.pipe);
+                })
+                .withFailureHandler(err => {
+                    if (onDone) onDone();
+                    showError('Lỗi kết nối Server: ' + err);
+                    if (fromSearch) backToDashboard();
+                    else backToList();
+                })
+                .getDashboardPassport(pipeNo);
+        }
+
+        function renderPipePassport(p) {
             if (!p) return;
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'block';
             if(document.getElementById('view-daily-report')) document.getElementById('view-daily-report').style.display = 'none';
             if(document.getElementById('view-monthly-report')) document.getElementById('view-monthly-report').style.display = 'none';
             if(document.getElementById('view-error-analysis')) document.getElementById('view-error-analysis').style.display = 'none';
-            
+
             document.getElementById('passport-title').innerText = "Hồ sơ ống: " + p.pipeNo;
             document.getElementById('pp-pipeNo').innerText = p.pipeNo;
             document.getElementById('pp-size').innerText = p.size || '';
