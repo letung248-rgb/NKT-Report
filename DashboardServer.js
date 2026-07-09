@@ -517,7 +517,19 @@ function debugPipeEngine() {
  * 6. Hàm lấy dữ liệu cho Dashboard (Tạm thời dùng Pipe Engine)
  */
 function getDashboardData() {
-  return buildDashboardDataFresh_();
+  const cachedSnapshot = readDashboardSnapshotCache_();
+  if (cachedSnapshot) return cachedSnapshot;
+
+  const durableSnapshot = readDashboardSnapshot_();
+  if (durableSnapshot) return durableSnapshot;
+
+  return {
+    success: false,
+    error: "Dashboard snapshot chưa sẵn sàng. Vui lòng chạy refreshDashboardSnapshot_().",
+    snapshotMeta: {
+      status: "missing"
+    }
+  };
 }
 
 function buildDashboardDataFresh_() {
