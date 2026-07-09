@@ -313,6 +313,11 @@ function buildErrorAnalysis(data) {
   };
 }
 
+function getDashboardTime_(value) {
+  const parsed = parseDashboardDate(value);
+  return parsed ? parsed.getTime() || 0 : 0;
+}
+
 /**
  * 4. Xác định Current State của Pipe
  */
@@ -328,12 +333,12 @@ function getCurrentPipeState(pipe) {
   
   // Sắp xếp transactions theo thứ tự thời gian trước khi tính toán trạng thái
   entryTransactions.sort((a, b) => {
-    let dateA = new Date(a.date).getTime() || 0;
-    let dateB = new Date(b.date).getTime() || 0;
+    let dateA = getDashboardTime_(a.date);
+    let dateB = getDashboardTime_(b.date);
     if (dateA !== dateB) return dateA - dateB;
     
-    let timeA = new Date(a.receiveTime).getTime() || 0;
-    let timeB = new Date(b.receiveTime).getTime() || 0;
+    let timeA = getDashboardTime_(a.receiveTime);
+    let timeB = getDashboardTime_(b.receiveTime);
     if (timeA !== timeB) return timeA - timeB;
     
     let idA = (a.id || "").toString();
@@ -449,12 +454,12 @@ function buildPipeEngine() {
     
     // Sort toàn bộ lịch sử để tìm Entry mới nhất
     pipe.history.sort((a, b) => {
-      let dateA = new Date(a.date).getTime() || 0;
-      let dateB = new Date(b.date).getTime() || 0;
+      let dateA = getDashboardTime_(a.date);
+      let dateB = getDashboardTime_(b.date);
       if (dateA !== dateB) return dateA - dateB;
       
-      let timeA = new Date(a.receiveTime).getTime() || 0;
-      let timeB = new Date(b.receiveTime).getTime() || 0;
+      let timeA = getDashboardTime_(a.receiveTime);
+      let timeB = getDashboardTime_(b.receiveTime);
       if (timeA !== timeB) return timeA - timeB;
       
       let idA = (a.id || "").toString();
@@ -618,12 +623,12 @@ function getDashboardData() {
     
     // Sort all transactions to get 10 recent (Mới nhất)
     allTxns.sort((a, b) => {
-      let dateA = new Date(a.date).getTime() || 0;
-      let dateB = new Date(b.date).getTime() || 0;
+      let dateA = getDashboardTime_(a.date);
+      let dateB = getDashboardTime_(b.date);
       if (dateA !== dateB) return dateB - dateA; // Giảm dần
       
-      let timeA = new Date(a.receiveTime).getTime() || 0;
-      let timeB = new Date(b.receiveTime).getTime() || 0;
+      let timeA = getDashboardTime_(a.receiveTime);
+      let timeB = getDashboardTime_(b.receiveTime);
       if (timeA !== timeB) return timeB - timeA; // Giảm dần
       
       let idA = (a.id || "").toString();
@@ -920,8 +925,8 @@ function getDailyReportData(dateText) {
     const dailyTransactions = transactions.filter(txn => isSameDashboardDay_(txn.date, reportDate));
 
     dailyTransactions.sort((a, b) => {
-      let timeA = new Date(a.receiveTime).getTime() || 0;
-      let timeB = new Date(b.receiveTime).getTime() || 0;
+      let timeA = getDashboardTime_(a.receiveTime);
+      let timeB = getDashboardTime_(b.receiveTime);
       if (timeA !== timeB) return timeB - timeA;
 
       let idA = (a.id || "").toString();
@@ -1194,12 +1199,12 @@ function validateDashboardData() {
     
     // Sort transactions identically to find the exact last row in sheet
     history.sort((a, b) => {
-      let dateA = new Date(a.date).getTime() || 0;
-      let dateB = new Date(b.date).getTime() || 0;
+      let dateA = getDashboardTime_(a.date);
+      let dateB = getDashboardTime_(b.date);
       if (dateA !== dateB) return dateA - dateB;
       
-      let timeA = new Date(a.receiveTime).getTime() || 0;
-      let timeB = new Date(b.receiveTime).getTime() || 0;
+      let timeA = getDashboardTime_(a.receiveTime);
+      let timeB = getDashboardTime_(b.receiveTime);
       if (timeA !== timeB) return timeA - timeB;
       
       let idA = (a.id || "").toString();
