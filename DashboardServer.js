@@ -1038,6 +1038,25 @@ function getMonthlyReportData(monthText) {
 
 function getErrorAnalysisData() {
   try {
+    function sanitizeErrorAnalysisDates_(value) {
+      if (value === null || value === undefined) return value;
+      if (value instanceof Date) {
+        return formatDashboardDateTime_(value);
+      }
+      if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+          value[i] = sanitizeErrorAnalysisDates_(value[i]);
+        }
+      } else if (typeof value === "object") {
+        for (let key in value) {
+          if (value.hasOwnProperty(key)) {
+            value[key] = sanitizeErrorAnalysisDates_(value[key]);
+          }
+        }
+      }
+      return value;
+    }
+
     const pipes = buildPipeEngine();
     const analysis = buildErrorAnalysis(pipes);
     const errorPipes = [];
@@ -1074,7 +1093,7 @@ function getErrorAnalysisData() {
       };
     });
 
-    return {
+    const response = {
       success: true,
       summary: analysis.summary,
       byError: analysis.byError,
@@ -1096,11 +1115,12 @@ function getErrorAnalysisData() {
       rigStats: summarizeDailyList_(rows, "rig"),
       rows: rows
     };
+
+    return sanitizeErrorAnalysisDates_(response);
   } catch (e) {
     return { success: false, error: e.toString(), stack: e.stack };
   }
 }
-
 /**
  * Sprint 1.0 - Data Source Validator
  * Hàm kiểm tra và chuẩn hóa dữ liệu từ Google Sheet (Data Validator)
