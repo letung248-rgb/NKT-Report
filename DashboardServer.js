@@ -517,6 +517,10 @@ function debugPipeEngine() {
  * 6. Hàm lấy dữ liệu cho Dashboard (Tạm thời dùng Pipe Engine)
  */
 function getDashboardData() {
+  return buildDashboardDataFresh_();
+}
+
+function buildDashboardDataFresh_() {
   try {
     const pipeObjects = buildPipeEngine();
     if (pipeObjects.length === 0) return { success: false, error: "Không có dữ liệu pipe." };
@@ -800,6 +804,371 @@ function getDashboardData() {
     
   } catch (e) {
     return { success: false, error: e.toString(), stack: e.stack };
+  }
+}
+
+function compactDashboardPipeItem_(pipe) {
+  pipe = pipe || {};
+  return {
+    pipeNo: pipe.pipeNo || "",
+    size: pipe.size || "",
+    rig: pipe.rig || "",
+    well: pipe.well || "",
+    wellProfile: pipe.wellProfile || "",
+    currentBusinessStatus: pipe.currentBusinessStatus || "",
+    currentProcess: pipe.currentProcess || "",
+    currentStatus: pipe.currentStatus || "",
+    currentReason: pipe.currentReason || "",
+    currentNextProcess: pipe.currentNextProcess || "",
+    currentWorker1: pipe.currentWorker1 || "",
+    currentWorker2: pipe.currentWorker2 || "",
+    currentShift: pipe.currentShift || "",
+    currentDate: pipe.currentDate || "",
+    pressureTestCount: pipe.pressureTestCount || 0,
+    threadRepairCount: pipe.threadRepairCount || 0,
+    couplingChangeCount: pipe.couplingChangeCount || 0
+  };
+}
+
+function compactDashboardPassport_(pipe) {
+  const passport = compactDashboardPipeItem_(pipe);
+  passport.history = (pipe && Array.isArray(pipe.history) ? pipe.history : []).map(txn => ({
+    date: txn.date || "",
+    shift: txn.shift || "",
+    process: txn.process || "",
+    status: txn.status || "",
+    defectReason: txn.defectReason || "",
+    worker1: txn.worker1 || "",
+    worker2: txn.worker2 || "",
+    qty: txn.qty || 0,
+    entryNo: txn.entryNo || "",
+    notes: txn.notes || ""
+  }));
+  return passport;
+}
+
+function getDashboardPipeListTitle_(statusKey) {
+  const titles = {
+    tp: "Thành phẩm",
+    cs: "Chờ sửa",
+    hong: "Hỏng / Loại",
+    dxl: "Đang xử lý",
+    all: "Tất cả"
+  };
+  return titles[statusKey] || "";
+}
+
+function getDashboardPipeNoKey_(pipeNo) {
+  return (pipeNo === null || pipeNo === undefined ? "" : pipeNo.toString()).trim().toLowerCase();
+}
+
+function getDashboardPipeList(statusKey) {
+  try {
+    const normalizedStatusKey = (statusKey || "").toString().trim().toLowerCase();
+    const title = getDashboardPipeListTitle_(normalizedStatusKey);
+    if (!title) return { success: false, error: "statusKey không hợp lệ" };
+
+    const data = buildDashboardDataFresh_();
+    if (!data || data.success !== true) {
+      return { success: false, error: (data && data.error) || "Không tải được dữ liệu dashboard" };
+    }
+
+    const pipeLists = data.pipeLists || {};
+    const pipes = Array.isArray(pipeLists[normalizedStatusKey]) ? pipeLists[normalizedStatusKey] : [];
+    const compactPipes = pipes.map(compactDashboardPipeItem_);
+
+    return {
+      success: true,
+      statusKey: normalizedStatusKey,
+      title: title,
+      total: compactPipes.length,
+      pipes: compactPipes
+    };
+  } catch (e) {
+    return { success: false, error: e.toString(), stack: e.stack };
+  }
+}
+
+function getDashboardProcessPipeList(processName) {
+  try {
+    const normalizedProcessName = (processName || "").toString().trim();
+    if (!normalizedProcessName) return { success: false, error: "processName không hợp lệ" };
+
+    const data = buildDashboardDataFresh_();
+    if (!data || data.success !== true) {
+      return { success: false, error: (data && data.error) || "Không tải được dữ liệu dashboard" };
+    }
+
+    const processPipeLists = data.processPipeLists || {};
+    if (!Object.prototype.hasOwnProperty.call(processPipeLists, normalizedProcessName)) {
+      return { success: false, error: "processName không hợp lệ" };
+    }
+
+    const pipes = Array.isArray(processPipeLists[normalizedProcessName]) ? processPipeLists[normalizedProcessName] : [];
+    const compactPipes = pipes.map(compactDashboardPipeItem_);
+
+    return {
+      success: true,
+      processName: normalizedProcessName,
+      total: compactPipes.length,
+      pipes: compactPipes
+    };
+  } catch (e) {
+    return { success: false, error: e.toString(), stack: e.stack };
+  }
+}
+
+function getDashboardPassport(pipeNo) {
+  try {
+    const pipeKey = getDashboardPipeNoKey_(pipeNo);
+    if (!pipeKey) return { success: false, error: "pipeNo không hợp lệ" };
+
+    const data = buildDashboardDataFresh_();
+    if (!data || data.success !== true) {
+      return { success: false, error: (data && data.error) || "Không tải được dữ liệu dashboard" };
+    }
+
+    const pipes = data.pipeLists && Array.isArray(data.pipeLists.all) ? data.pipeLists.all : [];
+    for (let i = 0; i < pipes.length; i++) {
+      if (getDashboardPipeNoKey_(pipes[i].pipeNo) === pipeKey) {
+        return {
+          success: true,
+          pipe: compactDashboardPassport_(pipes[i])
+        };
+      }
+    }
+
+    return { success: false, error: "Không tìm thấy ống" };
+  } catch (e) {
+    return { success: false, error: e.toString(), stack: e.stack };
+  }
+}
+
+const DASHBOARD_SNAPSHOT_CACHE_KEY = "dashboard:snapshot:minimal:v1";
+const DASHBOARD_SNAPSHOT_CACHE_TTL_SECONDS = 300;
+const DASHBOARD_SNAPSHOT_PROP_MANIFEST_KEY = "DASHBOARD_SNAPSHOT_V1_MANIFEST";
+const DASHBOARD_SNAPSHOT_PROP_META_KEY = "DASHBOARD_SNAPSHOT_V1_META";
+const DASHBOARD_SNAPSHOT_PROP_CHUNK_PREFIX = "DASHBOARD_SNAPSHOT_V1_CHUNK_";
+const DASHBOARD_SNAPSHOT_PROP_CHUNK_SIZE = 8000;
+const DASHBOARD_SNAPSHOT_CACHE_MAX_BYTES = 90 * 1024;
+const DASHBOARD_SNAPSHOT_DURABLE_MAX_BYTES = 450 * 1024;
+
+function extractDashboardSnapshot_(fullResponse) {
+  fullResponse = fullResponse || {};
+  return {
+    success: fullResponse.success,
+    factoryHealth: fullResponse.factoryHealth,
+    alerts: fullResponse.alerts || [],
+    planStats: fullResponse.planStats || {},
+    kpi: fullResponse.kpi || {},
+    processStats: fullResponse.processStats || [],
+    queueStats: fullResponse.queueStats || [],
+    processQueueSummary: fullResponse.processQueueSummary || {},
+    sizeStats: fullResponse.sizeStats || {},
+    errorStats: fullResponse.errorStats || [],
+    rigStats: fullResponse.rigStats || [],
+    shiftStats: fullResponse.shiftStats || [],
+    recent: fullResponse.recent || [],
+    snapshotMeta: fullResponse.snapshotMeta || {}
+  };
+}
+
+function serializeDashboardSnapshot_(snapshot) {
+  const json = JSON.stringify(snapshot || {});
+  const blob = Utilities.newBlob(json, "application/json", "dashboard-snapshot.json");
+  const zipped = Utilities.gzip(blob);
+  return Utilities.base64Encode(zipped.getBytes());
+}
+
+function deserializeDashboardSnapshot_(payload) {
+  const bytes = Utilities.base64Decode(payload);
+  const zipped = Utilities.newBlob(bytes, "application/octet-stream", "dashboard-snapshot.gz");
+  const json = Utilities.ungzip(zipped).getDataAsString();
+  return JSON.parse(json);
+}
+
+function readDashboardSnapshotCache_() {
+  try {
+    const payload = CacheService.getScriptCache().get(DASHBOARD_SNAPSHOT_CACHE_KEY);
+    if (payload === null) return null;
+    return deserializeDashboardSnapshot_(payload);
+  } catch (error) {
+    Logger.log("DASH_SNAPSHOT cache read error: " + error);
+    return null;
+  }
+}
+
+function writeDashboardSnapshotCache_(snapshot) {
+  try {
+    const payload = serializeDashboardSnapshot_(snapshot);
+    const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    if (payloadBytes > DASHBOARD_SNAPSHOT_CACHE_MAX_BYTES) {
+      Logger.log("DASH_SNAPSHOT cache write skipped payload too large | payloadBytes=" + payloadBytes);
+      return { success: false, skipped: true, payloadBytes: payloadBytes };
+    }
+
+    CacheService.getScriptCache().put(
+      DASHBOARD_SNAPSHOT_CACHE_KEY,
+      payload,
+      DASHBOARD_SNAPSHOT_CACHE_TTL_SECONDS
+    );
+    Logger.log("DASH_SNAPSHOT cache write ok | payloadBytes=" + payloadBytes + " | ttl=" + DASHBOARD_SNAPSHOT_CACHE_TTL_SECONDS);
+    return { success: true, payloadBytes: payloadBytes };
+  } catch (error) {
+    Logger.log("DASH_SNAPSHOT cache write error: " + error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+function readDashboardSnapshot_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const manifestText = props.getProperty(DASHBOARD_SNAPSHOT_PROP_MANIFEST_KEY);
+    if (!manifestText) return null;
+
+    const manifest = JSON.parse(manifestText);
+    const chunkCount = Number(manifest.chunkCount || 0);
+    if (chunkCount <= 0) return null;
+
+    let payload = "";
+    for (let i = 0; i < chunkCount; i++) {
+      const chunk = props.getProperty(DASHBOARD_SNAPSHOT_PROP_CHUNK_PREFIX + i);
+      if (chunk === null) throw new Error("Missing dashboard snapshot chunk " + i);
+      payload += chunk;
+    }
+
+    return deserializeDashboardSnapshot_(payload);
+  } catch (error) {
+    Logger.log("DASH_SNAPSHOT durable read error: " + error);
+    return null;
+  }
+}
+
+function writeDashboardSnapshot_(snapshot) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const oldManifestText = props.getProperty(DASHBOARD_SNAPSHOT_PROP_MANIFEST_KEY);
+    const oldManifest = oldManifestText ? JSON.parse(oldManifestText) : null;
+    const oldChunkCount = oldManifest ? Number(oldManifest.chunkCount || 0) : 0;
+    const payload = serializeDashboardSnapshot_(snapshot);
+    const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    if (payloadBytes > DASHBOARD_SNAPSHOT_DURABLE_MAX_BYTES) {
+      throw new Error("Dashboard snapshot too large for ScriptProperties: " + payloadBytes + " bytes");
+    }
+
+    const chunkCount = Math.ceil(payload.length / DASHBOARD_SNAPSHOT_PROP_CHUNK_SIZE);
+    const values = {};
+    for (let i = 0; i < chunkCount; i++) {
+      values[DASHBOARD_SNAPSHOT_PROP_CHUNK_PREFIX + i] = payload.substring(
+        i * DASHBOARD_SNAPSHOT_PROP_CHUNK_SIZE,
+        (i + 1) * DASHBOARD_SNAPSHOT_PROP_CHUNK_SIZE
+      );
+    }
+
+    const manifest = {
+      version: snapshot && snapshot.snapshotMeta ? snapshot.snapshotMeta.version : "",
+      chunkCount: chunkCount,
+      payloadBytes: payloadBytes,
+      updatedAt: new Date().toISOString()
+    };
+    values[DASHBOARD_SNAPSHOT_PROP_MANIFEST_KEY] = JSON.stringify(manifest);
+    values[DASHBOARD_SNAPSHOT_PROP_META_KEY] = JSON.stringify(snapshot && snapshot.snapshotMeta ? snapshot.snapshotMeta : {});
+    props.setProperties(values);
+
+    for (let c = chunkCount; c < oldChunkCount; c++) {
+      props.deleteProperty(DASHBOARD_SNAPSHOT_PROP_CHUNK_PREFIX + c);
+    }
+
+    Logger.log("DASH_SNAPSHOT durable write ok | payloadBytes=" + payloadBytes + " | chunks=" + chunkCount);
+    return { success: true, payloadBytes: payloadBytes, chunkCount: chunkCount };
+  } catch (error) {
+    Logger.log("DASH_SNAPSHOT durable write error: " + error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+function writeDashboardSnapshotMetadata_(metadata) {
+  try {
+    PropertiesService.getScriptProperties().setProperty(
+      DASHBOARD_SNAPSHOT_PROP_META_KEY,
+      JSON.stringify(metadata || {})
+    );
+    return true;
+  } catch (error) {
+    Logger.log("DASH_SNAPSHOT metadata write error: " + error);
+    return false;
+  }
+}
+
+function refreshDashboardSnapshot_() {
+  const startedAt = Date.now();
+  const version = String(startedAt);
+  const lock = LockService.getScriptLock();
+
+  if (!lock.tryLock(30000)) {
+    const lockMeta = {
+      builtAt: new Date(startedAt).toISOString(),
+      durationMs: Date.now() - startedAt,
+      version: version,
+      success: false,
+      error: "Dashboard snapshot refresh lock busy"
+    };
+    writeDashboardSnapshotMetadata_(lockMeta);
+    Logger.log("DASH_SNAPSHOT refresh skipped lock busy | version=" + version);
+    return { success: false, snapshotMeta: lockMeta };
+  }
+
+  try {
+    const fullResponse = buildDashboardDataFresh_();
+    if (!fullResponse || fullResponse.success !== true) {
+      throw new Error(fullResponse && fullResponse.error ? fullResponse.error : "Dashboard fresh build failed");
+    }
+
+    const snapshot = extractDashboardSnapshot_(fullResponse);
+    snapshot.snapshotMeta = {
+      builtAt: new Date(startedAt).toISOString(),
+      durationMs: Date.now() - startedAt,
+      version: version,
+      success: true,
+      error: ""
+    };
+
+    const cacheResult = writeDashboardSnapshotCache_(snapshot);
+    const durableResult = writeDashboardSnapshot_(snapshot);
+    if (!durableResult.success) {
+      throw new Error(durableResult.error || "Dashboard snapshot durable write failed");
+    }
+
+    Logger.log(
+      "DASH_SNAPSHOT refresh ok | version=" + version +
+      " | durationMs=" + snapshot.snapshotMeta.durationMs +
+      " | cachePayloadBytes=" + (cacheResult.payloadBytes || 0) +
+      " | durablePayloadBytes=" + durableResult.payloadBytes
+    );
+
+    return {
+      success: true,
+      snapshotMeta: snapshot.snapshotMeta,
+      cache: cacheResult,
+      durable: durableResult
+    };
+  } catch (error) {
+    const errorMeta = {
+      builtAt: new Date(startedAt).toISOString(),
+      durationMs: Date.now() - startedAt,
+      version: version,
+      success: false,
+      error: error && error.message ? error.message : error.toString()
+    };
+    writeDashboardSnapshotMetadata_(errorMeta);
+    Logger.log("DASH_SNAPSHOT refresh error | version=" + version + " | " + errorMeta.error);
+    return { success: false, snapshotMeta: errorMeta };
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (lockError) {
+      Logger.log("DASH_SNAPSHOT lock release error: " + lockError);
+    }
   }
 }
 
