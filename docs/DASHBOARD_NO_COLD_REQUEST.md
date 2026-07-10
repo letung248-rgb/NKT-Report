@@ -88,7 +88,7 @@ Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashbo
 - Initial Dashboard load: PASS ~2.1s
 - KPI click "Đang xử lý": PASS ~114s
 - Queue click "Đầu vào": PASS ~8.2s
-- Passport pipe `1006`: PASS ~9.4s
+- Historical Passport pipe `1006`: PASS ~9.4s (before removed from sheet `Data`)
 - Search box: chua xac nhan end-to-end
 - Production deploy: NO
 
@@ -115,6 +115,20 @@ Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashbo
 - Fresh fallback trong user request: NO
 - Production deploy: NO
 
+## Step 4A Passport/Search No-Cold Runtime Validation Test/Dev
+
+- `getDashboardPassport(6355)`: PASS, `success=true`, `pipeNo=6355`, `historyLength=4`, `durationMs=110`
+- `getDashboardPassport(6360)`: PASS, `success=true`, `pipeNo=6360`, `historyLength=2`, `durationMs=93`
+- `getDashboardPassport(6327)`: PASS, `success=true`, `pipeNo=6327`, `historyLength=2`, `durationMs=99`
+- `getDashboardPassport(6328)`: PASS, `success=true`, `pipeNo=6328`, `historyLength=2`, `durationMs=89`
+- `getDashboardPassport(" 6355 ")`: PASS, `success=true`, `pipeNo=6355`, `historyLength=4`, `durationMs=100`
+- `getDashboardPassport(999999)`: PASS expected error, `success=false`, `error="Không tìm thấy ống"`, `durationMs=58`
+- Response shape `success/pipe`: PASS
+- Search dùng chung `getDashboardPassport()`: PASS
+- Fresh fallback trong user request: NO
+- `1006` không dùng làm test vì đã bị xóa khỏi sheet `Data`.
+- Production deploy: NO
+
 ## Pre-production Smoke Test Checklist
 
 Checklist này chỉ dùng cho manual smoke test trên deployment. Chỉ ghi PASS/FAIL sau khi đã chạy kiểm thử thực tế.
@@ -134,7 +148,7 @@ Checklist này chỉ dùng cho manual smoke test trên deployment. Chỉ ghi PAS
 Ghi chu:
 
 - Initial Dashboard no-cold-user-request da PASS test/dev.
-- KPI va Queue drilldown da doc index snapshot; Passport drilldown van co the cold vi con goi `buildDashboardDataFresh_()`.
+- KPI, Queue va Passport drilldown da doc snapshot; `1006` da bi xoa khoi sheet `Data` va khong con la test case.
 
 ## Neu Snapshot Missing
 
