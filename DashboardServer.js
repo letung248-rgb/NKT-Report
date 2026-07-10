@@ -880,14 +880,16 @@ function getDashboardPipeList(statusKey) {
     const title = getDashboardPipeListTitle_(normalizedStatusKey);
     if (!title) return { success: false, error: "statusKey không hợp lệ" };
 
-    const data = buildDashboardDataFresh_();
-    if (!data || data.success !== true) {
-      return { success: false, error: (data && data.error) || "Không tải được dữ liệu dashboard" };
+    const snapshotResult = readDashboardDrilldownIndexForUser_();
+    if (!snapshotResult.success) {
+      return { success: false, error: snapshotResult.error || "Dashboard drilldown snapshot unavailable" };
     }
 
-    const pipeLists = data.pipeLists || {};
-    const pipes = Array.isArray(pipeLists[normalizedStatusKey]) ? pipeLists[normalizedStatusKey] : [];
-    const compactPipes = pipes.map(compactDashboardPipeItem_);
+    const kpiPipeLists = snapshotResult.index.kpiPipeLists || {};
+    const pipes = Array.isArray(kpiPipeLists[normalizedStatusKey])
+      ? kpiPipeLists[normalizedStatusKey]
+      : [];
+    const compactPipes = pipes.slice();
 
     return {
       success: true,
@@ -1000,6 +1002,7 @@ const DASHBOARD_DRILLDOWN_PASSPORT_MAX_BYTES = 240 * 1024;
 const DASHBOARD_DRILLDOWN_TOTAL_MAX_BYTES = 360 * 1024;
 const DASHBOARD_DRILLDOWN_ROTATION_MAX_BYTES = 450 * 1024;
 const DASHBOARD_DRILLDOWN_ROTATION_OVERHEAD_BYTES = 4096;
+const DASHBOARD_DRILLDOWN_MAX_AGE_MS = 15 * 60 * 1000;
 
 function extractDashboardDrilldownSnapshot_(fullResponse) {
   fullResponse = fullResponse || {};
@@ -1031,6 +1034,7 @@ function extractDashboardDrilldownSnapshot_(fullResponse) {
   });
 
   const allPipes = Array.isArray(pipeLists.all) ? pipeLists.all : [];
+  kpiPipeLists.all = allPipes.map(compactDashboardPipeItem_);
   const pipeIndex = {};
   const passportByPipeNo = {};
 
@@ -1088,7 +1092,7 @@ function validateDashboardDrilldownSnapshot_(snapshot) {
     return { valid: false, error: "Missing pipe index or passport data" };
   }
 
-  const requiredStatusKeys = ["tp", "cs", "hong", "dxl"];
+  const requiredStatusKeys = ["tp", "cs", "hong", "dxl", "all"];
   for (let i = 0; i < requiredStatusKeys.length; i++) {
     if (!Array.isArray(snapshot.index.kpiPipeLists[requiredStatusKeys[i]])) {
       return { valid: false, error: "Invalid KPI pipe list: " + requiredStatusKeys[i] };
@@ -1303,6 +1307,95 @@ function readDashboardDrilldownArtifact_(props, manifest, artifactName, chunkPre
     throw new Error("Drilldown " + artifactName + " checksum mismatch");
   }
   return deserializeDashboardDrilldownPayload_(payload);
+}
+
+function validateDashboardDrilldownIndexPayload_(indexPayload) {
+  if (!indexPayload || typeof indexPayload !== "object") {
+    return { valid: false, error: "Dashboard drilldown index is empty" };
+  }
+  if (!indexPayload.kpiPipeLists || typeof indexPayload.kpiPipeLists !== "object") {
+    return { valid: false, error: "Dashboard drilldown KPI lists are missing" };
+  }
+
+  const requiredStatusKeys = ["tp", "cs", "hong", "dxl", "all"];
+  for (let i = 0; i < requiredStatusKeys.length; i++) {
+    if (!Array.isArray(indexPayload.kpiPipeLists[requiredStatusKeys[i]])) {
+      return { valid: false, error: "Invalid dashboard drilldown KPI list: " + requiredStatusKeys[i] };
+    }
+  }
+  return { valid: true, error: "" };
+}
+
+function validateDashboardDrilldownFreshness_(manifest) {
+  if (!manifest || !manifest.builtAt) return { valid: true, error: "" };
+  const builtAtMs = Date.parse(manifest.builtAt);
+  if (!isFinite(builtAtMs)) {
+    return { valid: false, error: "Dashboard drilldown builtAt is invalid" };
+  }
+  if (Date.now() - builtAtMs > DASHBOARD_DRILLDOWN_MAX_AGE_MS) {
+    return { valid: false, error: "Dashboard drilldown snapshot is stale" };
+  }
+  return { valid: true, error: "" };
+}
+
+function readDashboardDrilldownIndexForUser_() {
+  const manifestResult = readDashboardDrilldownManifest_();
+  if (!manifestResult.manifest) {
+    return { success: false, error: manifestResult.error || "Dashboard drilldown snapshot unavailable" };
+  }
+
+  const freshness = validateDashboardDrilldownFreshness_(manifestResult.manifest);
+  if (!freshness.valid) return { success: false, error: freshness.error };
+
+  const cacheEnvelope = readDashboardDrilldownCacheArtifact_(
+    DASHBOARD_DRILLDOWN_INDEX_CACHE_KEY,
+    "index"
+  );
+  if (cacheEnvelope && cacheEnvelope.bundleVersion === manifestResult.manifest.bundleVersion) {
+    try {
+      const indexPayload = deserializeDashboardDrilldownPayload_(cacheEnvelope.payload);
+      const validation = validateDashboardDrilldownIndexPayload_(indexPayload);
+      if (validation.valid) {
+        return {
+          success: true,
+          source: "cache",
+          bundleVersion: cacheEnvelope.bundleVersion,
+          index: indexPayload
+        };
+      }
+      Logger.log("DASH_DRILLDOWN index cache rejected: " + validation.error);
+    } catch (error) {
+      Logger.log("DASH_DRILLDOWN index cache deserialize error: " + error);
+    }
+  }
+
+  try {
+    CacheService.getScriptCache().remove(DASHBOARD_DRILLDOWN_INDEX_CACHE_KEY);
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN index cache cleanup error: " + error);
+  }
+
+  try {
+    const indexPayload = readDashboardDrilldownArtifact_(
+      PropertiesService.getScriptProperties(),
+      manifestResult.manifest,
+      "index",
+      DASHBOARD_DRILLDOWN_INDEX_CHUNK_PREFIX
+    );
+    const validation = validateDashboardDrilldownIndexPayload_(indexPayload);
+    if (!validation.valid) return { success: false, error: validation.error };
+    return {
+      success: true,
+      source: "durable",
+      bundleVersion: manifestResult.manifest.bundleVersion,
+      index: indexPayload
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: "Dashboard drilldown index unavailable: " + error.toString()
+    };
+  }
 }
 
 function readDashboardDrilldown_() {
