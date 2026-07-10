@@ -373,7 +373,7 @@ function _submitBuildRows_(data, pipeList, now, formulaForTarget, startRow) {
       rowWellProfile,
       data.worker1,
       data.worker2,
-      '',
+      data.status,
       receiveTimeText,
       rowNote
         ? rowNote + ' | S\u1ed1 \u0111\u00e3 nh\u1eadp BC: ' + data.pipeNoStr
