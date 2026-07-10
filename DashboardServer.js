@@ -385,7 +385,7 @@ function isThanhPhamKpiPipe(pipe) {
     let pName = normalizeString(t.process);
     let sName = normalizeString(t.status);
     let note = normalizeString(t.notes);
-    return (pName.includes("ep thuy luc") && sName === "ok") || note.includes("ong rua lai khong ep");
+    return (pName.includes("ep thuy luc") && (sName === "ok" || sName === "dat")) || note.includes("ong rua lai khong ep");
   });
 }
 
@@ -983,6 +983,889 @@ function extractDashboardSnapshot_(fullResponse) {
     recent: fullResponse.recent || [],
     snapshotMeta: fullResponse.snapshotMeta || {}
   };
+}
+
+const DASHBOARD_DRILLDOWN_SCHEMA_VERSION = "dashboard-drilldown-v1";
+const DASHBOARD_DRILLDOWN_INDEX_CACHE_KEY = "dashboard:drilldown:index:v1";
+const DASHBOARD_DRILLDOWN_PASSPORT_CACHE_KEY = "dashboard:drilldown:passport:v1";
+const DASHBOARD_DRILLDOWN_CACHE_TTL_SECONDS = DASHBOARD_SNAPSHOT_CACHE_TTL_SECONDS;
+const DASHBOARD_DRILLDOWN_CACHE_MAX_BYTES = DASHBOARD_SNAPSHOT_CACHE_MAX_BYTES;
+const DASHBOARD_DRILLDOWN_PROP_MANIFEST_KEY = "DASHBOARD_DRILLDOWN_V1_MANIFEST";
+const DASHBOARD_DRILLDOWN_PROP_META_KEY = "DASHBOARD_DRILLDOWN_V1_META";
+const DASHBOARD_DRILLDOWN_INDEX_CHUNK_PREFIX = "DASHBOARD_DRILLDOWN_V1_INDEX_";
+const DASHBOARD_DRILLDOWN_PASSPORT_CHUNK_PREFIX = "DASHBOARD_DRILLDOWN_V1_PASSPORT_";
+const DASHBOARD_DRILLDOWN_PROP_CHUNK_SIZE = DASHBOARD_SNAPSHOT_PROP_CHUNK_SIZE;
+const DASHBOARD_DRILLDOWN_INDEX_MAX_BYTES = 120 * 1024;
+const DASHBOARD_DRILLDOWN_PASSPORT_MAX_BYTES = 240 * 1024;
+const DASHBOARD_DRILLDOWN_TOTAL_MAX_BYTES = 360 * 1024;
+const DASHBOARD_DRILLDOWN_ROTATION_MAX_BYTES = 450 * 1024;
+const DASHBOARD_DRILLDOWN_ROTATION_OVERHEAD_BYTES = 4096;
+
+function extractDashboardDrilldownSnapshot_(fullResponse) {
+  fullResponse = fullResponse || {};
+  const statusKeys = ["tp", "cs", "hong", "dxl"];
+  const pipeLists = fullResponse.pipeLists || {};
+  const kpiPipeLists = {};
+  const statusKeysByPipe = {};
+
+  statusKeys.forEach(statusKey => {
+    const pipes = Array.isArray(pipeLists[statusKey]) ? pipeLists[statusKey] : [];
+    kpiPipeLists[statusKey] = pipes.map(compactDashboardPipeItem_);
+    pipes.forEach(pipe => {
+      const pipeKey = getDashboardPipeNoKey_(pipe && pipe.pipeNo);
+      if (!pipeKey) return;
+      if (!statusKeysByPipe[pipeKey]) statusKeysByPipe[pipeKey] = [];
+      if (statusKeysByPipe[pipeKey].indexOf(statusKey) === -1) {
+        statusKeysByPipe[pipeKey].push(statusKey);
+      }
+    });
+  });
+
+  const rawProcessPipeLists = fullResponse.processPipeLists || {};
+  const queuePipeLists = {};
+  Object.keys(rawProcessPipeLists).forEach(processName => {
+    const pipes = Array.isArray(rawProcessPipeLists[processName])
+      ? rawProcessPipeLists[processName]
+      : [];
+    queuePipeLists[processName] = pipes.map(compactDashboardPipeItem_);
+  });
+
+  const allPipes = Array.isArray(pipeLists.all) ? pipeLists.all : [];
+  const pipeIndex = {};
+  const passportByPipeNo = {};
+
+  allPipes.forEach(pipe => {
+    const pipeKey = getDashboardPipeNoKey_(pipe && pipe.pipeNo);
+    if (!pipeKey) return;
+    if (Object.prototype.hasOwnProperty.call(passportByPipeNo, pipeKey)) {
+      throw new Error("Duplicate normalized pipeNo in drilldown snapshot: " + pipeKey);
+    }
+
+    const compactPipe = compactDashboardPipeItem_(pipe);
+    pipeIndex[pipeKey] = {
+      pipeNo: compactPipe.pipeNo,
+      statusKeys: statusKeysByPipe[pipeKey] || [],
+      processName: compactPipe.currentProcess || ""
+    };
+    passportByPipeNo[pipeKey] = compactDashboardPassport_(pipe);
+  });
+
+  return {
+    schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+    index: {
+      kpiPipeLists: kpiPipeLists,
+      queuePipeLists: {
+        byProcess: queuePipeLists
+      },
+      pipeIndex: pipeIndex
+    },
+    passport: {
+      passportByPipeNo: passportByPipeNo
+    }
+  };
+}
+
+function validateDashboardDrilldownSnapshot_(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") {
+    return { valid: false, error: "Drilldown snapshot is empty" };
+  }
+  if (snapshot.schemaVersion !== DASHBOARD_DRILLDOWN_SCHEMA_VERSION) {
+    return { valid: false, error: "Unsupported drilldown snapshot schema" };
+  }
+  if (!snapshot.snapshotMeta || snapshot.snapshotMeta.state !== "ready") {
+    return { valid: false, error: "Drilldown snapshot is not ready" };
+  }
+  if (!snapshot.index || !snapshot.passport) {
+    return { valid: false, error: "Missing index or passport payload" };
+  }
+  if (!snapshot.index.kpiPipeLists || typeof snapshot.index.kpiPipeLists !== "object") {
+    return { valid: false, error: "Missing KPI pipe lists" };
+  }
+  if (!snapshot.index.queuePipeLists || !snapshot.index.queuePipeLists.byProcess) {
+    return { valid: false, error: "Missing queue pipe lists" };
+  }
+  if (!snapshot.index.pipeIndex || !snapshot.passport.passportByPipeNo) {
+    return { valid: false, error: "Missing pipe index or passport data" };
+  }
+
+  const requiredStatusKeys = ["tp", "cs", "hong", "dxl"];
+  for (let i = 0; i < requiredStatusKeys.length; i++) {
+    if (!Array.isArray(snapshot.index.kpiPipeLists[requiredStatusKeys[i]])) {
+      return { valid: false, error: "Invalid KPI pipe list: " + requiredStatusKeys[i] };
+    }
+  }
+  return { valid: true, error: "" };
+}
+
+function getDashboardDrilldownPayload_(snapshot) {
+  return {
+    schemaVersion: snapshot.schemaVersion,
+    index: snapshot.index,
+    passport: snapshot.passport
+  };
+}
+
+function stableDashboardDrilldownValue_(value) {
+  if (Array.isArray(value)) return value.map(stableDashboardDrilldownValue_);
+  if (!value || typeof value !== "object") return value;
+
+  const stable = {};
+  Object.keys(value).sort().forEach(key => {
+    stable[key] = stableDashboardDrilldownValue_(value[key]);
+  });
+  return stable;
+}
+
+function computeDashboardDrilldownChecksum_(payload) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    payload,
+    Utilities.Charset.UTF_8
+  );
+  return Utilities.base64Encode(digest);
+}
+
+function serializeDashboardDrilldownPayload_(payload) {
+  const json = JSON.stringify(payload || {});
+  const blob = Utilities.newBlob(json, "application/json", "dashboard-drilldown.json");
+  const zipped = Utilities.gzip(blob);
+  return Utilities.base64Encode(zipped.getBytes());
+}
+
+function deserializeDashboardDrilldownPayload_(payload) {
+  const bytes = Utilities.base64Decode(payload);
+  const zipped = Utilities.newBlob(bytes, "application/octet-stream", "dashboard-drilldown.gz");
+  const json = Utilities.ungzip(zipped).getDataAsString();
+  return JSON.parse(json);
+}
+
+function getDashboardDrilldownPayloadBytes_(payload) {
+  return Utilities.newBlob(payload, "text/plain").getBytes().length;
+}
+
+function readDashboardDrilldownCacheArtifact_(cacheKey, artifactName) {
+  try {
+    const envelopeText = CacheService.getScriptCache().get(cacheKey);
+    if (envelopeText === null) return null;
+
+    const envelope = JSON.parse(envelopeText);
+    if (envelope.schemaVersion !== DASHBOARD_DRILLDOWN_SCHEMA_VERSION ||
+        envelope.artifact !== artifactName || !envelope.bundleVersion ||
+        !envelope.payload) {
+      throw new Error("Invalid drilldown cache envelope: " + artifactName);
+    }
+    if (getDashboardDrilldownPayloadBytes_(envelope.payload) !== Number(envelope.payloadBytes)) {
+      throw new Error("Drilldown cache payload size mismatch: " + artifactName);
+    }
+    if (computeDashboardDrilldownChecksum_(envelope.payload) !== envelope.checksum) {
+      throw new Error("Drilldown cache checksum mismatch: " + artifactName);
+    }
+    return envelope;
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN cache read error: " + error);
+    return null;
+  }
+}
+
+function readDashboardDrilldownCache_() {
+  try {
+    const indexEnvelope = readDashboardDrilldownCacheArtifact_(
+      DASHBOARD_DRILLDOWN_INDEX_CACHE_KEY,
+      "index"
+    );
+    const passportEnvelope = readDashboardDrilldownCacheArtifact_(
+      DASHBOARD_DRILLDOWN_PASSPORT_CACHE_KEY,
+      "passport"
+    );
+    if (indexEnvelope === null || passportEnvelope === null) return null;
+    if (indexEnvelope.bundleVersion !== passportEnvelope.bundleVersion) {
+      throw new Error("Drilldown cache bundle version mismatch");
+    }
+
+    const snapshot = {
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      index: deserializeDashboardDrilldownPayload_(indexEnvelope.payload),
+      passport: deserializeDashboardDrilldownPayload_(passportEnvelope.payload),
+      snapshotMeta: {
+        state: "ready",
+        schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+        bundleVersion: indexEnvelope.bundleVersion
+      }
+    };
+    const validation = validateDashboardDrilldownSnapshot_(snapshot);
+    if (!validation.valid) throw new Error(validation.error);
+    return snapshot;
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN cache snapshot read error: " + error);
+    return null;
+  }
+}
+
+function writeDashboardDrilldownCache_(cacheKey, artifactName, bundleVersion, payload) {
+  try {
+    const payloadBytes = getDashboardDrilldownPayloadBytes_(payload);
+    const envelope = {
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      artifact: artifactName,
+      bundleVersion: bundleVersion,
+      payloadBytes: payloadBytes,
+      checksum: computeDashboardDrilldownChecksum_(payload),
+      payload: payload
+    };
+    const envelopeText = JSON.stringify(envelope);
+    const cacheBytes = getDashboardDrilldownPayloadBytes_(envelopeText);
+    if (cacheBytes > DASHBOARD_DRILLDOWN_CACHE_MAX_BYTES) {
+      Logger.log("DASH_DRILLDOWN cache write skipped payload too large | artifact=" + artifactName + " | cacheBytes=" + cacheBytes);
+      return { success: false, skipped: true, payloadBytes: payloadBytes, cacheBytes: cacheBytes };
+    }
+
+    CacheService.getScriptCache().put(
+      cacheKey,
+      envelopeText,
+      DASHBOARD_DRILLDOWN_CACHE_TTL_SECONDS
+    );
+    return { success: true, payloadBytes: payloadBytes, cacheBytes: cacheBytes, bundleVersion: bundleVersion };
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN cache write error: " + error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+function readDashboardDrilldownManifest_() {
+  try {
+    const manifestText = PropertiesService.getScriptProperties()
+      .getProperty(DASHBOARD_DRILLDOWN_PROP_MANIFEST_KEY);
+    if (!manifestText) {
+      return { manifest: null, error: "Drilldown manifest missing", code: "manifestMissing" };
+    }
+
+    const manifest = JSON.parse(manifestText);
+    const artifacts = ["index", "passport"];
+    if (manifest.schemaVersion !== DASHBOARD_DRILLDOWN_SCHEMA_VERSION ||
+        manifest.state !== "ready" || !manifest.bundleVersion) {
+      return { manifest: null, error: "Drilldown manifest invalid", code: "manifestInvalid" };
+    }
+    for (let i = 0; i < artifacts.length; i++) {
+      const artifactName = artifacts[i];
+      const artifact = manifest[artifactName];
+      if (!artifact || artifact.state !== "ready" ||
+          Number(artifact.chunkCount || 0) <= 0 ||
+          Number(artifact.payloadBytes || 0) <= 0 ||
+          !artifact.checksum) {
+        return {
+          manifest: null,
+          error: "Drilldown " + artifacts[i] + " manifest metadata invalid",
+          code: "manifestInvalid"
+        };
+      }
+      const maxBytes = artifactName === "index"
+        ? DASHBOARD_DRILLDOWN_INDEX_MAX_BYTES
+        : DASHBOARD_DRILLDOWN_PASSPORT_MAX_BYTES;
+      if (Number(artifact.payloadBytes) > maxBytes) {
+        return {
+          manifest: null,
+          error: "Drilldown " + artifactName + " payload exceeds limit",
+          code: "sizeExceeded",
+          sizeExceeded: true
+        };
+      }
+    }
+    const totalPayloadBytes = Number(manifest.index.payloadBytes) + Number(manifest.passport.payloadBytes);
+    if (totalPayloadBytes > DASHBOARD_DRILLDOWN_TOTAL_MAX_BYTES) {
+      return {
+        manifest: null,
+        error: "Drilldown total payload exceeds limit",
+        code: "sizeExceeded",
+        sizeExceeded: true
+      };
+    }
+    return { manifest: manifest, error: "", code: "" };
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN manifest read error: " + error);
+    return { manifest: null, error: "Drilldown manifest read failed: " + error, code: "manifestInvalid" };
+  }
+}
+
+function readDashboardDrilldownArtifact_(props, manifest, artifactName, chunkPrefix) {
+  const artifact = manifest[artifactName];
+  const prefix = chunkPrefix + manifest.bundleVersion + "_CHUNK_";
+  let payload = "";
+  for (let i = 0; i < Number(artifact.chunkCount); i++) {
+    const chunk = props.getProperty(prefix + i);
+    if (chunk === null) throw new Error("Missing drilldown " + artifactName + " chunk " + i);
+    payload += chunk;
+  }
+
+  if (getDashboardDrilldownPayloadBytes_(payload) !== Number(artifact.payloadBytes)) {
+    throw new Error("Drilldown " + artifactName + " payload size mismatch");
+  }
+  if (computeDashboardDrilldownChecksum_(payload) !== artifact.checksum) {
+    throw new Error("Drilldown " + artifactName + " checksum mismatch");
+  }
+  return deserializeDashboardDrilldownPayload_(payload);
+}
+
+function readDashboardDrilldown_() {
+  try {
+    const manifestResult = readDashboardDrilldownManifest_();
+    if (!manifestResult.manifest) throw new Error(manifestResult.error);
+
+    const props = PropertiesService.getScriptProperties();
+    const snapshot = {
+      schemaVersion: manifestResult.manifest.schemaVersion,
+      index: readDashboardDrilldownArtifact_(
+        props,
+        manifestResult.manifest,
+        "index",
+        DASHBOARD_DRILLDOWN_INDEX_CHUNK_PREFIX
+      ),
+      passport: readDashboardDrilldownArtifact_(
+        props,
+        manifestResult.manifest,
+        "passport",
+        DASHBOARD_DRILLDOWN_PASSPORT_CHUNK_PREFIX
+      ),
+      snapshotMeta: {
+        schemaVersion: manifestResult.manifest.schemaVersion,
+        bundleVersion: manifestResult.manifest.bundleVersion,
+        sourceSnapshotVersion: manifestResult.manifest.sourceSnapshotVersion || "",
+        builtAt: manifestResult.manifest.builtAt || "",
+        durationMs: manifestResult.manifest.durationMs || 0,
+        state: "ready",
+        success: true
+      }
+    };
+    const validation = validateDashboardDrilldownSnapshot_(snapshot);
+    if (!validation.valid) throw new Error(validation.error);
+    return snapshot;
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN durable read error: " + error);
+    return null;
+  }
+}
+
+function writeDashboardDrilldownMeta_(metadata) {
+  try {
+    PropertiesService.getScriptProperties().setProperty(
+      DASHBOARD_DRILLDOWN_PROP_META_KEY,
+      JSON.stringify(metadata || {})
+    );
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN metadata write error: " + error);
+  }
+}
+
+function prepareDashboardDrilldownArtifact_(artifactName, payloadObject, maxBytes) {
+  const payload = serializeDashboardDrilldownPayload_(payloadObject);
+  const payloadBytes = getDashboardDrilldownPayloadBytes_(payload);
+  if (payloadBytes > maxBytes) {
+    return {
+      success: false,
+      sizeExceeded: true,
+      artifact: artifactName,
+      payloadBytes: payloadBytes,
+      maxBytes: maxBytes,
+      error: "Dashboard drilldown " + artifactName + " payload exceeds limit"
+    };
+  }
+  return {
+    success: true,
+    artifact: artifactName,
+    payload: payload,
+    payloadBytes: payloadBytes,
+    chunkCount: Math.ceil(payload.length / DASHBOARD_DRILLDOWN_PROP_CHUNK_SIZE),
+    checksum: computeDashboardDrilldownChecksum_(payload)
+  };
+}
+
+function writeDashboardDrilldownArtifact_(props, bundleVersion, prepared, chunkPrefix) {
+  const prefix = chunkPrefix + bundleVersion + "_CHUNK_";
+  const values = {};
+  for (let i = 0; i < prepared.chunkCount; i++) {
+    values[prefix + i] = prepared.payload.substring(
+      i * DASHBOARD_DRILLDOWN_PROP_CHUNK_SIZE,
+      (i + 1) * DASHBOARD_DRILLDOWN_PROP_CHUNK_SIZE
+    );
+  }
+  props.setProperties(values);
+
+  let persistedPayload = "";
+  for (let i = 0; i < prepared.chunkCount; i++) {
+    const chunk = props.getProperty(prefix + i);
+    if (chunk === null) throw new Error("Missing written drilldown " + prepared.artifact + " chunk " + i);
+    persistedPayload += chunk;
+  }
+  if (getDashboardDrilldownPayloadBytes_(persistedPayload) !== prepared.payloadBytes) {
+    throw new Error("Written drilldown " + prepared.artifact + " payload size mismatch");
+  }
+  if (computeDashboardDrilldownChecksum_(persistedPayload) !== prepared.checksum) {
+    throw new Error("Written drilldown " + prepared.artifact + " checksum mismatch");
+  }
+  return {
+    state: "ready",
+    chunkCount: prepared.chunkCount,
+    payloadBytes: prepared.payloadBytes,
+    checksum: prepared.checksum,
+    payload: persistedPayload
+  };
+}
+
+function deleteDashboardDrilldownArtifactChunks_(props, bundleVersion, artifact, chunkPrefix) {
+  if (!artifact) return;
+  const prefix = chunkPrefix + bundleVersion + "_CHUNK_";
+  for (let i = 0; i < Number(artifact.chunkCount || 0); i++) {
+    props.deleteProperty(prefix + i);
+  }
+}
+
+function estimateDashboardDrilldownRotation_(indexPrepared, passportPrepared, oldManifest) {
+  const newChunkCount = indexPrepared.chunkCount + passportPrepared.chunkCount;
+  const oldIndex = oldManifest && oldManifest.index ? oldManifest.index : {};
+  const oldPassport = oldManifest && oldManifest.passport ? oldManifest.passport : {};
+  const oldChunkCount = Number(oldIndex.chunkCount || 0) + Number(oldPassport.chunkCount || 0);
+  const newChunkStorageBytes = newChunkCount * DASHBOARD_DRILLDOWN_PROP_CHUNK_SIZE;
+  const oldChunkStorageBytes = oldChunkCount * DASHBOARD_DRILLDOWN_PROP_CHUNK_SIZE;
+  const estimatedRotationBytes = newChunkStorageBytes + oldChunkStorageBytes + DASHBOARD_DRILLDOWN_ROTATION_OVERHEAD_BYTES;
+
+  return {
+    newPayloadBytes: indexPrepared.payloadBytes + passportPrepared.payloadBytes,
+    newChunkCount: newChunkCount,
+    newChunkStorageBytes: newChunkStorageBytes,
+    oldChunkCount: oldChunkCount,
+    oldChunkStorageBytes: oldChunkStorageBytes,
+    estimatedRotationBytes: estimatedRotationBytes,
+    maxBytes: DASHBOARD_DRILLDOWN_ROTATION_MAX_BYTES
+  };
+}
+
+function writeDashboardDrilldownBundle_(snapshot, validateParity) {
+  const indexPrepared = prepareDashboardDrilldownArtifact_(
+    "index",
+    snapshot.index,
+    DASHBOARD_DRILLDOWN_INDEX_MAX_BYTES
+  );
+  if (!indexPrepared.success) return indexPrepared;
+
+  const passportPrepared = prepareDashboardDrilldownArtifact_(
+    "passport",
+    snapshot.passport,
+    DASHBOARD_DRILLDOWN_PASSPORT_MAX_BYTES
+  );
+  if (!passportPrepared.success) return passportPrepared;
+
+  const totalPayloadBytes = indexPrepared.payloadBytes + passportPrepared.payloadBytes;
+  if (totalPayloadBytes > DASHBOARD_DRILLDOWN_TOTAL_MAX_BYTES) {
+    return {
+      success: false,
+      sizeExceeded: true,
+      payloadBytes: totalPayloadBytes,
+      maxBytes: DASHBOARD_DRILLDOWN_TOTAL_MAX_BYTES,
+      error: "Dashboard drilldown total payload exceeds limit"
+    };
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  const oldManifestResult = readDashboardDrilldownManifest_();
+  if (oldManifestResult.code === "manifestInvalid" || oldManifestResult.code === "sizeExceeded") {
+    return {
+      success: false,
+      sizeExceeded: true,
+      quotaExceeded: true,
+      error: "Existing drilldown manifest is invalid; rotation quota cannot be preflighted safely"
+    };
+  }
+  const oldManifest = oldManifestResult.manifest;
+  const bundleVersion = snapshot.snapshotMeta.bundleVersion;
+  const rotationEstimate = estimateDashboardDrilldownRotation_(
+    indexPrepared,
+    passportPrepared,
+    oldManifest
+  );
+  if (rotationEstimate.estimatedRotationBytes > rotationEstimate.maxBytes) {
+    return {
+      success: false,
+      sizeExceeded: true,
+      quotaExceeded: true,
+      rotationEstimate: rotationEstimate,
+      error: "Dashboard drilldown rotation estimate exceeds quota budget"
+    };
+  }
+  const writtenArtifacts = [];
+  let manifestPublished = false;
+
+  try {
+    writtenArtifacts.push({
+      prepared: indexPrepared,
+      chunkPrefix: DASHBOARD_DRILLDOWN_INDEX_CHUNK_PREFIX
+    });
+    const indexWritten = writeDashboardDrilldownArtifact_(
+      props,
+      bundleVersion,
+      indexPrepared,
+      DASHBOARD_DRILLDOWN_INDEX_CHUNK_PREFIX
+    );
+
+    writtenArtifacts.push({
+      prepared: passportPrepared,
+      chunkPrefix: DASHBOARD_DRILLDOWN_PASSPORT_CHUNK_PREFIX
+    });
+    const passportWritten = writeDashboardDrilldownArtifact_(
+      props,
+      bundleVersion,
+      passportPrepared,
+      DASHBOARD_DRILLDOWN_PASSPORT_CHUNK_PREFIX
+    );
+
+    const actualSnapshot = {
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      index: deserializeDashboardDrilldownPayload_(indexWritten.payload),
+      passport: deserializeDashboardDrilldownPayload_(passportWritten.payload),
+      snapshotMeta: snapshot.snapshotMeta
+    };
+    const validation = validateDashboardDrilldownSnapshot_(actualSnapshot);
+    if (!validation.valid) throw new Error(validation.error);
+
+    const expectedJson = JSON.stringify(stableDashboardDrilldownValue_(
+      getDashboardDrilldownPayload_(snapshot)
+    ));
+    const actualJson = JSON.stringify(stableDashboardDrilldownValue_(
+      getDashboardDrilldownPayload_(actualSnapshot)
+    ));
+    const parity = expectedJson === actualJson;
+    if (validateParity && !parity) {
+      writtenArtifacts.forEach(item => {
+        deleteDashboardDrilldownArtifactChunks_(
+          props,
+          bundleVersion,
+          { chunkCount: item.prepared.chunkCount },
+          item.chunkPrefix
+        );
+      });
+      return {
+        success: false,
+        parity: false,
+        expectedChecksum: computeDashboardDrilldownChecksum_(expectedJson),
+        actualChecksum: computeDashboardDrilldownChecksum_(actualJson),
+        error: "Drilldown snapshot parity mismatch"
+      };
+    }
+
+    const manifest = {
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      state: "ready",
+      bundleVersion: bundleVersion,
+      sourceSnapshotVersion: snapshot.snapshotMeta.sourceSnapshotVersion || "",
+      builtAt: snapshot.snapshotMeta.builtAt || "",
+      durationMs: snapshot.snapshotMeta.durationMs || 0,
+      totalPayloadBytes: totalPayloadBytes,
+      rotationEstimate: rotationEstimate,
+      updatedAt: new Date().toISOString(),
+      index: {
+        state: indexWritten.state,
+        chunkCount: indexWritten.chunkCount,
+        payloadBytes: indexWritten.payloadBytes,
+        checksum: indexWritten.checksum
+      },
+      passport: {
+        state: passportWritten.state,
+        chunkCount: passportWritten.chunkCount,
+        payloadBytes: passportWritten.payloadBytes,
+        checksum: passportWritten.checksum
+      }
+    };
+    props.setProperty(DASHBOARD_DRILLDOWN_PROP_MANIFEST_KEY, JSON.stringify(manifest));
+    manifestPublished = true;
+
+    if (oldManifest && oldManifest.bundleVersion !== bundleVersion) {
+      deleteDashboardDrilldownArtifactChunks_(
+        props,
+        oldManifest.bundleVersion,
+        oldManifest.index,
+        DASHBOARD_DRILLDOWN_INDEX_CHUNK_PREFIX
+      );
+      deleteDashboardDrilldownArtifactChunks_(
+        props,
+        oldManifest.bundleVersion,
+        oldManifest.passport,
+        DASHBOARD_DRILLDOWN_PASSPORT_CHUNK_PREFIX
+      );
+    }
+
+    const indexCache = writeDashboardDrilldownCache_(
+      DASHBOARD_DRILLDOWN_INDEX_CACHE_KEY,
+      "index",
+      bundleVersion,
+      indexPrepared.payload
+    );
+    const passportCache = writeDashboardDrilldownCache_(
+      DASHBOARD_DRILLDOWN_PASSPORT_CACHE_KEY,
+      "passport",
+      bundleVersion,
+      passportPrepared.payload
+    );
+    return {
+      success: true,
+      parity: parity,
+      manifest: manifest,
+      durable: manifest,
+      cache: {
+        index: indexCache,
+        passport: passportCache
+      },
+      counts: getDashboardDrilldownCounts_(snapshot)
+    };
+  } catch (error) {
+    if (!manifestPublished) {
+      writtenArtifacts.forEach(item => {
+        deleteDashboardDrilldownArtifactChunks_(
+          props,
+          bundleVersion,
+          { chunkCount: item.prepared.chunkCount },
+          item.chunkPrefix
+        );
+      });
+    }
+    return { success: false, error: error.toString() };
+  }
+}
+
+function getDashboardDrilldownCounts_(snapshot) {
+  const index = snapshot.index || {};
+  const kpiCounts = {};
+  Object.keys(index.kpiPipeLists || {}).forEach(statusKey => {
+    kpiCounts[statusKey] = index.kpiPipeLists[statusKey].length;
+  });
+
+  const processCounts = {};
+  const byProcess = index.queuePipeLists && index.queuePipeLists.byProcess || {};
+  Object.keys(byProcess).forEach(processName => {
+    processCounts[processName] = byProcess[processName].length;
+  });
+
+  return {
+    kpi: kpiCounts,
+    processes: processCounts,
+    pipeIndex: Object.keys(index.pipeIndex || {}).length,
+    passports: Object.keys(snapshot.passport && snapshot.passport.passportByPipeNo || {}).length
+  };
+}
+
+function compareDashboardDrilldownSnapshots_(expectedSnapshot, actualSnapshot) {
+  const expectedJson = JSON.stringify(stableDashboardDrilldownValue_(
+    getDashboardDrilldownPayload_(expectedSnapshot)
+  ));
+  const actualJson = JSON.stringify(stableDashboardDrilldownValue_(
+    getDashboardDrilldownPayload_(actualSnapshot)
+  ));
+  return {
+    parity: expectedJson === actualJson,
+    expectedChecksum: computeDashboardDrilldownChecksum_(expectedJson),
+    actualChecksum: computeDashboardDrilldownChecksum_(actualJson),
+    expectedCounts: getDashboardDrilldownCounts_(expectedSnapshot),
+    actualCounts: getDashboardDrilldownCounts_(actualSnapshot)
+  };
+}
+
+function isDashboardDrilldownQuotaError_(error) {
+  const text = (error || "").toString().toLowerCase();
+  return text.indexOf("quota") !== -1 ||
+    text.indexOf("too large") !== -1 ||
+    text.indexOf("exceeds") !== -1 ||
+    text.indexOf("limit") !== -1 ||
+    text.indexOf("properties service") !== -1 ||
+    text.indexOf("propertiesservice") !== -1 ||
+    text.indexOf("service invoked too many times") !== -1;
+}
+
+function runDashboardDrilldownSnapshotBuild_(validateParity) {
+  const startedAt = Date.now();
+  const bundleVersion = String(startedAt);
+  const lock = LockService.getScriptLock();
+
+  if (!lock.tryLock(30000)) {
+    const lockMeta = {
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      bundleVersion: bundleVersion,
+      builtAt: new Date(startedAt).toISOString(),
+      durationMs: Date.now() - startedAt,
+      success: false,
+      state: "failed",
+      error: "Dashboard drilldown refresh lock busy"
+    };
+    writeDashboardDrilldownMeta_(lockMeta);
+    return { success: false, snapshotMeta: lockMeta };
+  }
+
+  try {
+    const fullResponse = buildDashboardDataFresh_();
+    if (!fullResponse || fullResponse.success !== true) {
+      throw new Error(fullResponse && fullResponse.error
+        ? fullResponse.error
+        : "Dashboard fresh build failed");
+    }
+
+    const snapshot = extractDashboardDrilldownSnapshot_(fullResponse);
+    snapshot.snapshotMeta = {
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      bundleVersion: bundleVersion,
+      sourceSnapshotVersion: bundleVersion,
+      builtAt: new Date(startedAt).toISOString(),
+      durationMs: Date.now() - startedAt,
+      success: true,
+      state: "ready",
+      error: ""
+    };
+
+    const validation = validateDashboardDrilldownSnapshot_(snapshot);
+    if (!validation.valid) throw new Error(validation.error);
+
+    const bundleResult = writeDashboardDrilldownBundle_(snapshot, validateParity);
+    if (!bundleResult.success) {
+      const quotaExceeded = !!bundleResult.quotaExceeded || isDashboardDrilldownQuotaError_(bundleResult.error);
+      const failureMeta = {
+        schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+        bundleVersion: bundleVersion,
+        builtAt: snapshot.snapshotMeta.builtAt,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        state: "failed",
+        sizeExceeded: !!bundleResult.sizeExceeded || quotaExceeded,
+        quotaExceeded: quotaExceeded,
+        parity: bundleResult.parity === false ? false : null,
+        error: bundleResult.error || "Dashboard drilldown bundle write failed"
+      };
+      writeDashboardDrilldownMeta_(failureMeta);
+      return Object.assign(bundleResult, { snapshotMeta: failureMeta });
+    }
+
+    const storedSnapshot = readDashboardDrilldown_();
+    if (!storedSnapshot) throw new Error("Published drilldown snapshot could not be read back");
+    const parityResult = compareDashboardDrilldownSnapshots_(snapshot, storedSnapshot);
+    if (validateParity && !parityResult.parity) {
+      const failureMeta = {
+        schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+        bundleVersion: bundleVersion,
+        builtAt: snapshot.snapshotMeta.builtAt,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        state: "failed",
+        parity: false,
+        error: "Drilldown snapshot parity mismatch after manifest publish"
+      };
+      writeDashboardDrilldownMeta_(failureMeta);
+      return Object.assign(parityResult, { success: false, snapshotMeta: failureMeta });
+    }
+
+    const result = {
+      success: true,
+      parity: parityResult.parity,
+      snapshotMeta: snapshot.snapshotMeta,
+      durable: bundleResult.durable,
+      cache: bundleResult.cache,
+      counts: parityResult.actualCounts
+    };
+    writeDashboardDrilldownMeta_(snapshot.snapshotMeta);
+    Logger.log("DASH_DRILLDOWN refresh ok | " + JSON.stringify(result));
+    return result;
+  } catch (error) {
+    const errorMeta = {
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      bundleVersion: bundleVersion,
+      builtAt: new Date(startedAt).toISOString(),
+      durationMs: Date.now() - startedAt,
+      success: false,
+      state: "failed",
+      error: error && error.message ? error.message : error.toString()
+    };
+    writeDashboardDrilldownMeta_(errorMeta);
+    Logger.log("DASH_DRILLDOWN refresh error | " + JSON.stringify(errorMeta));
+    return { success: false, snapshotMeta: errorMeta };
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (lockError) {
+      Logger.log("DASH_DRILLDOWN lock release error: " + lockError);
+    }
+  }
+}
+
+function refreshDashboardDrilldownSnapshot_() {
+  return runDashboardDrilldownSnapshotBuild_(false);
+}
+
+function adminRefreshDashboardDrilldownSnapshot() {
+  Logger.log("DASH_DRILLDOWN admin refresh requested");
+  return refreshDashboardDrilldownSnapshot_();
+}
+
+function adminGetDashboardDrilldownSnapshotStatus() {
+  try {
+    const manifestResult = readDashboardDrilldownManifest_();
+    const durableSnapshot = manifestResult.manifest ? readDashboardDrilldown_() : null;
+    let cacheSnapshot = readDashboardDrilldownCache_();
+    if (cacheSnapshot && manifestResult.manifest &&
+        cacheSnapshot.snapshotMeta.bundleVersion !== manifestResult.manifest.bundleVersion) {
+      Logger.log("DASH_DRILLDOWN cache ignored because durable bundle version differs");
+      cacheSnapshot = null;
+    }
+    const selectedSnapshot = cacheSnapshot || durableSnapshot;
+    const metaText = PropertiesService.getScriptProperties()
+      .getProperty(DASHBOARD_DRILLDOWN_PROP_META_KEY);
+    const lastAttempt = metaText ? JSON.parse(metaText) : {};
+    const sizeExceeded = !!lastAttempt.sizeExceeded || manifestResult.code === "sizeExceeded";
+    const quotaExceeded = !!lastAttempt.quotaExceeded;
+    const limitBlocked = sizeExceeded || quotaExceeded;
+    const readError = limitBlocked ? "" : manifestResult.error ||
+      (manifestResult.manifest && !durableSnapshot
+        ? "Drilldown snapshot chunks or checksum invalid"
+        : "");
+    const error = limitBlocked
+      ? (lastAttempt.error || manifestResult.error || "Dashboard drilldown write blocked by size/quota limit")
+      : readError;
+    const result = {
+      success: !error && !limitBlocked,
+      hasSnapshot: !!durableSnapshot,
+      hasDurableSnapshot: !!durableSnapshot,
+      hasCacheSnapshot: !!cacheSnapshot,
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      snapshotMeta: selectedSnapshot && selectedSnapshot.snapshotMeta
+        ? selectedSnapshot.snapshotMeta
+        : {},
+      snapshotSource: cacheSnapshot ? "cache" : durableSnapshot ? "durable" : "none",
+      lastAttempt: lastAttempt,
+      manifest: manifestResult.manifest || {},
+      manifestStatus: manifestResult.code,
+      counts: durableSnapshot ? getDashboardDrilldownCounts_(durableSnapshot) : {},
+      sizeExceeded: sizeExceeded,
+      quotaExceeded: quotaExceeded,
+      error: error
+    };
+    Logger.log(JSON.stringify(result));
+    return result;
+  } catch (error) {
+    const result = {
+      success: false,
+      hasSnapshot: false,
+      hasDurableSnapshot: false,
+      hasCacheSnapshot: false,
+      schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
+      snapshotMeta: {},
+      lastAttempt: {},
+      manifest: {},
+      manifestStatus: "readError",
+      counts: {},
+      sizeExceeded: false,
+      quotaExceeded: false,
+      error: error.toString()
+    };
+    Logger.log(JSON.stringify(result));
+    return result;
+  }
+}
+
+function adminValidateDashboardDrilldownParity() {
+  Logger.log("DASH_DRILLDOWN admin parity validation requested");
+  return runDashboardDrilldownSnapshotBuild_(true);
 }
 
 function serializeDashboardSnapshot_(snapshot) {
