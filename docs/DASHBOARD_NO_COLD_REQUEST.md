@@ -103,6 +103,18 @@ Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashbo
 - Fresh fallback trong user request: NO
 - Production deploy: NO
 
+## Step 3 Queue Drilldown No-Cold Runtime Validation Test/Dev
+
+- `getDashboardProcessPipeList("Đóng gói")`: PASS, `success=true`, `total=54`, `pipesLength=54`, `durationMs=220`
+- `getDashboardProcessPipeList("Thông nòng")`: PASS, `success=true`, `total=39`, `pipesLength=39`, `durationMs=194`
+- `getDashboardProcessPipeList("Rửa ống")`: PASS, `success=true`, `total=31`, `pipesLength=31`, `durationMs=320`
+- `getDashboardProcessPipeList("Đầu vào")`: PASS, `success=true`, `total=18`, `pipesLength=18`, `durationMs=201`
+- `getDashboardProcessPipeList(" Đóng gói ")`: PASS, `success=true`, `processName="Đóng gói"`, `total=54`, `pipesLength=54`, `durationMs=95`
+- `getDashboardProcessPipeList("Không tồn tại")`: PASS expected error, `success=false`, `error="processName không hợp lệ"`
+- Response shape `success/processName/total/pipes`: PASS
+- Fresh fallback trong user request: NO
+- Production deploy: NO
+
 ## Pre-production Smoke Test Checklist
 
 Checklist này chỉ dùng cho manual smoke test trên deployment. Chỉ ghi PASS/FAIL sau khi đã chạy kiểm thử thực tế.
@@ -122,7 +134,7 @@ Checklist này chỉ dùng cho manual smoke test trên deployment. Chỉ ghi PAS
 Ghi chu:
 
 - Initial Dashboard no-cold-user-request da PASS test/dev.
-- KPI drilldown da doc index snapshot; Queue/Passport drilldown van co the cold vi con goi `buildDashboardDataFresh_()`.
+- KPI va Queue drilldown da doc index snapshot; Passport drilldown van co the cold vi con goi `buildDashboardDataFresh_()`.
 
 ## Neu Snapshot Missing
 
@@ -144,4 +156,4 @@ Cach xu ly:
 
 - Gan refresh sau submit/sync.
 - Them trigger dinh ky du phong.
-- Toi uu Queue/Passport endpoints de khong cold.
+- Toi uu Passport endpoint de khong cold.
