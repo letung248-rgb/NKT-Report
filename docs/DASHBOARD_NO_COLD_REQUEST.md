@@ -63,6 +63,22 @@ Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashbo
 - Search box: chua xac nhan end-to-end
 - Production deploy: NO
 
+## Pre-production Smoke Test Checklist
+
+Checklist này chỉ dùng cho manual smoke test trên deployment. Chỉ ghi PASS/FAIL sau khi đã chạy kiểm thử thực tế.
+
+| Hạng mục | Kết quả | Thời gian | Người thực hiện | Ghi chú |
+|---|---|---|---|---|
+| Mở Dashboard lần đầu |  |  |  |  |
+| Refresh Snapshot |  |  |  |  |
+| Worker submit/sync |  |  |  |  |
+| Drilldown KPI |  |  |  |  |
+| Drilldown Queue |  |  |  |  |
+| Search |  |  |  |  |
+| Passport |  |  |  |  |
+| Refresh trình duyệt |  |  |  |  |
+| Mở tab mới |  |  |  |  |
+
 Ghi chu:
 
 - Initial Dashboard no-cold-user-request da PASS test/dev.
