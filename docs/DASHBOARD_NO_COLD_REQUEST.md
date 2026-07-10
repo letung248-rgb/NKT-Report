@@ -36,6 +36,35 @@ Khi cache hit, Dashboard mo nhanh. Nhung khi cache miss, nguoi dung, bao gom lan
 
 Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashboardDataFresh_()`. Phase nay chi tach initial Dashboard payload khoi du lieu nang.
 
+## Step 1 Drilldown No-Cold (Background-only)
+
+- `refreshDashboardDrilldownSnapshot_()` build drilldown snapshot tu output hien co cua `buildDashboardDataFresh_()`.
+- `adminRefreshDashboardDrilldownSnapshot()` chay refresh trong admin/background context.
+- `adminGetDashboardDrilldownSnapshotStatus()` kiem tra manifest, version, payload, chunks, checksum va counts.
+- `adminValidateDashboardDrilldownParity()` so sanh snapshot voi fresh build, khong thay doi user endpoint.
+- Snapshot tach thanh index payload (KPI lists, queue/process lists, pipe index) va passport payload (`passportByPipeNo`).
+- Moi payload co CacheService key va envelope rieng voi schemaVersion, bundleVersion, payloadBytes va checksum; reader chi ghep hai cache artifact cung version.
+- Index/passport durable payload gioi han lan luot 120 KB/240 KB, tong toi da 360 KB; vuot gioi han tra `sizeExceeded` va khong publish `state=ready`.
+- Truoc rotation, builder uoc tinh payload/chunk storage cua version moi va version cu; vuot rotation budget se tra `sizeExceeded`/`quotaExceeded` va khong publish manifest.
+- Status fail ro neu manifest missing/invalid, chunk missing, payload size mismatch, checksum mismatch hoac `sizeExceeded`.
+- Parity dung cung mot fresh build theo luong build -> extract -> write chunks -> read back -> compare.
+- Snapshot builder/reader loi, thieu, sai checksum hoac qua lon se fail nhanh; Step 1 chua doi user endpoint nen drilldown van co the cold.
+- `getDashboardPipeList()`, `getDashboardProcessPipeList()` va `getDashboardPassport()` chua thay doi.
+- `Dashboard.html` va business rules chua thay doi.
+- Runtime validation can test/dev deployment; buoc nay chua deploy.
+
+## Spreadsheet Binding Validation
+
+- `configuredId`: `18UgAbhjXvi0Vi2Jo-ePs7dXMZA7rCtcmeleWGWbtQUY`
+- `configuredIdLength`: `44`
+- `openById.success`: `true`
+- `openById.id`: khop `configuredId`
+- `openById.name`: `Báo cáo sửa chữa ống NKT - X.CO&TBDG`
+- `activeSpreadsheet.success`: `false`
+- `activeSpreadsheet.error`: `No active spreadsheet`
+- Ket luan: ID dung, quyen dung, project chay standalone/no active spreadsheet context; `openById` dang hoat dong binh thuong.
+- Loi `openById` truoc day khong con la blocker neu refresh/status/parity van PASS.
+
 ## Runbook Truoc Deploy
 
 1. Push code len Apps Script test/dev.
