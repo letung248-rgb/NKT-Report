@@ -938,22 +938,36 @@ function getDashboardPassport(pipeNo) {
     const pipeKey = getDashboardPipeNoKey_(pipeNo);
     if (!pipeKey) return { success: false, error: "pipeNo không hợp lệ" };
 
-    const data = buildDashboardDataFresh_();
-    if (!data || data.success !== true) {
-      return { success: false, error: (data && data.error) || "Không tải được dữ liệu dashboard" };
+    const indexResult = readDashboardDrilldownIndexForUser_();
+    if (!indexResult.success) {
+      return { success: false, error: indexResult.error || "Dashboard drilldown snapshot unavailable" };
     }
 
-    const pipes = data.pipeLists && Array.isArray(data.pipeLists.all) ? data.pipeLists.all : [];
-    for (let i = 0; i < pipes.length; i++) {
-      if (getDashboardPipeNoKey_(pipes[i].pipeNo) === pipeKey) {
-        return {
-          success: true,
-          pipe: compactDashboardPassport_(pipes[i])
-        };
-      }
+    const pipeIndex = indexResult.index && indexResult.index.pipeIndex;
+    if (!pipeIndex || typeof pipeIndex !== "object") {
+      return { success: false, error: "Dashboard drilldown index invalid" };
+    }
+    if (!Object.prototype.hasOwnProperty.call(pipeIndex, pipeKey)) {
+      return { success: false, error: "Không tìm thấy ống" };
     }
 
-    return { success: false, error: "Không tìm thấy ống" };
+    const passportResult = readDashboardDrilldownPassportForUser_(
+      indexResult.manifest,
+      indexResult.bundleVersion
+    );
+    if (!passportResult.success) {
+      return { success: false, error: passportResult.error };
+    }
+
+    const passportByPipeNo = passportResult.passport.passportByPipeNo;
+    if (!Object.prototype.hasOwnProperty.call(passportByPipeNo, pipeKey)) {
+      return { success: false, error: "Dashboard drilldown passport payload missing" };
+    }
+
+    return {
+      success: true,
+      pipe: passportByPipeNo[pipeKey]
+    };
   } catch (e) {
     return { success: false, error: e.toString(), stack: e.stack };
   }
@@ -1321,6 +1335,9 @@ function validateDashboardDrilldownIndexPayload_(indexPayload) {
       !indexPayload.queuePipeLists.byProcess || typeof indexPayload.queuePipeLists.byProcess !== "object") {
     return { valid: false, error: "Dashboard drilldown queue pipe lists are missing" };
   }
+  if (!indexPayload.pipeIndex || typeof indexPayload.pipeIndex !== "object") {
+    return { valid: false, error: "Dashboard drilldown pipe index is missing" };
+  }
 
   const requiredStatusKeys = ["tp", "cs", "hong", "dxl", "all"];
   for (let i = 0; i < requiredStatusKeys.length; i++) {
@@ -1371,6 +1388,7 @@ function readDashboardDrilldownIndexForUser_() {
           success: true,
           source: "cache",
           bundleVersion: cacheEnvelope.bundleVersion,
+          manifest: manifestResult.manifest,
           index: indexPayload
         };
       }
@@ -1399,12 +1417,77 @@ function readDashboardDrilldownIndexForUser_() {
       success: true,
       source: "durable",
       bundleVersion: manifestResult.manifest.bundleVersion,
+      manifest: manifestResult.manifest,
       index: indexPayload
     };
   } catch (error) {
     return {
       success: false,
       error: "Dashboard drilldown index unavailable: " + error.toString()
+    };
+  }
+}
+
+function validateDashboardDrilldownPassportPayload_(passportPayload) {
+  if (!passportPayload || typeof passportPayload !== "object" ||
+      !passportPayload.passportByPipeNo || typeof passportPayload.passportByPipeNo !== "object") {
+    return { valid: false, error: "Dashboard drilldown passport payload missing" };
+  }
+  return { valid: true, error: "" };
+}
+
+function readDashboardDrilldownPassportForUser_(manifest, bundleVersion) {
+  if (!manifest || !bundleVersion || manifest.bundleVersion !== bundleVersion) {
+    return { success: false, error: "Dashboard drilldown passport bundle version mismatch" };
+  }
+
+  const cacheEnvelope = readDashboardDrilldownCacheArtifact_(
+    DASHBOARD_DRILLDOWN_PASSPORT_CACHE_KEY,
+    "passport"
+  );
+  if (cacheEnvelope && cacheEnvelope.bundleVersion === bundleVersion) {
+    try {
+      const passportPayload = deserializeDashboardDrilldownPayload_(cacheEnvelope.payload);
+      const validation = validateDashboardDrilldownPassportPayload_(passportPayload);
+      if (validation.valid) {
+        return {
+          success: true,
+          source: "cache",
+          bundleVersion: cacheEnvelope.bundleVersion,
+          passport: passportPayload
+        };
+      }
+      Logger.log("DASH_DRILLDOWN passport cache rejected: " + validation.error);
+    } catch (error) {
+      Logger.log("DASH_DRILLDOWN passport cache deserialize error: " + error);
+    }
+  }
+
+  try {
+    CacheService.getScriptCache().remove(DASHBOARD_DRILLDOWN_PASSPORT_CACHE_KEY);
+  } catch (error) {
+    Logger.log("DASH_DRILLDOWN passport cache cleanup error: " + error);
+  }
+
+  try {
+    const passportPayload = readDashboardDrilldownArtifact_(
+      PropertiesService.getScriptProperties(),
+      manifest,
+      "passport",
+      DASHBOARD_DRILLDOWN_PASSPORT_CHUNK_PREFIX
+    );
+    const validation = validateDashboardDrilldownPassportPayload_(passportPayload);
+    if (!validation.valid) return { success: false, error: validation.error };
+    return {
+      success: true,
+      source: "durable",
+      bundleVersion: manifest.bundleVersion,
+      passport: passportPayload
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: "Dashboard drilldown passport unavailable: " + error.toString()
     };
   }
 }
