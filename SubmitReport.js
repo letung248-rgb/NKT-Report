@@ -1,4 +1,4 @@
-var SUBMIT_FAST_ACK_ENABLED = true;
+var SUBMIT_FAST_ACK_ENABLED = false;
 var SUBMIT_FAST_ACK_MAX_ROWS = 120;
 var SUBMIT_QUEUE_PROPERTY_PREFIX = 'SUBMIT_QUEUE_JOB_';
 var SUBMIT_QUEUE_TRIGGER_PENDING_KEY = 'SUBMIT_QUEUE_TRIGGER_PENDING';
@@ -29,20 +29,6 @@ function submitReport(payload) {
     });
     timing.buildRows = Date.now() - tBuildFast;
 
-    var fastAck = _submitShouldFastAck_(payload, fastRows);
-    if (fastAck.enabled) {
-      var queuedFastAck = _submitQueueRowsForBackgroundWrite_(dataSheetName, fastRows, timing);
-      if (queuedFastAck.success) {
-        timing.mode = 'queued_fast_ack';
-        timing.total = Date.now() - tStart;
-        Logger.log('submitReport queued fast-ack timing: ' + JSON.stringify(timing));
-        return _submitQueuedSuccess_(fastRows.length, timing);
-      }
-      timing.fastAckFallback = queuedFastAck.message || 'fast ack queue unavailable';
-    } else if (fastAck.reason) {
-      timing.fastAckSkipped = fastAck.reason;
-    }
-
     var fastAppend = _submitAppendRowsFast_(dataSheetName, fastRows, timing);
     if (fastAppend.success) {
       timing.mode = 'fast_append';
@@ -53,18 +39,8 @@ function submitReport(payload) {
 
     timing.fastAppendFallback = fastAppend.message || 'fast append unavailable';
 
-    var queued = _submitQueueRowsForBackgroundWrite_(dataSheetName, fastRows, timing);
-    if (queued.success) {
-      timing.mode = 'queued_fallback';
-      timing.total = Date.now() - tStart;
-      Logger.log('submitReport queued timing: ' + JSON.stringify(timing));
-      return _submitQueuedSuccess_(fastRows.length, timing);
-    }
-
-    timing.queueFallback = queued.message || 'queue unavailable';
-
     var tOpen = Date.now();
-    var ss = _submitGetSpreadsheet_();
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     timing.openSpreadsheet = Date.now() - tOpen;
     if (!ss) return _submitError_('Khong tim thay Spreadsheet.', timing, tStart);
 
