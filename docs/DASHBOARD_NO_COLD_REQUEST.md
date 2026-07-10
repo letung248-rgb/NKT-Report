@@ -47,6 +47,27 @@ Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashbo
 7. Test Search/Passport.
 8. Chi deploy production khi tat ca buoc tren PASS.
 
+## Runtime Validation Test/Dev
+
+- `clasp push`: PASS
+- `adminRefreshDashboardSnapshot()`: PASS
+- `builtAt`: `2026-07-09T20:51:46.682Z`
+- `durationMs`: `43621`
+- Snapshot payload: `1256` bytes
+- Chunks: `1`
+- `adminGetDashboardSnapshotStatus()`: `success=true`, `hasSnapshot=true`
+- Initial Dashboard load: PASS ~2.1s
+- KPI click "Đang xử lý": PASS ~114s
+- Queue click "Đầu vào": PASS ~8.2s
+- Passport pipe `1006`: PASS ~9.4s
+- Search box: chua xac nhan end-to-end
+- Production deploy: NO
+
+Ghi chu:
+
+- Initial Dashboard no-cold-user-request da PASS test/dev.
+- Drilldown van co the cold vi con goi `buildDashboardDataFresh_()`.
+
 ## Neu Snapshot Missing
 
 Neu snapshot missing, Dashboard tra loi nhanh voi `success:false` va khong xoay lau.
@@ -67,5 +88,4 @@ Cach xu ly:
 
 - Gan refresh sau submit/sync.
 - Them trigger dinh ky du phong.
-- Do runtime thuc te tren test/dev.
 - Toi uu drilldown endpoints de khong cold.
