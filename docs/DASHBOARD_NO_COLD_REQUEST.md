@@ -49,7 +49,7 @@ Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashbo
 - Status fail ro neu manifest missing/invalid, chunk missing, payload size mismatch, checksum mismatch hoac `sizeExceeded`.
 - Parity dung cung mot fresh build theo luong build -> extract -> write chunks -> read back -> compare.
 - Snapshot builder/reader loi, thieu, sai checksum hoac qua lon se fail nhanh; Step 1 chua doi user endpoint nen drilldown van co the cold.
-- `getDashboardPipeList()`, `getDashboardProcessPipeList()` va `getDashboardPassport()` chua thay doi.
+- `getDashboardPipeList()` da chuyen sang doc index snapshot o Step 2; `getDashboardProcessPipeList()` va `getDashboardPassport()` chua thay doi.
 - `Dashboard.html` va business rules chua thay doi.
 - Runtime validation can test/dev deployment; buoc nay chua deploy.
 
@@ -92,6 +92,17 @@ Luu y: cac lazy drilldown endpoints hien van co the cold vi con goi `buildDashbo
 - Search box: chua xac nhan end-to-end
 - Production deploy: NO
 
+## Step 2 KPI Drilldown No-Cold Runtime Validation Test/Dev
+
+- `getDashboardPipeList("all")`: PASS, `success=true`, `total=156`, `pipesLength=156`, `durationMs=86`
+- `getDashboardPipeList("tp")`: PASS, `success=true`, `total=2`, `pipesLength=2`, `durationMs=53`
+- `getDashboardPipeList("cs")`: PASS, `success=true`, `total=0`, `pipesLength=0`, `durationMs=53`
+- `getDashboardPipeList("hong")`: PASS, `success=true`, `total=14`, `pipesLength=14`, `durationMs=49`
+- `getDashboardPipeList("dxl")`: PASS, `success=true`, `total=142`, `pipesLength=142`, `durationMs=50`
+- Response shape `success/statusKey/title/total/pipes`: PASS
+- Fresh fallback trong user request: NO
+- Production deploy: NO
+
 ## Pre-production Smoke Test Checklist
 
 Checklist này chỉ dùng cho manual smoke test trên deployment. Chỉ ghi PASS/FAIL sau khi đã chạy kiểm thử thực tế.
@@ -111,7 +122,7 @@ Checklist này chỉ dùng cho manual smoke test trên deployment. Chỉ ghi PAS
 Ghi chu:
 
 - Initial Dashboard no-cold-user-request da PASS test/dev.
-- Drilldown van co the cold vi con goi `buildDashboardDataFresh_()`.
+- KPI drilldown da doc index snapshot; Queue/Passport drilldown van co the cold vi con goi `buildDashboardDataFresh_()`.
 
 ## Neu Snapshot Missing
 
@@ -133,4 +144,4 @@ Cach xu ly:
 
 - Gan refresh sau submit/sync.
 - Them trigger dinh ky du phong.
-- Toi uu drilldown endpoints de khong cold.
+- Toi uu Queue/Passport endpoints de khong cold.
