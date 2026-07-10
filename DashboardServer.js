@@ -908,18 +908,19 @@ function getDashboardProcessPipeList(processName) {
     const normalizedProcessName = (processName || "").toString().trim();
     if (!normalizedProcessName) return { success: false, error: "processName không hợp lệ" };
 
-    const data = buildDashboardDataFresh_();
-    if (!data || data.success !== true) {
-      return { success: false, error: (data && data.error) || "Không tải được dữ liệu dashboard" };
+    const snapshotResult = readDashboardDrilldownIndexForUser_();
+    if (!snapshotResult.success) {
+      return { success: false, error: snapshotResult.error || "Dashboard drilldown snapshot unavailable" };
     }
 
-    const processPipeLists = data.processPipeLists || {};
-    if (!Object.prototype.hasOwnProperty.call(processPipeLists, normalizedProcessName)) {
+    const processPipeLists = snapshotResult.index.queuePipeLists &&
+      snapshotResult.index.queuePipeLists.byProcess;
+    if (!processPipeLists || !Object.prototype.hasOwnProperty.call(processPipeLists, normalizedProcessName)) {
       return { success: false, error: "processName không hợp lệ" };
     }
 
     const pipes = Array.isArray(processPipeLists[normalizedProcessName]) ? processPipeLists[normalizedProcessName] : [];
-    const compactPipes = pipes.map(compactDashboardPipeItem_);
+    const compactPipes = pipes.slice();
 
     return {
       success: true,
@@ -1316,11 +1317,21 @@ function validateDashboardDrilldownIndexPayload_(indexPayload) {
   if (!indexPayload.kpiPipeLists || typeof indexPayload.kpiPipeLists !== "object") {
     return { valid: false, error: "Dashboard drilldown KPI lists are missing" };
   }
+  if (!indexPayload.queuePipeLists || typeof indexPayload.queuePipeLists !== "object" ||
+      !indexPayload.queuePipeLists.byProcess || typeof indexPayload.queuePipeLists.byProcess !== "object") {
+    return { valid: false, error: "Dashboard drilldown queue pipe lists are missing" };
+  }
 
   const requiredStatusKeys = ["tp", "cs", "hong", "dxl", "all"];
   for (let i = 0; i < requiredStatusKeys.length; i++) {
     if (!Array.isArray(indexPayload.kpiPipeLists[requiredStatusKeys[i]])) {
       return { valid: false, error: "Invalid dashboard drilldown KPI list: " + requiredStatusKeys[i] };
+    }
+  }
+  const processNames = Object.keys(indexPayload.queuePipeLists.byProcess);
+  for (let i = 0; i < processNames.length; i++) {
+    if (!Array.isArray(indexPayload.queuePipeLists.byProcess[processNames[i]])) {
+      return { valid: false, error: "Invalid dashboard drilldown queue list: " + processNames[i] };
     }
   }
   return { valid: true, error: "" };
