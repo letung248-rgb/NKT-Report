@@ -32,7 +32,7 @@
             --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", Arial, sans-serif; }
         body { background-color: var(--bg-base); color: var(--text-primary); display: flex; height: 100vh; overflow: hidden; }
         
         /* Layout */
@@ -80,8 +80,8 @@
 
         /* Tables */
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
-        th { background-color: rgba(0,0,0,0.03); padding: 1rem; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border-color); white-space: nowrap; }
-        td { padding: 1rem; border-bottom: 1px solid var(--border-color); }
+        th { background-color: rgba(0,0,0,0.03); padding: 0.875rem 1rem; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border-color); white-space: nowrap; vertical-align: middle; }
+        td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
         tbody tr:hover { background-color: var(--bg-surface-hover); }
         .badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
         .badge.tp { background: rgba(16,185,129,0.2); color: var(--accent-success); }
@@ -595,7 +595,7 @@
                             <div class="kpi-value text-danger" id="errorAnalysisKpiErrorCount">0</div>
                         </div>
                         <div class="kpi-card">
-                            <div class="kpi-title">Tỷ lệ lỗi %</div>
+                            <div class="kpi-title">Tỷ lệ lỗi (%)</div>
                             <div class="kpi-value text-warning" id="errorAnalysisKpiErrorRate">0%</div>
                         </div>
                     </div>
@@ -608,9 +608,9 @@
                                     <tr>
                                         <th>Tên lỗi</th>
                                         <th>Số lượng</th>
-                                        <th>%</th>
-                                        <th>Severity</th>
-                                        <th>Process</th>
+                                        <th>Tỷ lệ lỗi (%)</th>
+                                        <th>Mức độ</th>
+                                        <th>Công đoạn</th>
                                     </tr>
                                 </thead>
                                 <tbody id="errorAnalysisTopTable"></tbody>
