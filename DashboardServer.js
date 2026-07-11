@@ -513,6 +513,39 @@ function debugPipeEngine() {
   }
 }
 
+function debugLatest10Pipes() {
+  const samples = buildPipeEngine()
+    .sort((a, b) => {
+      const timeDiff = getDashboardTime_(b.currentDate) - getDashboardTime_(a.currentDate);
+      if (timeDiff !== 0) return timeDiff;
+
+      const latestA = a.history[a.history.length - 1] || {};
+      const latestB = b.history[b.history.length - 1] || {};
+      const receiveTimeDiff = getDashboardTime_(latestB.receiveTime) - getDashboardTime_(latestA.receiveTime);
+      if (receiveTimeDiff !== 0) return receiveTimeDiff;
+      return (latestB.id || "").toString().localeCompare((latestA.id || "").toString());
+    })
+    .slice(0, 10)
+    .map(pipe => {
+      const latestTxn = pipe.history[pipe.history.length - 1] || {};
+      return {
+        id: latestTxn.id || "",
+        pipeNo: pipe.pipeNo || "",
+        currentProcess: pipe.currentProcess || "",
+        currentStep: pipe.currentProcess || "",
+        currentStatus: pipe.currentStatus || "",
+        quality: pipe.currentReason || "",
+        defectReason: pipe.currentReason || "",
+        classifiedStatus: pipe.currentBusinessStatus || "",
+        currentBusinessStatus: pipe.currentBusinessStatus || "",
+        isThanhPhamKpiPipe: isThanhPhamKpiPipe(pipe)
+      };
+    });
+
+  samples.forEach(sample => Logger.log(JSON.stringify(sample)));
+  return samples;
+}
+
 /**
  * 6. Hàm lấy dữ liệu cho Dashboard (Tạm thời dùng Pipe Engine)
  */

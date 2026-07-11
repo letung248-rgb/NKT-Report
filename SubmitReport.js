@@ -31,6 +31,14 @@ function submitReport(payload) {
 
     var fastAppend = _submitAppendRowsFast_(dataSheetName, fastRows, timing);
     if (fastAppend.success) {
+      try {
+        var fastSnapshotResult = refreshDashboardSnapshot_();
+        if (!fastSnapshotResult || !fastSnapshotResult.success) {
+          Logger.log('submitReport dashboard snapshot rebuild failed: ' + JSON.stringify(fastSnapshotResult));
+        }
+      } catch (snapshotError) {
+        Logger.log('submitReport dashboard snapshot rebuild error: ' + (snapshotError && snapshotError.stack ? snapshotError.stack : snapshotError));
+      }
       timing.mode = 'fast_append';
       timing.total = Date.now() - tStart;
       Logger.log('submitReport timing: ' + JSON.stringify(timing));
@@ -79,6 +87,15 @@ function submitReport(payload) {
     if (lock) {
       lock.releaseLock();
       lock = null;
+    }
+
+    try {
+      var fallbackSnapshotResult = refreshDashboardSnapshot_();
+      if (!fallbackSnapshotResult || !fallbackSnapshotResult.success) {
+        Logger.log('submitReport dashboard snapshot rebuild failed: ' + JSON.stringify(fallbackSnapshotResult));
+      }
+    } catch (snapshotError) {
+      Logger.log('submitReport dashboard snapshot rebuild error: ' + (snapshotError && snapshotError.stack ? snapshotError.stack : snapshotError));
     }
 
     timing.total = Date.now() - tStart;
@@ -246,6 +263,19 @@ function syncDashboardDataQueue() {
       };
     }
 
+    var snapshotResult = refreshDashboardSnapshot_();
+    if (!snapshotResult || !snapshotResult.success) {
+      return {
+        success: false,
+        message: 'Du lieu da dong bo nhung dashboard snapshot rebuild that bai.',
+        before: before,
+        after: after,
+        processed: processed,
+        queueStatus: queueStatus,
+        snapshotResult: snapshotResult
+      };
+    }
+
     return {
       success: true,
       message: before === 0
@@ -254,7 +284,8 @@ function syncDashboardDataQueue() {
       before: before,
       after: after,
       processed: processed,
-      queueStatus: queueStatus
+      queueStatus: queueStatus,
+      snapshotResult: snapshotResult
     };
   } catch (error) {
     return {
