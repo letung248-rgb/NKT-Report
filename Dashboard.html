@@ -237,8 +237,8 @@
                         <span class="queue-status-value" id="queuePendingJobs">0 job</span>
                     </div>
                     <div class="queue-status-item">
-                        <span class="queue-status-label">Đồng bộ gần nhất</span>
-                        <span class="queue-status-value" id="queueLastSync">Chưa có</span>
+                        <span class="queue-status-label">KPI cập nhật gần nhất</span>
+                        <span class="queue-status-value" id="queueLastSync">Chưa cập nhật</span>
                     </div>
                     <span class="queue-status-pill idle" id="queueStatusPill">Idle</span>
                 </div>
@@ -754,8 +754,6 @@
             const statusClass = statusText.toLowerCase();
 
             document.getElementById('queuePendingJobs').innerText = pendingJobs + ' job';
-            document.getElementById('queueLastSync').innerText = formatQueueSyncTime(status.lastSyncAt);
-
             const pill = document.getElementById('queueStatusPill');
             pill.innerText = statusText;
             pill.className = 'queue-status-pill ' + statusClass;
@@ -989,6 +987,7 @@
             snapshotStatus.className = snapshotOk ? 'health-ok' : 'health-error';
             document.getElementById('dashboardHealthUpdated').innerText = 'KPI cập nhật: ' + snapshotUpdatedAt;
             document.getElementById('dashboardHealthTotal').innerText = data.kpi.total;
+            document.getElementById('queueLastSync').innerText = snapshotUpdatedAt;
             document.getElementById('lastUpdate').innerText = 'KPI cập nhật: ' + snapshotUpdatedAt;
             
             // Health
