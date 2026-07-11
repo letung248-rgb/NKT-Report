@@ -135,6 +135,14 @@
         .sync-message { display: none; font-size: 0.8rem; font-weight: 600; }
         .sync-message.success { display: block; color: var(--accent-success); }
         .sync-message.error { display: block; color: var(--accent-danger); }
+        .dashboard-health { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; padding: 0.75rem 1rem; margin-bottom: 1rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 0.75rem; box-shadow: var(--card-shadow); font-size: 0.82rem; }
+        .dashboard-health strong { color: var(--text-primary); }
+        .health-ok { color: var(--accent-success); font-weight: 700; }
+        .health-error { color: var(--accent-danger); font-weight: 700; }
+        .sync-toast { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 100; min-width: 280px; padding: 1rem; background: var(--bg-surface); border: 1px solid var(--accent-success); border-radius: 0.75rem; box-shadow: 0 12px 30px rgba(0,0,0,0.18); color: var(--text-primary); display: none; }
+        .sync-toast.show { display: block; }
+        .sync-toast-title { color: var(--accent-success); font-weight: 800; margin-bottom: 0.5rem; }
+        .sync-toast-line { display: flex; justify-content: space-between; gap: 1rem; padding-top: 0.2rem; font-size: 0.82rem; }
         .queue-status-panel { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.875rem 1rem; margin-bottom: 1rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 0.75rem; box-shadow: var(--card-shadow); }
         .queue-status-item { display: flex; flex-direction: column; gap: 0.2rem; min-width: 120px; }
         .queue-status-label { color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; }
@@ -201,7 +209,7 @@
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <button type="button" id="syncDataBtn" class="sync-btn" onclick="syncDashboardData()">
                     <i class="ph ph-arrows-clockwise"></i>
-                    <span id="syncDataBtnText">Đồng bộ dữ liệu</span>
+                    <span id="syncDataBtnText">Đồng bộ &amp; cập nhật KPI</span>
                 </button>
                 <div style="position: relative;">
                     <i class="ph ph-magnifying-glass" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
@@ -243,6 +251,12 @@
                 </div>
 
                 <!-- KPI -->
+                <div class="dashboard-health" aria-label="Dashboard Health">
+                    <strong>Dashboard Health</strong>
+                    <span>Snapshot: <span id="dashboardHealthSnapshot" class="health-error">Chưa cập nhật</span></span>
+                    <span id="dashboardHealthUpdated">KPI cập nhật: --</span>
+                    <span>Tổng số ống trong snapshot: <strong id="dashboardHealthTotal">0</strong></span>
+                </div>
                 <div class="kpi-grid">
                     <div class="kpi-card"><span class="kpi-title">Tổng số ống</span><span class="kpi-value text-primary" id="kpi-tong">0</span></div>
                     <div class="kpi-card clickable" onclick="loadDashboardPipeList('tp')"><span class="kpi-title">Thành phẩm</span><span class="kpi-value text-success" id="kpi-tp">0</span></div>
@@ -657,6 +671,7 @@
                 <div style="margin-top: 0.5rem; font-weight: 600;">&copy; 2026 Vietsovpetro</div>
             </footer>
         </main>
+        <div id="syncSuccessToast" class="sync-toast" role="status" aria-live="polite"></div>
     </div>
 
     <script>
@@ -685,11 +700,42 @@
             el.className = 'sync-message' + (msg ? ' ' + type : '');
         }
 
+        let pendingSyncSuccessToast = false;
+
+        function formatSnapshotTime(value) {
+            if (!value) return '--';
+            const parsed = new Date(value);
+            if (isNaN(parsed.getTime())) return '--';
+            const parts = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            }).formatToParts(parsed).reduce((result, part) => {
+                result[part.type] = part.value;
+                return result;
+            }, {});
+            return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
+        }
+
+        function showSyncSuccessToast(data) {
+            const toast = document.getElementById('syncSuccessToast');
+            const updatedAt = formatSnapshotTime(data.snapshotMeta && data.snapshotMeta.builtAt);
+            toast.innerHTML = `
+                <div class="sync-toast-title">✅ Đồng bộ KPI thành công</div>
+                <div class="sync-toast-line"><span>Tổng số ống:</span><strong>${data.kpi.total}</strong></div>
+                <div class="sync-toast-line"><span>Thành phẩm:</span><strong>${data.kpi.tp}</strong></div>
+                <div class="sync-toast-line"><span>Đang xử lý:</span><strong>${data.kpi.dxl}</strong></div>
+                <div class="sync-toast-line"><span>Hỏng/Loại:</span><strong>${data.kpi.hong}</strong></div>
+                <div class="sync-toast-line" style="display:block; margin-top:0.45rem;"><span>KPI cập nhật:</span><br><strong>${updatedAt}</strong></div>`;
+            toast.classList.add('show');
+            window.setTimeout(() => toast.classList.remove('show'), 7000);
+        }
+
         function setSyncButtonLoading(isLoading) {
             const btn = document.getElementById('syncDataBtn');
             const text = document.getElementById('syncDataBtnText');
             btn.disabled = isLoading;
-            text.innerText = isLoading ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu';
+            text.innerText = isLoading ? 'Đang đồng bộ...' : 'Đồng bộ & cập nhật KPI';
         }
 
         function formatQueueSyncTime(value) {
@@ -858,6 +904,7 @@
                     showSyncStatus(res.message || 'Đồng bộ dữ liệu thành công.', 'success');
                     if (res.queueStatus) renderQueueStatus(res.queueStatus);
                     setSyncButtonLoading(false);
+                    pendingSyncSuccessToast = true;
                     loadDashboard();
                 })
                 .withFailureHandler(err => {
@@ -900,8 +947,10 @@
                             globalDashboardData = res;
                             renderDashboard(res);
                             loadQueueStatus();
-                            let now = new Date();
-                            document.getElementById('lastUpdate').innerText = "Cập nhật lúc: " + now.toLocaleTimeString();
+                            if (pendingSyncSuccessToast) {
+                                showSyncSuccessToast(res);
+                                pendingSyncSuccessToast = false;
+                            }
                         } catch (err) {
                             showError("Lỗi render Dashboard: " + err.message);
                         } finally {
@@ -932,6 +981,15 @@
             data.recent = data.recent || [];
             data.planStats = data.planStats || {};
             data.kpi = data.kpi || { total: 0, tp: 0, cs: 0, hong: 0, dxl: 0, tpPercent: 0 };
+
+            const snapshotOk = !!(data.snapshotMeta && data.snapshotMeta.success);
+            const snapshotUpdatedAt = formatSnapshotTime(data.snapshotMeta && data.snapshotMeta.builtAt);
+            const snapshotStatus = document.getElementById('dashboardHealthSnapshot');
+            snapshotStatus.innerText = snapshotOk ? 'Đã đồng bộ' : 'Chưa cập nhật';
+            snapshotStatus.className = snapshotOk ? 'health-ok' : 'health-error';
+            document.getElementById('dashboardHealthUpdated').innerText = 'KPI cập nhật: ' + snapshotUpdatedAt;
+            document.getElementById('dashboardHealthTotal').innerText = data.kpi.total;
+            document.getElementById('lastUpdate').innerText = 'KPI cập nhật: ' + snapshotUpdatedAt;
             
             // Health
             let healthText = data.factoryHealth || "NORMAL";
