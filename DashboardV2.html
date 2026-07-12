@@ -48,34 +48,34 @@
   <main>
     <header>
       <div>
-        <h1>Dashboard v2</h1>
-        <div class="meta">Cập nhật: <span id="built-at">—</span> · Plan: <span id="plan-version">—</span></div>
+        <h1>Báo cáo sản xuất v2</h1>
+        <div class="meta">Cập nhật: <span id="built-at">—</span> · Kế hoạch: <span id="plan-version">—</span></div>
       </div>
-      <span class="badge" id="mode">SHADOW MODE</span>
+      <span class="badge" id="mode">CHẾ ĐỘ KIỂM THỬ</span>
     </header>
 
-    <div class="state" id="state">Đang tải dữ liệu shadow…</div>
+    <div class="state" id="state">Đang tải dữ liệu kiểm thử…</div>
 
     <div id="content" class="hidden">
       <section class="section">
-        <h2>KPI ngày <span class="meta" id="daily-period"></span></h2>
+        <h2>Chỉ tiêu ngày <span class="meta" id="daily-period"></span></h2>
         <div class="grid" id="daily-kpis"></div>
       </section>
 
       <section class="section">
-        <h2>KPI tháng <span class="meta" id="monthly-period"></span></h2>
+        <h2>Chỉ tiêu tháng <span class="meta" id="monthly-period"></span></h2>
         <div class="grid" id="monthly-kpis"></div>
       </section>
 
       <section class="section">
-        <h2>Theo size</h2>
+        <h2>Theo cỡ ống</h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Size</th><th>Ngày checked</th><th>Ngày finished</th><th>Ngày rejected</th>
-                <th>Tháng checked</th><th>Tháng finished</th><th>Tháng rejected</th>
-                <th>Checked/ngày công</th><th>Finished/ngày công</th>
+                <th>Cỡ ống</th><th>Kiểm tra trong ngày</th><th>Thành phẩm trong ngày</th><th>Loại trong ngày</th>
+                <th>Kiểm tra trong tháng</th><th>Thành phẩm trong tháng</th><th>Loại trong tháng</th>
+                <th>Kiểm tra/ngày công</th><th>Thành phẩm/ngày công</th>
               </tr>
             </thead>
             <tbody id="size-body"></tbody>
@@ -84,10 +84,10 @@
       </section>
 
       <section class="section">
-        <h2>WIP theo công đoạn</h2>
+        <h2>Ống đang xử lý theo công đoạn</h2>
         <div class="health-row">
-          <span>Tổng WIP: <strong id="wip-total">0</strong></span>
-          <span>Tổng bucket: <strong id="wip-bucket-total">0</strong></span>
+          <span>Tổng ống đang xử lý: <strong id="wip-total">0</strong></span>
+          <span>Tổng theo công đoạn: <strong id="wip-bucket-total">0</strong></span>
           <span>Đối soát: <strong id="wip-match">—</strong></span>
         </div>
         <div class="table-wrap">
@@ -99,15 +99,15 @@
       </section>
 
       <section class="section">
-        <h2>Dashboard health</h2>
+        <h2>Tình trạng hệ thống</h2>
         <div class="health-row">
-          <span>Status: <strong id="health-status">—</strong></span>
-          <span>Finished reconciliation: <strong id="finished-match">—</strong></span>
-          <span>Rejected reconciliation: <strong id="rejected-match">—</strong></span>
-          <span>UNKNOWN size: <strong id="unknown-size">0</strong></span>
+          <span>Trạng thái: <strong id="health-status">—</strong></span>
+          <span>Đối soát thành phẩm: <strong id="finished-match">—</strong></span>
+          <span>Đối soát ống loại: <strong id="rejected-match">—</strong></span>
+          <span>Cỡ ống chưa xác định: <strong id="unknown-size">0</strong></span>
         </div>
-        <div><strong>Errors</strong><div id="health-errors"></div></div>
-        <div style="margin-top: 12px"><strong>Warnings</strong><div id="health-warnings"></div></div>
+        <div><strong>Lỗi</strong><div id="health-errors"></div></div>
+        <div style="margin-top: 12px"><strong>Cảnh báo</strong><div id="health-warnings"></div></div>
       </section>
     </div>
   </main>
@@ -158,7 +158,7 @@
       const body = document.getElementById('size-body');
       body.replaceChildren();
       if (!Array.isArray(rows) || rows.length === 0) {
-        renderEmptyRow(body, 9, 'Không có dữ liệu size.');
+        renderEmptyRow(body, 9, 'Không có dữ liệu cỡ ống.');
         return;
       }
       rows.forEach(function(row) {
@@ -191,7 +191,7 @@
       body.replaceChildren();
       const rows = Array.isArray(wip.byCurrentProcess) ? wip.byCurrentProcess : [];
       if (rows.length === 0) {
-        renderEmptyRow(body, 2, 'Không có WIP.');
+        renderEmptyRow(body, 2, 'Không có ống đang xử lý.');
         return;
       }
       rows.forEach(function(row) {
@@ -225,7 +225,7 @@
       reconciliation = reconciliation || {};
       const status = valueOrDash(health.status);
       const statusElement = document.getElementById('health-status');
-      statusElement.textContent = status;
+      statusElement.textContent = status === 'OK' ? 'Bình thường' : status === 'ERROR' ? 'Có lỗi' : status;
       statusElement.className = status === 'OK' ? 'ok' : 'bad';
 
       function renderMatch(id, section) {
@@ -253,7 +253,7 @@
 
       setText('built-at', data.builtAt ? new Date(data.builtAt).toLocaleString('vi-VN') : '—');
       setText('plan-version', data.planVersion);
-      setText('mode', valueOrDash(data.mode) + ' MODE');
+      setText('mode', data.mode === 'SHADOW' ? 'CHẾ ĐỘ KIỂM THỬ' : valueOrDash(data.mode));
       setText('daily-period', daily.period ? '(' + daily.period + ')' : '');
       setText('monthly-period', monthly.period ? '(' + monthly.period + ')' : '');
 
@@ -280,31 +280,31 @@
 
     function showError(message) {
       const state = document.getElementById('state');
-      state.textContent = message || 'Không thể tải dữ liệu Dashboard v2.';
+      state.textContent = message || 'Không thể tải Báo cáo sản xuất v2.';
       state.className = 'state error';
       document.getElementById('content').classList.add('hidden');
     }
 
     function loadProductionDashboardV2() {
       if (!window.google || !google.script || !google.script.run) {
-        showError('Google Apps Script runtime không khả dụng.');
+        showError('Môi trường thực thi của hệ thống không khả dụng.');
         return;
       }
       google.script.run
         .withSuccessHandler(function(result) {
           if (!result || result.success !== true) {
             const errors = result && result.health && Array.isArray(result.health.errors) ? result.health.errors : [];
-            showError(errors.join('; ') || 'Shadow API trả về dữ liệu không hợp lệ.');
+            showError(errors.join('; ') || 'Dịch vụ dữ liệu kiểm thử trả về dữ liệu không hợp lệ.');
             return;
           }
           try {
             renderDashboard(result);
           } catch (error) {
-            showError('Lỗi hiển thị Dashboard v2: ' + error.message);
+            showError('Lỗi hiển thị Báo cáo sản xuất v2: ' + error.message);
           }
         })
         .withFailureHandler(function(error) {
-          showError('Lỗi gọi shadow API: ' + (error && error.message ? error.message : String(error || 'Không xác định')));
+          showError('Lỗi kết nối dịch vụ dữ liệu kiểm thử: ' + (error && error.message ? error.message : String(error || 'Không xác định')));
         })
         .getProductionDashboardV2Shadow();
     }
