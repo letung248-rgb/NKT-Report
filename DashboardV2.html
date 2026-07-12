@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Arial, sans-serif;
+      color: #1f2937;
+      background: #f3f4f6;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f4f6; }
+    main { max-width: 1280px; margin: 0 auto; padding: 20px; }
+    header, section { background: #fff; border: 1px solid #d1d5db; border-radius: 8px; }
+    header { display: flex; justify-content: space-between; gap: 16px; padding: 18px; }
+    h1, h2 { margin: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; margin-bottom: 14px; }
+    .meta { margin-top: 8px; color: #6b7280; font-size: 13px; }
+    .badge { align-self: flex-start; padding: 6px 10px; border-radius: 999px; background: #fef3c7; color: #92400e; font-weight: 700; }
+    .state { margin: 16px 0; padding: 12px; border-radius: 6px; background: #e0f2fe; }
+    .state.error { background: #fee2e2; color: #991b1b; }
+    .hidden { display: none; }
+    .section { margin-top: 16px; padding: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px; }
+    .label { color: #6b7280; font-size: 13px; }
+    .value { display: block; margin-top: 6px; font-size: 24px; font-weight: 700; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid #e5e7eb; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #f9fafb; }
+    .health-row { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 12px; }
+    .ok { color: #047857; font-weight: 700; }
+    .bad { color: #b91c1c; font-weight: 700; }
+    ul { margin: 8px 0 0; padding-left: 20px; }
+    .empty { color: #6b7280; font-style: italic; }
+    @media (max-width: 600px) {
+      main { padding: 10px; }
+      header { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Dashboard v2</h1>
+        <div class="meta">Cập nhật: <span id="built-at">—</span> · Plan: <span id="plan-version">—</span></div>
+      </div>
+      <span class="badge" id="mode">SHADOW MODE</span>
+    </header>
+
+    <div class="state" id="state">Đang tải dữ liệu shadow…</div>
+
+    <div id="content" class="hidden">
+      <section class="section">
+        <h2>KPI ngày <span class="meta" id="daily-period"></span></h2>
+        <div class="grid" id="daily-kpis"></div>
+      </section>
+
+      <section class="section">
+        <h2>KPI tháng <span class="meta" id="monthly-period"></span></h2>
+        <div class="grid" id="monthly-kpis"></div>
+      </section>
+
+      <section class="section">
+        <h2>Theo size</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Size</th><th>Ngày checked</th><th>Ngày finished</th><th>Ngày rejected</th>
+                <th>Tháng checked</th><th>Tháng finished</th><th>Tháng rejected</th>
+                <th>Checked/ngày công</th><th>Finished/ngày công</th>
+              </tr>
+            </thead>
+            <tbody id="size-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>WIP theo công đoạn</h2>
+        <div class="health-row">
+          <span>Tổng WIP: <strong id="wip-total">0</strong></span>
+          <span>Tổng bucket: <strong id="wip-bucket-total">0</strong></span>
+          <span>Đối soát: <strong id="wip-match">—</strong></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Công đoạn hiện tại</th><th>Số lượng</th></tr></thead>
+            <tbody id="wip-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Dashboard health</h2>
+        <div class="health-row">
+          <span>Status: <strong id="health-status">—</strong></span>
+          <span>Finished reconciliation: <strong id="finished-match">—</strong></span>
+          <span>Rejected reconciliation: <strong id="rejected-match">—</strong></span>
+          <span>UNKNOWN size: <strong id="unknown-size">0</strong></span>
+        </div>
+        <div><strong>Errors</strong><div id="health-errors"></div></div>
+        <div style="margin-top: 12px"><strong>Warnings</strong><div id="health-warnings"></div></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    function valueOrDash(value) {
+      return value === null || value === undefined || value === '' ? '—' : String(value);
+    }
+
+    function numberOrZero(value) {
+      return Number.isFinite(Number(value)) ? Number(value) : 0;
+    }
+
+    function percent(value) {
+      return value === null || value === undefined || !Number.isFinite(Number(value)) ? '—' : Number(value) + '%';
+    }
+
+    function setText(id, value) {
+      document.getElementById(id).textContent = valueOrDash(value);
+    }
+
+    function renderCards(containerId, cards) {
+      const container = document.getElementById(containerId);
+      container.replaceChildren();
+      cards.forEach(function(card) {
+        const element = document.createElement('div');
+        element.className = 'card';
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = card.label;
+        const value = document.createElement('span');
+        value.className = 'value';
+        value.textContent = valueOrDash(card.value);
+        element.append(label, value);
+        container.appendChild(element);
+      });
+    }
+
+    function renderEmptyRow(body, colspan, message) {
+      const row = body.insertRow();
+      const cell = row.insertCell();
+      cell.colSpan = colspan;
+      cell.className = 'empty';
+      cell.textContent = message;
+    }
+
+    function renderSizeBreakdown(rows) {
+      const body = document.getElementById('size-body');
+      body.replaceChildren();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        renderEmptyRow(body, 9, 'Không có dữ liệu size.');
+        return;
+      }
+      rows.forEach(function(row) {
+        const today = row && row.today || {};
+        const monthly = row && row.monthly || {};
+        const averages = row && row.averages || {};
+        const values = [
+          valueOrDash(row && row.size), numberOrZero(today.checked), numberOrZero(today.finished), numberOrZero(today.rejected),
+          numberOrZero(monthly.checked), numberOrZero(monthly.finished), numberOrZero(monthly.rejected),
+          valueOrDash(averages.checkedPerWorkingDay), valueOrDash(averages.finishedPerWorkingDay)
+        ];
+        const tr = body.insertRow();
+        values.forEach(function(value) { tr.insertCell().textContent = value; });
+      });
+    }
+
+    function renderWip(wip, reconciliation) {
+      wip = wip || {};
+      const total = numberOrZero(wip.total);
+      const bucketTotal = numberOrZero(wip.bucketTotal);
+      setText('wip-total', total);
+      setText('wip-bucket-total', bucketTotal);
+      const matches = reconciliation && reconciliation.wip && typeof reconciliation.wip.matches === 'boolean'
+        ? reconciliation.wip.matches : total === bucketTotal;
+      const matchElement = document.getElementById('wip-match');
+      matchElement.textContent = matches ? 'Khớp' : 'Không khớp';
+      matchElement.className = matches ? 'ok' : 'bad';
+
+      const body = document.getElementById('wip-body');
+      body.replaceChildren();
+      const rows = Array.isArray(wip.byCurrentProcess) ? wip.byCurrentProcess : [];
+      if (rows.length === 0) {
+        renderEmptyRow(body, 2, 'Không có WIP.');
+        return;
+      }
+      rows.forEach(function(row) {
+        const tr = body.insertRow();
+        tr.insertCell().textContent = valueOrDash(row && row.currentProcess);
+        tr.insertCell().textContent = numberOrZero(row && row.count);
+      });
+    }
+
+    function renderMessages(id, messages) {
+      const container = document.getElementById(id);
+      container.replaceChildren();
+      if (!Array.isArray(messages) || messages.length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'empty';
+        empty.textContent = 'Không có.';
+        container.appendChild(empty);
+        return;
+      }
+      const list = document.createElement('ul');
+      messages.forEach(function(message) {
+        const item = document.createElement('li');
+        item.textContent = valueOrDash(message);
+        list.appendChild(item);
+      });
+      container.appendChild(list);
+    }
+
+    function renderHealth(health, reconciliation) {
+      health = health || {};
+      reconciliation = reconciliation || {};
+      const status = valueOrDash(health.status);
+      const statusElement = document.getElementById('health-status');
+      statusElement.textContent = status;
+      statusElement.className = status === 'OK' ? 'ok' : 'bad';
+
+      function renderMatch(id, section) {
+        const element = document.getElementById(id);
+        const matches = section && section.matches;
+        element.textContent = matches === true ? 'Khớp' : matches === false ? 'Không khớp' : '—';
+        element.className = matches === true ? 'ok' : matches === false ? 'bad' : '';
+      }
+
+      renderMatch('finished-match', reconciliation.finished);
+      renderMatch('rejected-match', reconciliation.rejected);
+      setText('unknown-size', numberOrZero(reconciliation.unknownSizeCount));
+      renderMessages('health-errors', health.errors);
+      renderMessages('health-warnings', health.warnings);
+    }
+
+    function renderDashboard(data) {
+      const daily = data.daily || {};
+      const monthly = data.monthly || {};
+      const averages = data.monthlyAverages || {};
+      const dailyChecked = daily.checked || {};
+      const dailyFinished = daily.finished || {};
+      const monthlyChecked = monthly.checked || {};
+      const monthlyFinished = monthly.finished || {};
+
+      setText('built-at', data.builtAt ? new Date(data.builtAt).toLocaleString('vi-VN') : '—');
+      setText('plan-version', data.planVersion);
+      setText('mode', valueOrDash(data.mode) + ' MODE');
+      setText('daily-period', daily.period ? '(' + daily.period + ')' : '');
+      setText('monthly-period', monthly.period ? '(' + monthly.period + ')' : '');
+
+      renderCards('daily-kpis', [
+        { label: 'Đã kiểm tra', value: numberOrZero(dailyChecked.actual) },
+        { label: 'Thành phẩm', value: numberOrZero(dailyFinished.actual) },
+        { label: 'Loại', value: numberOrZero(daily.rejected && daily.rejected.actual) },
+        { label: '% hoàn thành kiểm tra', value: percent(dailyChecked.completionPercent) },
+        { label: '% hoàn thành thành phẩm', value: percent(dailyFinished.completionPercent) }
+      ]);
+      renderCards('monthly-kpis', [
+        { label: 'Đã kiểm tra', value: numberOrZero(monthlyChecked.actual) },
+        { label: 'Thành phẩm', value: numberOrZero(monthlyFinished.actual) },
+        { label: 'Loại', value: numberOrZero(monthly.rejected && monthly.rejected.actual) },
+        { label: 'Kiểm tra/ngày công', value: valueOrDash(averages.checkedPerWorkingDay) },
+        { label: 'Thành phẩm/ngày công', value: valueOrDash(averages.finishedPerWorkingDay) }
+      ]);
+      renderSizeBreakdown(data.sizeBreakdown);
+      renderWip(data.wip, data.reconciliation);
+      renderHealth(data.health, data.reconciliation);
+      document.getElementById('state').classList.add('hidden');
+      document.getElementById('content').classList.remove('hidden');
+    }
+
+    function showError(message) {
+      const state = document.getElementById('state');
+      state.textContent = message || 'Không thể tải dữ liệu Dashboard v2.';
+      state.className = 'state error';
+      document.getElementById('content').classList.add('hidden');
+    }
+
+    function loadProductionDashboardV2() {
+      if (!window.google || !google.script || !google.script.run) {
+        showError('Google Apps Script runtime không khả dụng.');
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (!result || result.success !== true) {
+            const errors = result && result.health && Array.isArray(result.health.errors) ? result.health.errors : [];
+            showError(errors.join('; ') || 'Shadow API trả về dữ liệu không hợp lệ.');
+            return;
+          }
+          try {
+            renderDashboard(result);
+          } catch (error) {
+            showError('Lỗi hiển thị Dashboard v2: ' + error.message);
+          }
+        })
+        .withFailureHandler(function(error) {
+          showError('Lỗi gọi shadow API: ' + (error && error.message ? error.message : String(error || 'Không xác định')));
+        })
+        .getProductionDashboardV2Shadow();
+    }
+
+    loadProductionDashboardV2();
+  </script>
+</body>
+</html>
