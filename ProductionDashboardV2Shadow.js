@@ -11,9 +11,27 @@ function adminSetupProductionDashboardV2PlanSheets() {
   const ss = getSpreadsheet();
   if (!ss) throw new Error("Spreadsheet is unavailable.");
 
+  const now = new Date();
+  const dayKey = Utilities.formatDate(now, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
+  const monthKey = Utilities.formatDate(now, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+  const planVersion = "AUTO-" + dayKey;
+  const updatedBy = Session.getEffectiveUser().getEmail() || "SYSTEM";
+
   const definitions = [
-    { name: PRODUCTION_DASHBOARD_V2_DAILY_PLAN_SHEET, headers: PRODUCTION_DASHBOARD_V2_PLAN_HEADERS.daily },
-    { name: PRODUCTION_DASHBOARD_V2_MONTHLY_PLAN_SHEET, headers: PRODUCTION_DASHBOARD_V2_PLAN_HEADERS.monthly }
+    {
+      name: PRODUCTION_DASHBOARD_V2_DAILY_PLAN_SHEET,
+      headers: PRODUCTION_DASHBOARD_V2_PLAN_HEADERS.daily,
+      periodType: "daily",
+      periodKey: dayKey,
+      seedRow: [dayKey, 0, 0, planVersion, "ACTIVE", now, updatedBy, "Auto-seeded with zero targets"]
+    },
+    {
+      name: PRODUCTION_DASHBOARD_V2_MONTHLY_PLAN_SHEET,
+      headers: PRODUCTION_DASHBOARD_V2_PLAN_HEADERS.monthly,
+      periodType: "monthly",
+      periodKey: monthKey,
+      seedRow: [monthKey, 0, 0, planVersion, "ACTIVE", now, updatedBy, "Auto-seeded with zero targets", ""]
+    }
   ];
 
   const result = [];
@@ -33,10 +51,30 @@ function adminSetupProductionDashboardV2PlanSheets() {
       headerWritten = true;
     }
 
+    const values = sheet.getDataRange().getValues();
+    let hasCurrentActivePlan = false;
+    for (let r = 1; r < values.length; r++) {
+      const periodKey = definition.periodType === "daily"
+        ? productionDashboardV2DateKey_(values[r][0])
+        : productionDashboardV2MonthKey_(values[r][0]);
+      const status = (values[r][4] || "").toString().trim().toUpperCase();
+      if (periodKey === definition.periodKey && status === "ACTIVE") {
+        hasCurrentActivePlan = true;
+        break;
+      }
+    }
+
+    let seeded = false;
+    if (!hasCurrentActivePlan) {
+      sheet.appendRow(definition.seedRow);
+      seeded = true;
+    }
+
     result.push({
       sheetName: definition.name,
       created: created,
-      headerWritten: headerWritten
+      headerWritten: headerWritten,
+      seeded: seeded
     });
   }
 
@@ -719,4 +757,57 @@ function getProductionDashboardV2Shadow() {
     Logger.log(JSON.stringify(result));
     return result;
   }
+}
+
+function debugProductionDashboardV2DailyEvents(dateKey) {
+  const targetDate = (dateKey || "").toString().trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    throw new Error("dateKey must use yyyy-MM-dd format.");
+  }
+
+  const projections = buildPipeEngine(getRawTransactions()).map(projectProductionDashboardV2Pipe_);
+  const events = [];
+  const eventDefinitions = [
+    { field: "checkedEvent", type: "CHECKED" },
+    { field: "finishedEvent", type: "FINISHED" },
+    { field: "rejectedEvent", type: "REJECTED" }
+  ];
+
+  projections.forEach(function(pipe) {
+    eventDefinitions.forEach(function(definition) {
+      const event = pipe[definition.field];
+      if (!event || event.dayKey !== targetDate) return;
+      events.push({
+        type: definition.type,
+        pipeNo: pipe.pipeNo,
+        size: pipe.size,
+        at: event.atIso,
+        id: event.id,
+        entryNo: event.entryNo,
+        process: event.process,
+        status: event.status,
+        defectReason: event.defectReason,
+        trigger: event.trigger
+      });
+    });
+  });
+
+  events.sort(function(left, right) {
+    return left.at.localeCompare(right.at) || left.type.localeCompare(right.type) || left.pipeNo.localeCompare(right.pipeNo);
+  });
+
+  return {
+    date: targetDate,
+    timeZone: PRODUCTION_DASHBOARD_V2_TIME_ZONE,
+    counts: {
+      checked: events.filter(function(event) { return event.type === "CHECKED"; }).length,
+      finished: events.filter(function(event) { return event.type === "FINISHED"; }).length,
+      rejected: events.filter(function(event) { return event.type === "REJECTED"; }).length
+    },
+    events: events
+  };
+}
+
+function debugProductionDashboardV2DailyEvents20260712() {
+  return debugProductionDashboardV2DailyEvents("2026-07-12");
 }
