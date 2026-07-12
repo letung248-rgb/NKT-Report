@@ -1,6 +1,8 @@
 const PRODUCTION_DASHBOARD_V2_DAILY_PLAN_SHEET = "PLAN_DAILY_V2";
 const PRODUCTION_DASHBOARD_V2_MONTHLY_PLAN_SHEET = "PLAN_MONTHLY_V2";
 const PRODUCTION_DASHBOARD_V2_TIME_ZONE = "Asia/Ho_Chi_Minh";
+const PRODUCTION_DASHBOARD_V2_PLAN_CACHE_PREFIX = "dashboard:v2:plan-validation:v1:";
+const PRODUCTION_DASHBOARD_V2_PLAN_CACHE_TTL_SECONDS = 300;
 const PRODUCTION_DASHBOARD_V2_PLAN_HEADERS = {
   daily: ["PlanDate", "CheckedPlan", "FinishedPlan", "PlanVersion", "Status", "UpdatedAt", "UpdatedBy", "Note"],
   monthly: ["PlanMonth", "CheckedPlan", "FinishedPlan", "PlanVersion", "Status", "UpdatedAt", "UpdatedBy", "Note", "WorkingDays"]
@@ -78,7 +80,78 @@ function adminSetupProductionDashboardV2PlanSheets() {
     });
   }
 
+  invalidateProductionDashboardV2PlanCache_(now);
   return { success: true, sheets: result };
+}
+
+function productionDashboardV2PlanCacheKey_(dayKey, monthKey) {
+  return PRODUCTION_DASHBOARD_V2_PLAN_CACHE_PREFIX + dayKey + ":" + monthKey;
+}
+
+function isProductionDashboardV2PlanSheetResult_(value) {
+  return !!value &&
+    typeof value === "object" &&
+    typeof value.sheetName === "string" &&
+    typeof value.exists === "boolean" &&
+    typeof value.valid === "boolean" &&
+    Array.isArray(value.errors) &&
+    Array.isArray(value.warnings);
+}
+
+function isProductionDashboardV2PlanValidationResult_(value) {
+  return !!value &&
+    typeof value === "object" &&
+    typeof value.valid === "boolean" &&
+    typeof value.planVersion === "string" &&
+    isProductionDashboardV2PlanSheetResult_(value.daily) &&
+    isProductionDashboardV2PlanSheetResult_(value.monthly) &&
+    Array.isArray(value.errors) &&
+    Array.isArray(value.warnings);
+}
+
+function readProductionDashboardV2PlanCache_(dayKey, monthKey) {
+  const cacheKey = productionDashboardV2PlanCacheKey_(dayKey, monthKey);
+  try {
+    const payload = CacheService.getScriptCache().get(cacheKey);
+    if (payload === null) {
+      Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=miss");
+      return null;
+    }
+    const cached = JSON.parse(payload);
+    if (!isProductionDashboardV2PlanValidationResult_(cached)) {
+      CacheService.getScriptCache().remove(cacheKey);
+      Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=invalid");
+      return null;
+    }
+    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=hit");
+    return cached;
+  } catch (error) {
+    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=error error=" + error);
+    return null;
+  }
+}
+
+function writeProductionDashboardV2PlanCache_(dayKey, monthKey, value) {
+  try {
+    CacheService.getScriptCache().put(
+      productionDashboardV2PlanCacheKey_(dayKey, monthKey),
+      JSON.stringify(value),
+      PRODUCTION_DASHBOARD_V2_PLAN_CACHE_TTL_SECONDS
+    );
+    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=write");
+  } catch (error) {
+    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=write_error error=" + error);
+  }
+}
+
+function invalidateProductionDashboardV2PlanCache_(asOf) {
+  try {
+    const dayKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
+    const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+    CacheService.getScriptCache().remove(productionDashboardV2PlanCacheKey_(dayKey, monthKey));
+  } catch (error) {
+    Logger.log("DASH_V2 plan cache invalidate error: " + error);
+  }
 }
 
 function productionDashboardV2HeaderKey_(value) {
@@ -259,6 +332,8 @@ function readProductionDashboardV2PlanSheet_(sheetName, periodType, currentPerio
 function validateProductionDashboardV2Plans_(asOf) {
   const dayKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
   const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+  const cached = readProductionDashboardV2PlanCache_(dayKey, monthKey);
+  if (cached !== null) return cached;
   const daily = readProductionDashboardV2PlanSheet_(
     PRODUCTION_DASHBOARD_V2_DAILY_PLAN_SHEET,
     "daily",
@@ -284,7 +359,7 @@ function validateProductionDashboardV2Plans_(asOf) {
     }
   }
 
-  return {
+  const result = {
     valid: errors.length === 0 && daily.valid && monthly.valid && !!planVersion,
     planVersion: planVersion,
     daily: daily,
@@ -292,6 +367,8 @@ function validateProductionDashboardV2Plans_(asOf) {
     errors: errors,
     warnings: warnings
   };
+  writeProductionDashboardV2PlanCache_(dayKey, monthKey, result);
+  return result;
 }
 
 function productionDashboardV2TxnTimestamp_(transaction) {

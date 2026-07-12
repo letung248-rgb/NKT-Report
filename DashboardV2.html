@@ -33,6 +33,14 @@
     th, td { padding: 9px 10px; border-bottom: 1px solid #e5e7eb; text-align: right; white-space: nowrap; }
     th:first-child, td:first-child { text-align: left; }
     th { background: #f9fafb; }
+    .size-table { font-size: 13px; }
+    .size-table th, .size-table td { padding: 8px 6px; }
+    .size-table th { text-align: center; white-space: normal; line-height: 1.25; }
+    .size-table td:not(:first-child) { text-align: center; }
+    .size-table th span { display: block; }
+    .size-table td:nth-child(2), .size-table td:nth-child(5), .size-table td:nth-child(8) { background: #eff6ff; color: #1d4ed8; }
+    .size-table td:nth-child(3), .size-table td:nth-child(6), .size-table td:nth-child(9) { background: #ecfdf5; color: #047857; }
+    .size-table td:nth-child(4), .size-table td:nth-child(7) { background: #fff7ed; color: #c2410c; }
     .health-row { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 12px; }
     .ok { color: #047857; font-weight: 700; }
     .bad { color: #b91c1c; font-weight: 700; }
@@ -68,14 +76,14 @@
       </section>
 
       <section class="section">
-        <h2>Theo cỡ ống</h2>
+        <h2>Theo Size ống</h2>
         <div class="table-wrap">
-          <table>
+          <table class="size-table">
             <thead>
               <tr>
-                <th>Cỡ ống</th><th>Kiểm tra trong ngày</th><th>Thành phẩm trong ngày</th><th>Loại trong ngày</th>
-                <th>Kiểm tra trong tháng</th><th>Thành phẩm trong tháng</th><th>Loại trong tháng</th>
-                <th>Kiểm tra/ngày công</th><th>Thành phẩm/ngày công</th>
+                <th>Size ống</th><th><span>Kiểm tra</span><span>trong ngày</span></th><th><span>Thành phẩm</span><span>trong ngày</span></th><th><span>Loại</span><span>trong ngày</span></th>
+                <th><span>Kiểm tra</span><span>trong tháng</span></th><th><span>Thành phẩm</span><span>trong tháng</span></th><th><span>Loại</span><span>trong tháng</span></th>
+                <th><span>Kiểm tra</span><span>ngày công</span></th><th><span>Thành phẩm</span><span>ngày công</span></th>
               </tr>
             </thead>
             <tbody id="size-body"></tbody>
@@ -104,7 +112,7 @@
           <span>Trạng thái: <strong id="health-status">—</strong></span>
           <span>Đối soát thành phẩm: <strong id="finished-match">—</strong></span>
           <span>Đối soát ống loại: <strong id="rejected-match">—</strong></span>
-          <span>Cỡ ống chưa xác định: <strong id="unknown-size">0</strong></span>
+          <span>Size ống chưa xác định: <strong id="unknown-size">0</strong></span>
         </div>
         <div><strong>Lỗi</strong><div id="health-errors"></div></div>
         <div style="margin-top: 12px"><strong>Cảnh báo</strong><div id="health-warnings"></div></div>
@@ -127,6 +135,25 @@
 
     function setText(id, value) {
       document.getElementById(id).textContent = valueOrDash(value);
+    }
+
+    function formatDisplayDate(value, includeTime) {
+      if (!value) return '—';
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const keyMatch = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      let date;
+      if (keyMatch) {
+        date = new Date(Number(keyMatch[1]), Number(keyMatch[2]) - 1, Number(keyMatch[3]));
+      } else {
+        date = new Date(value);
+      }
+      if (Number.isNaN(date.getTime())) return valueOrDash(value);
+      const formatted = String(date.getDate()).padStart(2, '0') + '-' + months[date.getMonth()] + '-' + date.getFullYear();
+      if (!includeTime) return formatted;
+      return formatted + ' ' +
+        String(date.getHours()).padStart(2, '0') + ':' +
+        String(date.getMinutes()).padStart(2, '0') + ':' +
+        String(date.getSeconds()).padStart(2, '0');
     }
 
     function renderCards(containerId, cards) {
@@ -158,7 +185,7 @@
       const body = document.getElementById('size-body');
       body.replaceChildren();
       if (!Array.isArray(rows) || rows.length === 0) {
-        renderEmptyRow(body, 9, 'Không có dữ liệu cỡ ống.');
+        renderEmptyRow(body, 9, 'Không có dữ liệu Size ống.');
         return;
       }
       rows.forEach(function(row) {
@@ -251,10 +278,10 @@
       const monthlyChecked = monthly.checked || {};
       const monthlyFinished = monthly.finished || {};
 
-      setText('built-at', data.builtAt ? new Date(data.builtAt).toLocaleString('vi-VN') : '—');
+      setText('built-at', formatDisplayDate(data.builtAt, true));
       setText('plan-version', data.planVersion);
       setText('mode', data.mode === 'SHADOW' ? 'CHẾ ĐỘ KIỂM THỬ' : valueOrDash(data.mode));
-      setText('daily-period', daily.period ? '(' + daily.period + ')' : '');
+      setText('daily-period', daily.period ? '(' + formatDisplayDate(daily.period, false) + ')' : '');
       setText('monthly-period', monthly.period ? '(' + monthly.period + ')' : '');
 
       renderCards('daily-kpis', [
