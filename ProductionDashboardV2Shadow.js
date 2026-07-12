@@ -813,3 +813,38 @@ function debugProductionDashboardV2DailyEvents20260712() {
   Logger.log(JSON.stringify(result));
   return result;
 }
+
+function debugProductionDashboardV2DailyEventSummary202607() {
+  const monthKey = "2026-07";
+  const projections = buildPipeEngine(getRawTransactions()).map(projectProductionDashboardV2Pipe_);
+  const rowsByDate = {};
+  const eventDefinitions = [
+    { field: "checkedEvent", countField: "checked" },
+    { field: "finishedEvent", countField: "finished" },
+    { field: "rejectedEvent", countField: "rejected" }
+  ];
+
+  projections.forEach(function(pipe) {
+    eventDefinitions.forEach(function(definition) {
+      const event = pipe[definition.field];
+      if (!event || event.monthKey !== monthKey) return;
+      if (!rowsByDate[event.dayKey]) {
+        rowsByDate[event.dayKey] = {
+          date: event.dayKey,
+          checked: 0,
+          finished: 0,
+          rejected: 0,
+          totalEvents: 0
+        };
+      }
+      rowsByDate[event.dayKey][definition.countField]++;
+      rowsByDate[event.dayKey].totalEvents++;
+    });
+  });
+
+  const result = Object.keys(rowsByDate).sort().map(function(date) {
+    return rowsByDate[date];
+  });
+  Logger.log(JSON.stringify(result));
+  return result;
+}
