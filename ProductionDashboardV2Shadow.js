@@ -385,7 +385,7 @@ function productionDashboardV2EarlierEvent_(left, right) {
 function productionDashboardV2RejectedEvent_(pipe) {
   const entries = pipe.entries || {};
   const entryKeys = Object.keys(entries);
-  let isRejected = false;
+  let hasRejectedEvent = false;
   let rejectedEvent = null;
   let invalidDateCount = 0;
 
@@ -413,7 +413,7 @@ function productionDashboardV2RejectedEvent_(pipe) {
       previousStatus = classifiedStatus;
 
       if (classifiedStatus === "LOAI" && productionDashboardV2IsRejectedProcess_(transaction.process)) {
-        isRejected = true;
+        hasRejectedEvent = true;
         const candidate = productionDashboardV2Event_(transaction, "REJECTED");
         if (!candidate.at) invalidDateCount++;
         rejectedEvent = productionDashboardV2EarlierEvent_(rejectedEvent, candidate);
@@ -422,7 +422,8 @@ function productionDashboardV2RejectedEvent_(pipe) {
   }
 
   return {
-    isRejected: isRejected,
+    hasRejectedEvent: hasRejectedEvent,
+    isRejected: hasRejectedEvent,
     event: rejectedEvent,
     invalidDateCount: invalidDateCount
   };
@@ -452,10 +453,12 @@ function projectProductionDashboardV2Pipe_(pipe) {
   }
 
   const rejected = productionDashboardV2RejectedEvent_(pipe);
+  const hasRejectedEvent = rejected.hasRejectedEvent;
+  const isCurrentlyRejected = pipe.currentBusinessStatus === "LOAI";
   const checkedEvent = productionDashboardV2EarlierEvent_(hydraulicEvent, rejected.event);
-  const isChecked = !!hydraulicEvent || rejected.isRejected;
+  const isChecked = !!hydraulicEvent || hasRejectedEvent;
   const validCurrentProcess = productionDashboardV2IsValidCurrentProcess_(pipe.currentProcess);
-  const isWip = !isFinished && !rejected.isRejected && validCurrentProcess;
+  const isWip = !isFinished && !hasRejectedEvent && validCurrentProcess;
 
   return {
     pipeNo: pipe.pipeNo || "",
@@ -465,7 +468,9 @@ function projectProductionDashboardV2Pipe_(pipe) {
     checkedEvent: checkedEvent,
     isFinished: isFinished,
     finishedEvent: finishedEvent,
-    isRejected: rejected.isRejected,
+    hasRejectedEvent: hasRejectedEvent,
+    isCurrentlyRejected: isCurrentlyRejected,
+    isRejected: hasRejectedEvent,
     rejectedEvent: rejected.event,
     validCurrentProcess: validCurrentProcess,
     isWip: isWip,
@@ -569,7 +574,7 @@ function productionDashboardV2Reconciliation_(pipeObjects, projections, wip, pla
     return pipe.currentBusinessStatus === "LOAI";
   }).map(function(pipe) { return pipe.pipeNo; }).sort();
   const rejectedV2 = projections.filter(function(pipe) {
-    return pipe.isRejected;
+    return pipe.isCurrentlyRejected;
   }).map(function(pipe) { return pipe.pipeNo; }).sort();
   const checkedSamples = projections.filter(function(pipe) {
     return pipe.isChecked;
