@@ -392,8 +392,8 @@ function isThanhPhamKpiPipe(pipe) {
 /**
  * 2. Xây dựng Pipe Engine
  */
-function buildPipeEngine() {
-  const transactions = getRawTransactions();
+function buildPipeEngine(sourceTransactions) {
+  const transactions = sourceTransactions || getRawTransactions();
   const pipesMap = {};
   
   for (let txn of transactions) {
