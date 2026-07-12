@@ -809,5 +809,7 @@ function debugProductionDashboardV2DailyEvents(dateKey) {
 }
 
 function debugProductionDashboardV2DailyEvents20260712() {
-  return debugProductionDashboardV2DailyEvents("2026-07-12");
+  const result = debugProductionDashboardV2DailyEvents("2026-07-12");
+  Logger.log(JSON.stringify(result));
+  return result;
 }
