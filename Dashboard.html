@@ -165,9 +165,32 @@
         .daily-mini-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--text-secondary); font-size: 0.9rem; }
         .daily-mini-row strong { color: var(--text-primary); }
         .daily-results { display: none; }
+        .production-kpi-view { color: var(--text-primary); }
+        .production-kpi-view .production-kpi-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+        .production-kpi-view .production-kpi-title { margin: 0; font-size: 1.35rem; }
+        .production-kpi-view .production-kpi-meta { margin-top: 0.4rem; color: var(--text-secondary); font-size: 0.8rem; }
+        .production-kpi-view .production-kpi-status { margin-bottom: 1rem; padding: 0.85rem 1rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-surface); color: var(--text-secondary); font-weight: 600; }
+        .production-kpi-view .production-kpi-status.is-error { border-color: var(--accent-danger); background: rgba(239,68,68,0.1); color: var(--accent-danger); }
+        .production-kpi-view .production-kpi-section { margin-bottom: 1rem; padding: 1.25rem; border: 1px solid var(--border-color); border-radius: 0.75rem; background: var(--bg-surface); box-shadow: var(--card-shadow); }
+        .production-kpi-view .production-kpi-section-title { margin: 0 0 1rem; font-size: 1.05rem; }
+        .production-kpi-view .production-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
+        .production-kpi-view .production-kpi-card { min-height: 92px; padding: 0.9rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-base); }
+        .production-kpi-view .production-kpi-card-label { color: var(--text-secondary); font-size: 0.78rem; }
+        .production-kpi-view .production-kpi-card-value { display: block; margin-top: 0.4rem; font-size: 1.45rem; font-weight: 700; }
+        .production-kpi-view .production-kpi-table-wrap { overflow-x: auto; }
+        .production-kpi-view .production-kpi-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .production-kpi-view .production-kpi-table-cell { padding: 0.65rem 0.55rem; border-bottom: 1px solid var(--border-color); text-align: center; white-space: nowrap; }
+        .production-kpi-view .production-kpi-table-heading { background: rgba(0,0,0,0.03); color: var(--text-primary); font-weight: 600; white-space: normal; }
+        .production-kpi-view .production-kpi-table-first { text-align: left; }
+        .production-kpi-view .production-kpi-health-row { display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem; margin-bottom: 0.85rem; color: var(--text-secondary); }
+        .production-kpi-view .production-kpi-ok { color: var(--accent-success); font-weight: 700; }
+        .production-kpi-view .production-kpi-bad { color: var(--accent-danger); font-weight: 700; }
+        .production-kpi-view .production-kpi-message-list { margin: 0.4rem 0 0; padding-left: 1.25rem; }
+        .production-kpi-view .production-kpi-empty { color: var(--text-secondary); font-style: italic; }
         @media (max-width: 900px) {
             .daily-summary-grid { grid-template-columns: 1fr; }
             .daily-toolbar { align-items: stretch; }
+            .production-kpi-view .production-kpi-header { flex-direction: column; }
         }
     </style>
 </head>
@@ -187,6 +210,7 @@
         </div>
         <nav class="sidebar-menu">
             <a class="menu-item active" id="menu-dashboard" onclick="backToDashboard()"><i class="ph ph-squares-four"></i> Tổng quan</a>
+            <a class="menu-item" id="menu-production-kpi" onclick="showProductionKpi()"><i class="ph ph-chart-line-up"></i> KPI sản xuất</a>
             <a class="menu-item" id="menu-daily-report" onclick="showDailyReport()"><i class="ph ph-calendar-blank"></i> Báo cáo ngày</a>
             <a class="menu-item" id="menu-monthly-report" onclick="showMonthlyReport()"><i class="ph ph-calendar"></i> Báo cáo tháng</a>
             <a class="menu-item" id="menu-error-analysis" onclick="showErrorAnalysis()"><i class="ph ph-warning-circle"></i> Phân tích lỗi</a>
@@ -365,6 +389,81 @@
                             </thead>
                             <tbody id="recentTable"></tbody>
                         </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-production-kpi" class="production-kpi-view" style="display: none;">
+                <div class="production-kpi-header">
+                    <div>
+                        <h2 class="production-kpi-title">KPI sản xuất</h2>
+                        <div class="production-kpi-meta">
+                            Cập nhật: <span id="production-kpi-built-at">—</span>
+                            · Kế hoạch: <span id="production-kpi-plan-version">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="production-kpi-status" class="production-kpi-status">Chọn tab để tải dữ liệu KPI sản xuất.</div>
+
+                <div id="production-kpi-content" style="display: none;">
+                    <div class="production-kpi-section">
+                        <h3 class="production-kpi-section-title">KPI ngày <span class="production-kpi-meta" id="production-kpi-daily-period"></span></h3>
+                        <div class="production-kpi-grid" id="production-kpi-daily-cards"></div>
+                    </div>
+
+                    <div class="production-kpi-section">
+                        <h3 class="production-kpi-section-title">KPI tháng <span class="production-kpi-meta" id="production-kpi-monthly-period"></span></h3>
+                        <div class="production-kpi-grid" id="production-kpi-monthly-cards"></div>
+                    </div>
+
+                    <div class="production-kpi-section">
+                        <h3 class="production-kpi-section-title">Theo Size ống</h3>
+                        <div class="production-kpi-table-wrap">
+                            <table class="production-kpi-table">
+                                <thead>
+                                    <tr>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong ngày</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong ngày</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Loại<br>trong ngày</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong tháng</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong tháng</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Loại<br>trong tháng</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>ngày công</th>
+                                        <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>ngày công</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="production-kpi-size-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="production-kpi-section">
+                        <h3 class="production-kpi-section-title">WIP theo công đoạn</h3>
+                        <div class="production-kpi-health-row">
+                            <span>Tổng đang xử lý: <strong id="production-kpi-wip-total">0</strong></span>
+                            <span>Tổng theo công đoạn: <strong id="production-kpi-wip-bucket-total">0</strong></span>
+                            <span>Đối soát: <strong id="production-kpi-wip-match">—</strong></span>
+                        </div>
+                        <div class="production-kpi-table-wrap">
+                            <table class="production-kpi-table">
+                                <thead><tr><th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Công đoạn hiện tại</th><th class="production-kpi-table-cell production-kpi-table-heading">Số lượng</th></tr></thead>
+                                <tbody id="production-kpi-wip-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="production-kpi-section">
+                        <h3 class="production-kpi-section-title">Health và đối soát</h3>
+                        <div class="production-kpi-health-row">
+                            <span>Trạng thái: <strong id="production-kpi-health-status">—</strong></span>
+                            <span>Thành phẩm: <strong id="production-kpi-finished-match">—</strong></span>
+                            <span>Ống loại: <strong id="production-kpi-rejected-match">—</strong></span>
+                            <span>Size chưa xác định: <strong id="production-kpi-unknown-size">0</strong></span>
+                        </div>
+                        <div><strong>Lỗi</strong><div id="production-kpi-health-errors"></div></div>
+                        <div style="margin-top: 0.75rem;"><strong>Cảnh báo</strong><div id="production-kpi-health-warnings"></div></div>
                     </div>
                 </div>
             </section>
@@ -1252,7 +1351,291 @@
                 .getDashboardProcessPipeList(processName);
         }
 
+        const ProductionKpiView = (function() {
+            let loaded = false;
+            let loading = false;
+            let loadingTimer = null;
+
+            function element(suffix) {
+                return document.getElementById('production-kpi-' + suffix);
+            }
+
+            function valueOrDash(value) {
+                return value === null || value === undefined || value === '' ? '—' : String(value);
+            }
+
+            function numberOrZero(value) {
+                return Number.isFinite(Number(value)) ? Number(value) : 0;
+            }
+
+            function percent(value) {
+                return value === null || value === undefined || !Number.isFinite(Number(value))
+                    ? '—'
+                    : Number(value) + '%';
+            }
+
+            function setText(suffix, value) {
+                element(suffix).textContent = valueOrDash(value);
+            }
+
+            function formatDate(value, includeTime) {
+                if (!value) return '—';
+                const keyMatch = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                const date = keyMatch
+                    ? new Date(Number(keyMatch[1]), Number(keyMatch[2]) - 1, Number(keyMatch[3]))
+                    : new Date(value);
+                if (Number.isNaN(date.getTime())) return valueOrDash(value);
+                let formatted = String(date.getDate()).padStart(2, '0') + '/' +
+                    String(date.getMonth() + 1).padStart(2, '0') + '/' + date.getFullYear();
+                if (includeTime) {
+                    formatted += ' ' + String(date.getHours()).padStart(2, '0') + ':' +
+                        String(date.getMinutes()).padStart(2, '0') + ':' +
+                        String(date.getSeconds()).padStart(2, '0');
+                }
+                return formatted;
+            }
+
+            function setStatus(message, isError) {
+                const status = element('status');
+                status.textContent = message;
+                status.className = 'production-kpi-status' + (isError ? ' is-error' : '');
+                status.style.display = 'block';
+            }
+
+            function renderCards(suffix, cards) {
+                const container = element(suffix);
+                container.replaceChildren();
+                cards.forEach(function(card) {
+                    const item = document.createElement('div');
+                    item.className = 'production-kpi-card';
+                    const label = document.createElement('span');
+                    label.className = 'production-kpi-card-label';
+                    label.textContent = card.label;
+                    const value = document.createElement('strong');
+                    value.className = 'production-kpi-card-value';
+                    value.textContent = valueOrDash(card.value);
+                    item.append(label, value);
+                    container.appendChild(item);
+                });
+            }
+
+            function appendCell(row, value, isFirst) {
+                const cell = row.insertCell();
+                cell.className = 'production-kpi-table-cell' + (isFirst ? ' production-kpi-table-first' : '');
+                cell.textContent = valueOrDash(value);
+            }
+
+            function renderEmptyRow(body, colspan, message) {
+                const row = body.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = colspan;
+                cell.className = 'production-kpi-table-cell production-kpi-table-first production-kpi-empty';
+                cell.textContent = message;
+            }
+
+            function renderSizeBreakdown(rows) {
+                const body = element('size-body');
+                body.replaceChildren();
+                if (!Array.isArray(rows) || rows.length === 0) {
+                    renderEmptyRow(body, 9, 'Không có dữ liệu Size ống.');
+                    return;
+                }
+                rows.forEach(function(row) {
+                    const today = row && row.today || {};
+                    const monthly = row && row.monthly || {};
+                    const averages = row && row.averages || {};
+                    const values = [
+                        row && row.size,
+                        numberOrZero(today.checked), numberOrZero(today.finished), numberOrZero(today.rejected),
+                        numberOrZero(monthly.checked), numberOrZero(monthly.finished), numberOrZero(monthly.rejected),
+                        valueOrDash(averages.checkedPerWorkingDay), valueOrDash(averages.finishedPerWorkingDay)
+                    ];
+                    const tableRow = body.insertRow();
+                    values.forEach(function(value, index) { appendCell(tableRow, value, index === 0); });
+                });
+            }
+
+            function renderWip(wip, reconciliation) {
+                wip = wip || {};
+                const total = numberOrZero(wip.total);
+                const bucketTotal = numberOrZero(wip.bucketTotal);
+                setText('wip-total', total);
+                setText('wip-bucket-total', bucketTotal);
+                const matches = reconciliation && reconciliation.wip && typeof reconciliation.wip.matches === 'boolean'
+                    ? reconciliation.wip.matches
+                    : total === bucketTotal;
+                const match = element('wip-match');
+                match.textContent = matches ? 'Khớp' : 'Không khớp';
+                match.className = matches ? 'production-kpi-ok' : 'production-kpi-bad';
+
+                const body = element('wip-body');
+                body.replaceChildren();
+                const rows = Array.isArray(wip.byCurrentProcess) ? wip.byCurrentProcess : [];
+                if (rows.length === 0) {
+                    renderEmptyRow(body, 2, 'Không có ống đang xử lý.');
+                    return;
+                }
+                rows.forEach(function(row) {
+                    const tableRow = body.insertRow();
+                    appendCell(tableRow, row && row.currentProcess, true);
+                    appendCell(tableRow, numberOrZero(row && row.count), false);
+                });
+            }
+
+            function renderMessages(suffix, messages) {
+                const container = element(suffix);
+                container.replaceChildren();
+                if (!Array.isArray(messages) || messages.length === 0) {
+                    const empty = document.createElement('span');
+                    empty.className = 'production-kpi-empty';
+                    empty.textContent = 'Không có.';
+                    container.appendChild(empty);
+                    return;
+                }
+                const list = document.createElement('ul');
+                list.className = 'production-kpi-message-list';
+                messages.forEach(function(message) {
+                    const item = document.createElement('li');
+                    item.textContent = valueOrDash(message);
+                    list.appendChild(item);
+                });
+                container.appendChild(list);
+            }
+
+            function renderMatch(suffix, section) {
+                const target = element(suffix);
+                const matches = section && section.matches;
+                target.textContent = matches === true ? 'Khớp' : matches === false ? 'Không khớp' : '—';
+                target.className = matches === true
+                    ? 'production-kpi-ok'
+                    : matches === false ? 'production-kpi-bad' : '';
+            }
+
+            function renderHealth(health, reconciliation) {
+                health = health || {};
+                reconciliation = reconciliation || {};
+                const status = valueOrDash(health.status);
+                const statusElement = element('health-status');
+                statusElement.textContent = status === 'OK' ? 'Bình thường' : status === 'ERROR' ? 'Có lỗi' : status;
+                statusElement.className = status === 'OK' ? 'production-kpi-ok' : 'production-kpi-bad';
+                renderMatch('finished-match', reconciliation.finished);
+                renderMatch('rejected-match', reconciliation.rejected);
+                setText('unknown-size', numberOrZero(reconciliation.unknownSizeCount));
+                renderMessages('health-errors', health.errors);
+                renderMessages('health-warnings', health.warnings);
+            }
+
+            function render(data) {
+                const daily = data.daily || {};
+                const monthly = data.monthly || {};
+                const averages = data.monthlyAverages || {};
+                const dailyChecked = daily.checked || {};
+                const dailyFinished = daily.finished || {};
+                const monthlyChecked = monthly.checked || {};
+                const monthlyFinished = monthly.finished || {};
+
+                setText('built-at', formatDate(data.builtAt, true));
+                setText('plan-version', data.planVersion);
+                setText('daily-period', daily.period ? '(' + formatDate(daily.period, false) + ')' : '');
+                setText('monthly-period', monthly.period ? '(' + monthly.period + ')' : '');
+                renderCards('daily-cards', [
+                    { label: 'Đã kiểm tra', value: numberOrZero(dailyChecked.actual) },
+                    { label: 'Thành phẩm', value: numberOrZero(dailyFinished.actual) },
+                    { label: 'Loại', value: numberOrZero(daily.rejected && daily.rejected.actual) },
+                    { label: '% hoàn thành kiểm tra', value: percent(dailyChecked.completionPercent) },
+                    { label: '% hoàn thành thành phẩm', value: percent(dailyFinished.completionPercent) }
+                ]);
+                renderCards('monthly-cards', [
+                    { label: 'Đã kiểm tra', value: numberOrZero(monthlyChecked.actual) },
+                    { label: 'Thành phẩm', value: numberOrZero(monthlyFinished.actual) },
+                    { label: 'Loại', value: numberOrZero(monthly.rejected && monthly.rejected.actual) },
+                    { label: 'Kiểm tra/ngày công', value: valueOrDash(averages.checkedPerWorkingDay) },
+                    { label: 'Thành phẩm/ngày công', value: valueOrDash(averages.finishedPerWorkingDay) }
+                ]);
+                renderSizeBreakdown(data.sizeBreakdown);
+                renderWip(data.wip, data.reconciliation);
+                renderHealth(data.health, data.reconciliation);
+                element('status').style.display = 'none';
+                element('content').style.display = 'block';
+            }
+
+            function finishLoading() {
+                loading = false;
+                if (loadingTimer) window.clearTimeout(loadingTimer);
+                loadingTimer = null;
+            }
+
+            function loadOnce() {
+                if (loaded || loading) return;
+                loading = true;
+                element('content').style.display = 'none';
+                setStatus('Đang tải KPI sản xuất...', false);
+
+                if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                    finishLoading();
+                    setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
+                    return;
+                }
+
+                loadingTimer = window.setTimeout(function() {
+                    if (loading) {
+                        setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
+                    }
+                }, 120000);
+
+                google.script.run
+                    .withSuccessHandler(function(result) {
+                        finishLoading();
+                        if (!result || result.success !== true) {
+                            setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
+                            return;
+                        }
+                        try {
+                            render(result);
+                            loaded = true;
+                        } catch (error) {
+                            setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
+                        }
+                    })
+                    .withFailureHandler(function() {
+                        finishLoading();
+                        setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
+                    })
+                    .getProductionDashboardV2Shadow();
+            }
+
+            function hide() {
+                const view = document.getElementById('view-production-kpi');
+                const menu = document.getElementById('menu-production-kpi');
+                if (view) view.style.display = 'none';
+                if (menu) menu.classList.remove('active');
+            }
+
+            function open() {
+                ['view-dashboard', 'view-pipe-list', 'view-pipe-passport', 'view-daily-report',
+                    'view-monthly-report', 'view-error-analysis', 'view-about'].forEach(function(id) {
+                    const view = document.getElementById(id);
+                    if (view) view.style.display = 'none';
+                });
+                ['menu-dashboard', 'menu-daily-report', 'menu-monthly-report',
+                    'menu-error-analysis', 'menu-about'].forEach(function(id) {
+                    const menu = document.getElementById(id);
+                    if (menu) menu.classList.remove('active');
+                });
+                document.getElementById('view-production-kpi').style.display = 'block';
+                document.getElementById('menu-production-kpi').classList.add('active');
+                loadOnce();
+            }
+
+            return { open: open, hide: hide };
+        })();
+
+        function showProductionKpi() {
+            ProductionKpiView.open();
+        }
+
         function showPipeList(title, pipeArray, isLoading) {
+            ProductionKpiView.hide();
             currentListTitle = title;
             currentPipeList = pipeArray || [];
             document.getElementById('view-dashboard').style.display = 'none';
@@ -1288,6 +1671,7 @@
         }
 
         function backToDashboard() {
+            ProductionKpiView.hide();
             document.getElementById('view-dashboard').style.display = 'block';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1412,6 +1796,7 @@
         }
 
         function showDailyReport() {
+            ProductionKpiView.hide();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1516,6 +1901,7 @@
         }
 
         function showMonthlyReport() {
+            ProductionKpiView.hide();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1603,6 +1989,7 @@
         }
 
         function showErrorAnalysis() {
+            ProductionKpiView.hide();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1626,6 +2013,7 @@
         }
         
         function showAbout() {
+            ProductionKpiView.hide();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1668,6 +2056,7 @@
         }
 
         function showPassportLoading(pipeNo) {
+            ProductionKpiView.hide();
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'block';
             if(document.getElementById('view-daily-report')) document.getElementById('view-daily-report').style.display = 'none';
