@@ -165,9 +165,6 @@
         .daily-mini-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--text-secondary); font-size: 0.9rem; }
         .daily-mini-row strong { color: var(--text-primary); }
         .daily-results { display: none; }
-        .production-kpi-frame { width: 100%; min-height: calc(100vh - 150px); border: 0; background: var(--bg-surface); }
-        .production-kpi-state { padding: 1rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-surface); color: var(--text-secondary); font-weight: 600; }
-        .production-kpi-state.error { border-color: var(--accent-danger); background: rgba(239,68,68,0.1); color: var(--accent-danger); }
         @media (max-width: 900px) {
             .daily-summary-grid { grid-template-columns: 1fr; }
             .daily-toolbar { align-items: stretch; }
@@ -190,7 +187,6 @@
         </div>
         <nav class="sidebar-menu">
             <a class="menu-item active" id="menu-dashboard" onclick="backToDashboard()"><i class="ph ph-squares-four"></i> Tổng quan</a>
-            <a class="menu-item" id="menu-production-kpi" onclick="showProductionKpi()"><i class="ph ph-chart-line-up"></i> KPI sản xuất</a>
             <a class="menu-item" id="menu-daily-report" onclick="showDailyReport()"><i class="ph ph-calendar-blank"></i> Báo cáo ngày</a>
             <a class="menu-item" id="menu-monthly-report" onclick="showMonthlyReport()"><i class="ph ph-calendar"></i> Báo cáo tháng</a>
             <a class="menu-item" id="menu-error-analysis" onclick="showErrorAnalysis()"><i class="ph ph-warning-circle"></i> Phân tích lỗi</a>
@@ -371,18 +367,6 @@
                         </table>
                     </div>
                 </div>
-            </section>
-
-            <section id="view-production-kpi" style="display: none;">
-                <div id="productionKpiState" class="production-kpi-state">Đang tải KPI sản xuất...</div>
-                <iframe
-                    id="productionKpiFrame"
-                    class="production-kpi-frame"
-                    title="KPI sản xuất"
-                    loading="lazy"
-                    style="display: none;"
-                    onload="handleProductionKpiLoaded()"
-                    onerror="handleProductionKpiError()"></iframe>
             </section>
             
             <section id="view-pipe-list" style="display: none;">
@@ -939,7 +923,6 @@
                 if(document.getElementById('view-monthly-report')) document.getElementById('view-monthly-report').style.display = 'none';
                 if(document.getElementById('view-error-analysis')) document.getElementById('view-error-analysis').style.display = 'none';
                 if(document.getElementById('view-about')) document.getElementById('view-about').style.display = 'none';
-                leaveProductionKpiView();
             } else {
                 backToDashboard();
             }
@@ -1304,79 +1287,7 @@
             }).join('');
         }
 
-        let productionKpiRequested = false;
-        let productionKpiLoaded = false;
-
-        function leaveProductionKpiView() {
-            const view = document.getElementById('view-production-kpi');
-            const menu = document.getElementById('menu-production-kpi');
-            if(view) view.style.display = 'none';
-            if(menu) menu.classList.remove('active');
-        }
-
-        function showProductionKpiError() {
-            productionKpiRequested = false;
-            const state = document.getElementById('productionKpiState');
-            const frame = document.getElementById('productionKpiFrame');
-            state.textContent = 'Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.';
-            state.className = 'production-kpi-state error';
-            state.style.display = 'block';
-            frame.style.display = 'none';
-        }
-
-        function handleProductionKpiLoaded() {
-            const frame = document.getElementById('productionKpiFrame');
-            if (!frame.getAttribute('src')) return;
-            productionKpiRequested = false;
-            productionKpiLoaded = true;
-            document.getElementById('productionKpiState').style.display = 'none';
-            frame.style.display = 'block';
-        }
-
-        function handleProductionKpiError() {
-            productionKpiLoaded = false;
-            showProductionKpiError();
-        }
-
-        function showProductionKpi() {
-            document.getElementById('view-dashboard').style.display = 'none';
-            document.getElementById('view-pipe-list').style.display = 'none';
-            document.getElementById('view-pipe-passport').style.display = 'none';
-            document.getElementById('view-daily-report').style.display = 'none';
-            document.getElementById('view-monthly-report').style.display = 'none';
-            document.getElementById('view-error-analysis').style.display = 'none';
-            document.getElementById('view-about').style.display = 'none';
-            document.getElementById('view-production-kpi').style.display = 'block';
-
-            document.querySelectorAll('.sidebar-menu .menu-item').forEach(item => item.classList.remove('active'));
-            document.getElementById('menu-production-kpi').classList.add('active');
-
-            if (productionKpiLoaded || productionKpiRequested) return;
-            productionKpiRequested = true;
-            const state = document.getElementById('productionKpiState');
-            state.textContent = 'Đang tải KPI sản xuất...';
-            state.className = 'production-kpi-state';
-            state.style.display = 'block';
-
-            if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                showProductionKpiError();
-                return;
-            }
-
-            google.script.run
-                .withSuccessHandler(url => {
-                    if (!/^https:\/\//i.test(String(url || ''))) {
-                        showProductionKpiError();
-                        return;
-                    }
-                    document.getElementById('productionKpiFrame').src = url;
-                })
-                .withFailureHandler(showProductionKpiError)
-                .getProductionDashboardV2Url();
-        }
-
         function backToDashboard() {
-            leaveProductionKpiView();
             document.getElementById('view-dashboard').style.display = 'block';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1501,7 +1412,6 @@
         }
 
         function showDailyReport() {
-            leaveProductionKpiView();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1606,7 +1516,6 @@
         }
 
         function showMonthlyReport() {
-            leaveProductionKpiView();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1694,7 +1603,6 @@
         }
 
         function showErrorAnalysis() {
-            leaveProductionKpiView();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
@@ -1718,7 +1626,6 @@
         }
         
         function showAbout() {
-            leaveProductionKpiView();
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-pipe-list').style.display = 'none';
             document.getElementById('view-pipe-passport').style.display = 'none';
