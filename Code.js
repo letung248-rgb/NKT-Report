@@ -29,6 +29,12 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
 }
 
+function getProductionDashboardV2Url() {
+  const webAppUrl = ScriptApp.getService().getUrl();
+  if (!webAppUrl) throw new Error('Web App URL is unavailable.');
+  return webAppUrl + (webAppUrl.indexOf('?') === -1 ? '?' : '&') + 'view=dashboard-v2';
+}
+
 function getPayloadValue(payload, keys, fallback) {
   for (const key of keys) {
     const value = payload[key];
