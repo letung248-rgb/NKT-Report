@@ -330,10 +330,18 @@ function readProductionDashboardV2PlanSheet_(sheetName, periodType, currentPerio
 }
 
 function validateProductionDashboardV2Plans_(asOf) {
+  const totalStartedAt = performanceTimerStart_();
   const dayKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
   const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+  const cacheStartedAt = performanceTimerStart_();
   const cached = readProductionDashboardV2PlanCache_(dayKey, monthKey);
-  if (cached !== null) return cached;
+  if (cached !== null) {
+    performanceLog_("validateProductionDashboardV2Plans", "cache_read", cacheStartedAt, { cache: "hit" });
+    performanceLog_("validateProductionDashboardV2Plans", "total", totalStartedAt, { cache: "hit" });
+    return cached;
+  }
+  performanceLog_("validateProductionDashboardV2Plans", "cache_read", cacheStartedAt, { cache: "miss" });
+  const sheetValidationStartedAt = performanceTimerStart_();
   const daily = readProductionDashboardV2PlanSheet_(
     PRODUCTION_DASHBOARD_V2_DAILY_PLAN_SHEET,
     "daily",
@@ -344,6 +352,10 @@ function validateProductionDashboardV2Plans_(asOf) {
     "monthly",
     monthKey
   );
+  performanceLog_("validateProductionDashboardV2Plans", "sheet_validation", sheetValidationStartedAt, {
+    dailyValid: daily.valid,
+    monthlyValid: monthly.valid
+  });
   const errors = daily.errors.concat(monthly.errors);
   const warnings = daily.warnings.concat(monthly.warnings);
   let planVersion = "";
@@ -367,7 +379,10 @@ function validateProductionDashboardV2Plans_(asOf) {
     errors: errors,
     warnings: warnings
   };
+  const cacheWriteStartedAt = performanceTimerStart_();
   writeProductionDashboardV2PlanCache_(dayKey, monthKey, result);
+  performanceLog_("validateProductionDashboardV2Plans", "cache_write", cacheWriteStartedAt);
+  performanceLog_("validateProductionDashboardV2Plans", "total", totalStartedAt, { cache: "miss" });
   return result;
 }
 
@@ -723,20 +738,38 @@ function productionDashboardV2Reconciliation_(pipeObjects, projections, wip, pla
 }
 
 function getProductionDashboardV2Shadow() {
+  const totalStartedAt = performanceTimerStart_();
   const builtAt = new Date();
 
   try {
+    const rawTransactionsStartedAt = performanceTimerStart_();
     const sourceTransactions = getRawTransactions();
+    performanceLog_("getProductionDashboardV2Shadow", "getRawTransactions", rawTransactionsStartedAt, {
+      transactionCount: sourceTransactions.length
+    });
+    const pipeEngineStartedAt = performanceTimerStart_();
     const pipeObjects = buildPipeEngine(sourceTransactions);
+    performanceLog_("getProductionDashboardV2Shadow", "buildPipeEngine", pipeEngineStartedAt, {
+      pipeCount: pipeObjects.length
+    });
+    const projectionStartedAt = performanceTimerStart_();
     const projections = pipeObjects.map(projectProductionDashboardV2Pipe_);
+    performanceLog_("getProductionDashboardV2Shadow", "projection", projectionStartedAt, {
+      projectionCount: projections.length
+    });
     const dayKey = Utilities.formatDate(builtAt, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
     const monthKey = Utilities.formatDate(builtAt, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+    const planValidationStartedAt = performanceTimerStart_();
     const planValidation = validateProductionDashboardV2Plans_(builtAt);
+    performanceLog_("getProductionDashboardV2Shadow", "plan_validation", planValidationStartedAt, {
+      valid: planValidation.valid
+    });
     const dailyPlan = planValidation.daily.currentPlan;
     const monthlyPlan = planValidation.monthly.currentPlan;
     const workingDays = monthlyPlan && Number.isFinite(monthlyPlan.workingDays) && monthlyPlan.workingDays > 0
       ? monthlyPlan.workingDays
       : null;
+    const aggregationStartedAt = performanceTimerStart_();
     const daily = productionDashboardV2PeriodKpi_(projections, "dayKey", dayKey, dailyPlan);
     const monthly = productionDashboardV2PeriodKpi_(projections, "monthKey", monthKey, monthlyPlan);
     const monthlyAverages = {
@@ -745,6 +778,10 @@ function getProductionDashboardV2Shadow() {
       workingDays: workingDays
     };
     const sizeBreakdown = productionDashboardV2SizeBreakdown_(projections, dayKey, monthKey, workingDays);
+    performanceLog_("getProductionDashboardV2Shadow", "kpi_aggregation", aggregationStartedAt, {
+      sizeCount: sizeBreakdown.length
+    });
+    const wipHealthStartedAt = performanceTimerStart_();
     const wipByCurrentProcess = {};
     let invalidCurrentProcess = 0;
     let invalidEventDateCount = 0;
@@ -814,6 +851,11 @@ function getProductionDashboardV2Shadow() {
       wip: wip
     };
 
+    performanceLog_("getProductionDashboardV2Shadow", "wip_health", wipHealthStartedAt, {
+      wipTotal: wipTotal,
+      healthStatus: healthStatus
+    });
+    const reconciliationStartedAt = performanceTimerStart_();
     result.reconciliation = productionDashboardV2Reconciliation_(
       pipeObjects,
       projections,
@@ -821,9 +863,16 @@ function getProductionDashboardV2Shadow() {
       planValidation,
       sizeBreakdown
     );
+    performanceLog_("getProductionDashboardV2Shadow", "reconciliation", reconciliationStartedAt);
+    performanceLog_("getProductionDashboardV2Shadow", "total", totalStartedAt, {
+      status: "success",
+      transactionCount: sourceTransactions.length,
+      pipeCount: pipeObjects.length
+    });
     Logger.log(JSON.stringify(result));
     return result;
   } catch (error) {
+    performanceLog_("getProductionDashboardV2Shadow", "total", totalStartedAt, { status: "error" });
     const result = {
       success: false,
       mode: "SHADOW",

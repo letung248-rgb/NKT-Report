@@ -2,6 +2,7 @@
  * Lấy đối tượng Spreadsheet
  */
 let __SS_CACHE = null;
+const PERFORMANCE_DEBUG_ENABLED = false;
 const DASH_DATA_CACHE_TTL_SECONDS = 300;
 const DASH_DATA_CACHE_VERSION_KEY = "DASH_DATA_VER";
 const DASH_DATA_CACHE_KEY_PREFIX = "dashboard:data:transactions:v1:";
@@ -21,6 +22,25 @@ const DASH_PLAN_CACHE_VERSION_KEY = "DASH_PLAN_VER";
 const DASH_PLAN_CACHE_KEY_PREFIX = "dashboard:plan:v1:";
 const DASH_PLAN_CACHE_MAX_BYTES = 90 * 1024;
 const DASH_PLAN_CACHE_FIELDS = ["date", "month", "size", "qty"];
+
+function performanceTimerStart_() {
+  return PERFORMANCE_DEBUG_ENABLED ? Date.now() : 0;
+}
+
+function performanceLog_(scope, phase, startedAt, details) {
+  if (!PERFORMANCE_DEBUG_ENABLED || !startedAt) return;
+  const fields = [
+    "PERF",
+    "scope=" + scope,
+    "phase=" + phase,
+    "durationMs=" + (Date.now() - startedAt)
+  ];
+  const safeDetails = details || {};
+  Object.keys(safeDetails).forEach(function(key) {
+    fields.push(key + "=" + safeDetails[key]);
+  });
+  Logger.log(fields.join(" | "));
+}
 
 function getSpreadsheet() {
   if (__SS_CACHE) return __SS_CACHE;
@@ -360,8 +380,21 @@ function parseDashboardDate(value) {
  * 1. Đọc dữ liệu thô từ Sheet Data
  */
 function getRawTransactions() {
+  const totalStartedAt = performanceTimerStart_();
+  const cacheStartedAt = performanceTimerStart_();
   const cachedTransactions = readDashboardDataCache_();
-  if (cachedTransactions !== null) return cachedTransactions;
+  if (cachedTransactions !== null) {
+    performanceLog_("getRawTransactions", "cache_read", cacheStartedAt, {
+      cache: "hit",
+      transactionCount: cachedTransactions.length
+    });
+    performanceLog_("getRawTransactions", "total", totalStartedAt, {
+      cache: "hit",
+      transactionCount: cachedTransactions.length
+    });
+    return cachedTransactions;
+  }
+  performanceLog_("getRawTransactions", "cache_read", cacheStartedAt, { cache: "miss" });
   Logger.log("DASH_CACHE data miss | key=" + getDashboardDataCacheKey_());
 
   const ss = getSpreadsheet();
@@ -369,14 +402,17 @@ function getRawTransactions() {
   const sheet = ss.getSheetByName(SHEET_DATA);
   if (!sheet) return [];
   
+  const sheetReadStartedAt = performanceTimerStart_();
   const data = sheet.getDataRange().getValues();
+  performanceLog_("getRawTransactions", "sheet_read", sheetReadStartedAt, { rowCount: data.length });
   if (data.length <= 1) {
     writeDashboardDataCache_([]);
+    performanceLog_("getRawTransactions", "total", totalStartedAt, { cache: "miss", transactionCount: 0 });
     return [];
   }
 
   const tableInfo = getDataTableInfo(data);
-  
+  const normalizeStartedAt = performanceTimerStart_();
   const transactions = [];
   // Đọc từ dòng sau header thật của sheet Data.
   for (let i = tableInfo.headerRowIdx + 1; i < data.length; i++) {
@@ -419,7 +455,19 @@ function getRawTransactions() {
     });
   }
 
+  performanceLog_("getRawTransactions", "normalize", normalizeStartedAt, {
+    rowCount: data.length,
+    transactionCount: transactions.length
+  });
+  const cacheWriteStartedAt = performanceTimerStart_();
   writeDashboardDataCache_(transactions);
+  performanceLog_("getRawTransactions", "cache_write", cacheWriteStartedAt, {
+    transactionCount: transactions.length
+  });
+  performanceLog_("getRawTransactions", "total", totalStartedAt, {
+    cache: "miss",
+    transactionCount: transactions.length
+  });
   return transactions;
 }
 
@@ -427,8 +475,21 @@ function getRawTransactions() {
  * 2. Đọc dữ liệu từ Sheet Kế hoạch
  */
 function getPlanData() {
+  const totalStartedAt = performanceTimerStart_();
+  const cacheStartedAt = performanceTimerStart_();
   const cachedPlans = readDashboardPlanCache_();
-  if (cachedPlans !== null) return cachedPlans;
+  if (cachedPlans !== null) {
+    performanceLog_("getPlanData", "cache_read", cacheStartedAt, {
+      cache: "hit",
+      planCount: cachedPlans.length
+    });
+    performanceLog_("getPlanData", "total", totalStartedAt, {
+      cache: "hit",
+      planCount: cachedPlans.length
+    });
+    return cachedPlans;
+  }
+  performanceLog_("getPlanData", "cache_read", cacheStartedAt, { cache: "miss" });
   Logger.log("DASH_CACHE plan miss | key=" + getDashboardPlanCacheKey_());
 
   const ss = getSpreadsheet();
@@ -436,9 +497,12 @@ function getPlanData() {
   const sheet = ss.getSheetByName(SHEET_PLAN);
   if (!sheet) return [];
   
+  const sheetReadStartedAt = performanceTimerStart_();
   const data = sheet.getDataRange().getValues();
+  performanceLog_("getPlanData", "sheet_read", sheetReadStartedAt, { rowCount: data.length });
   if (data.length <= 1) {
     writeDashboardPlanCache_([]);
+    performanceLog_("getPlanData", "total", totalStartedAt, { cache: "miss", planCount: 0 });
     return []; // Bỏ qua tiêu đề
   }
   
@@ -456,6 +520,7 @@ function getPlanData() {
     }
   }
   
+  const normalizeStartedAt = performanceTimerStart_();
   const plans = [];
   for (let i = 1; i < data.length; i++) {
     let row = data[i];
@@ -482,7 +547,17 @@ function getPlanData() {
       qty: qty
     });
   }
+  performanceLog_("getPlanData", "normalize", normalizeStartedAt, {
+    rowCount: data.length,
+    planCount: plans.length
+  });
+  const cacheWriteStartedAt = performanceTimerStart_();
   writeDashboardPlanCache_(plans);
+  performanceLog_("getPlanData", "cache_write", cacheWriteStartedAt, { planCount: plans.length });
+  performanceLog_("getPlanData", "total", totalStartedAt, {
+    cache: "miss",
+    planCount: plans.length
+  });
   return plans;
 }
 

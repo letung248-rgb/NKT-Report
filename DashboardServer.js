@@ -393,7 +393,9 @@ function isThanhPhamKpiPipe(pipe) {
  * 2. Xây dựng Pipe Engine
  */
 function buildPipeEngine(sourceTransactions) {
+  const totalStartedAt = performanceTimerStart_();
   const transactions = sourceTransactions || getRawTransactions();
+  const groupingStartedAt = performanceTimerStart_();
   const pipesMap = {};
   
   for (let txn of transactions) {
@@ -447,7 +449,13 @@ function buildPipeEngine(sourceTransactions) {
     // Loại bỏ gán currentEntryNo tĩnh
   }
   
+  performanceLog_("buildPipeEngine", "group_transactions", groupingStartedAt, {
+    transactionCount: transactions.length,
+    pipeCount: Object.keys(pipesMap).length
+  });
+
   // Xác định Current State cho từng Pipe
+  const currentStateStartedAt = performanceTimerStart_();
   const pipeObjects = [];
   for (let pNo in pipesMap) {
     let pipe = pipesMap[pNo];
@@ -475,6 +483,13 @@ function buildPipeEngine(sourceTransactions) {
     pipeObjects.push(getCurrentPipeState(pipe));
   }
   
+  performanceLog_("buildPipeEngine", "current_state", currentStateStartedAt, {
+    pipeCount: pipeObjects.length
+  });
+  performanceLog_("buildPipeEngine", "total", totalStartedAt, {
+    transactionCount: transactions.length,
+    pipeCount: pipeObjects.length
+  });
   return pipeObjects;
 }
 
@@ -2508,18 +2523,42 @@ function getDailyReportData(dateText) {
 }
 
 function getMonthlyReportData(monthText) {
+  const totalStartedAt = performanceTimerStart_();
   try {
+    const parseStartedAt = performanceTimerStart_();
     const reportMonth = parseMonthlyReportMonth_(monthText);
+    performanceLog_("getMonthlyReportData", "parse_month", parseStartedAt, { valid: !!reportMonth });
     if (!reportMonth) {
+      performanceLog_("getMonthlyReportData", "total", totalStartedAt, { status: "invalid_month" });
       return { success: false, error: "Tháng báo cáo không hợp lệ." };
     }
 
+    const rawTransactionsStartedAt = performanceTimerStart_();
     const transactions = getRawTransactions();
+    performanceLog_("getMonthlyReportData", "getRawTransactions", rawTransactionsStartedAt, {
+      transactionCount: transactions.length
+    });
+    const transactionFilterStartedAt = performanceTimerStart_();
     const monthlyTransactions = transactions.filter(txn => isSameDashboardMonth_(txn.date, reportMonth));
-    const plans = getPlanData().filter(plan => {
+    performanceLog_("getMonthlyReportData", "filter_transactions", transactionFilterStartedAt, {
+      sourceCount: transactions.length,
+      matchedCount: monthlyTransactions.length
+    });
+    const planDataStartedAt = performanceTimerStart_();
+    const allPlans = getPlanData();
+    performanceLog_("getMonthlyReportData", "getPlanData", planDataStartedAt, {
+      planCount: allPlans.length
+    });
+    const planFilterStartedAt = performanceTimerStart_();
+    const plans = allPlans.filter(plan => {
       return isSameDashboardMonth_(plan.month, reportMonth) || isSameDashboardMonth_(plan.date, reportMonth);
     });
+    performanceLog_("getMonthlyReportData", "filter_plans", planFilterStartedAt, {
+      sourceCount: allPlans.length,
+      matchedCount: plans.length
+    });
 
+    const aggregationStartedAt = performanceTimerStart_();
     const pipeMap = {};
     let totalQty = 0;
     for (let txn of monthlyTransactions) {
@@ -2537,7 +2576,7 @@ function getMonthlyReportData(monthText) {
       };
     });
 
-    return {
+    const response = {
       success: true,
       month: formatDashboardMonth_(reportMonth),
       monthText: monthText,
@@ -2552,7 +2591,15 @@ function getMonthlyReportData(monthText) {
       sizeStats: summarizeMonthlyQtyList_(monthlyTransactions, "size"),
       planRows: planRows
     };
+    performanceLog_("getMonthlyReportData", "aggregate", aggregationStartedAt, {
+      transactionCount: monthlyTransactions.length,
+      pipeCount: Object.keys(pipeMap).length,
+      planCount: planRows.length
+    });
+    performanceLog_("getMonthlyReportData", "total", totalStartedAt, { status: "success" });
+    return response;
   } catch (e) {
+    performanceLog_("getMonthlyReportData", "total", totalStartedAt, { status: "error" });
     return { success: false, error: e.toString(), stack: e.stack };
   }
 }
