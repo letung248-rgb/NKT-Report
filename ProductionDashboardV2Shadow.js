@@ -113,34 +113,41 @@ function readProductionDashboardV2PlanCache_(dayKey, monthKey) {
   const cacheKey = productionDashboardV2PlanCacheKey_(dayKey, monthKey);
   try {
     const payload = CacheService.getScriptCache().get(cacheKey);
-    if (payload === null) {
-      Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=miss");
-      return null;
-    }
+    if (payload === null) return null;
     const cached = JSON.parse(payload);
     if (!isProductionDashboardV2PlanValidationResult_(cached)) {
       CacheService.getScriptCache().remove(cacheKey);
-      Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=invalid");
       return null;
     }
-    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=hit");
     return cached;
   } catch (error) {
-    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=error error=" + error);
     return null;
   }
 }
 
-function writeProductionDashboardV2PlanCache_(dayKey, monthKey, value) {
+function writeProductionDashboardV2PlanCache_(dayKey, monthKey, value, timingScope) {
   try {
+    const serializeStartedAt = performanceTimerStart_();
+    const payload = JSON.stringify(value);
+    performanceLog_(timingScope || "writeProductionDashboardV2PlanCache", "cache_serialize", serializeStartedAt, {
+      cache: "miss"
+    });
+    const cachePutStartedAt = performanceTimerStart_();
     CacheService.getScriptCache().put(
       productionDashboardV2PlanCacheKey_(dayKey, monthKey),
-      JSON.stringify(value),
+      payload,
       PRODUCTION_DASHBOARD_V2_PLAN_CACHE_TTL_SECONDS
     );
-    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=write");
+    performanceLog_(timingScope || "writeProductionDashboardV2PlanCache", "cache_put", cachePutStartedAt, {
+      success: true,
+      cache: "miss"
+    });
   } catch (error) {
-    Logger.log("DASH_V2_TIMING stage=plan_validation_cache status=write_error error=" + error);
+    performanceLog_(timingScope || "writeProductionDashboardV2PlanCache", "cache_put", performanceTimerStart_(), {
+      success: false,
+      cache: "miss",
+      errorCount: 1
+    });
   }
 }
 
@@ -192,6 +199,8 @@ function productionDashboardV2PlanNumber_(value) {
 }
 
 function readProductionDashboardV2PlanSheet_(sheetName, periodType, currentPeriodKey) {
+  const scope = "readProductionDashboardV2PlanSheet." + periodType;
+  const totalStartedAt = performanceTimerStart_();
   const result = {
     sheetName: sheetName,
     exists: false,
@@ -202,19 +211,47 @@ function readProductionDashboardV2PlanSheet_(sheetName, periodType, currentPerio
     errors: [],
     warnings: []
   };
+  const finish = function() {
+    performanceLog_(scope, "total", totalStartedAt, {
+      success: result.valid,
+      cache: "miss",
+      rowCount: result.rowCount,
+      errorCount: result.errors.length
+    });
+    return result;
+  };
 
+  const spreadsheetStartedAt = performanceTimerStart_();
   const ss = getSpreadsheet();
+  performanceLog_(scope, "acquire_spreadsheet", spreadsheetStartedAt, {
+    success: !!ss,
+    cache: "miss"
+  });
+  const sheetStartedAt = performanceTimerStart_();
   const sheet = ss && ss.getSheetByName(sheetName);
+  performanceLog_(scope, "get_sheet", sheetStartedAt, { success: !!sheet, cache: "miss" });
   if (!sheet) {
     result.errors.push("Missing sheet: " + sheetName);
-    return result;
+    return finish();
   }
   result.exists = true;
 
-  const values = sheet.getDataRange().getValues();
+  const rangeStartedAt = performanceTimerStart_();
+  const dataRange = sheet.getDataRange();
+  performanceLog_(scope, "get_data_range", rangeStartedAt, { success: !!dataRange, cache: "miss" });
+  const valuesStartedAt = performanceTimerStart_();
+  const values = dataRange.getValues();
+  performanceLog_(scope, "get_values", valuesStartedAt, { cache: "miss", rowCount: values.length });
+  const normalizeStartedAt = performanceTimerStart_();
   if (!values || values.length === 0 || sheet.getLastRow() === 0) {
     result.errors.push("Sheet has no header: " + sheetName);
-    return result;
+    performanceLog_(scope, "normalize", normalizeStartedAt, {
+      success: false,
+      cache: "miss",
+      rowCount: 0,
+      errorCount: result.errors.length
+    });
+    return finish();
   }
 
   const requiredHeaders = periodType === "daily"
@@ -234,7 +271,13 @@ function readProductionDashboardV2PlanSheet_(sheetName, periodType, currentPerio
   }
   if (missingHeaders.length > 0) {
     result.errors.push("Missing headers in " + sheetName + ": " + missingHeaders.join(", "));
-    return result;
+    performanceLog_(scope, "normalize", normalizeStartedAt, {
+      success: false,
+      cache: "miss",
+      rowCount: result.rowCount,
+      errorCount: result.errors.length
+    });
+    return finish();
   }
 
   const periodHeader = periodType === "daily" ? "PlanDate" : "PlanMonth";
@@ -326,7 +369,13 @@ function readProductionDashboardV2PlanSheet_(sheetName, periodType, currentPerio
   }
 
   result.valid = result.errors.length === 0 && !!result.currentPlan;
-  return result;
+  performanceLog_(scope, "normalize", normalizeStartedAt, {
+    success: result.valid,
+    cache: "miss",
+    rowCount: result.rowCount,
+    errorCount: result.errors.length
+  });
+  return finish();
 }
 
 function validateProductionDashboardV2Plans_(asOf) {
@@ -380,8 +429,11 @@ function validateProductionDashboardV2Plans_(asOf) {
     warnings: warnings
   };
   const cacheWriteStartedAt = performanceTimerStart_();
-  writeProductionDashboardV2PlanCache_(dayKey, monthKey, result);
-  performanceLog_("validateProductionDashboardV2Plans", "cache_write", cacheWriteStartedAt);
+  writeProductionDashboardV2PlanCache_(dayKey, monthKey, result, "validateProductionDashboardV2Plans");
+  performanceLog_("validateProductionDashboardV2Plans", "cache_write_total", cacheWriteStartedAt, {
+    cache: "miss",
+    errorCount: errors.length
+  });
   performanceLog_("validateProductionDashboardV2Plans", "total", totalStartedAt, { cache: "miss" });
   return result;
 }
@@ -745,24 +797,25 @@ function getProductionDashboardV2Shadow() {
     const rawTransactionsStartedAt = performanceTimerStart_();
     const sourceTransactions = getRawTransactions();
     performanceLog_("getProductionDashboardV2Shadow", "getRawTransactions", rawTransactionsStartedAt, {
-      transactionCount: sourceTransactions.length
+      rowCount: sourceTransactions.length
     });
     const pipeEngineStartedAt = performanceTimerStart_();
     const pipeObjects = buildPipeEngine(sourceTransactions);
     performanceLog_("getProductionDashboardV2Shadow", "buildPipeEngine", pipeEngineStartedAt, {
-      pipeCount: pipeObjects.length
+      rowCount: pipeObjects.length
     });
     const projectionStartedAt = performanceTimerStart_();
     const projections = pipeObjects.map(projectProductionDashboardV2Pipe_);
     performanceLog_("getProductionDashboardV2Shadow", "projection", projectionStartedAt, {
-      projectionCount: projections.length
+      rowCount: projections.length
     });
     const dayKey = Utilities.formatDate(builtAt, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
     const monthKey = Utilities.formatDate(builtAt, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
     const planValidationStartedAt = performanceTimerStart_();
     const planValidation = validateProductionDashboardV2Plans_(builtAt);
     performanceLog_("getProductionDashboardV2Shadow", "plan_validation", planValidationStartedAt, {
-      valid: planValidation.valid
+      success: planValidation.valid,
+      errorCount: planValidation.errors.length
     });
     const dailyPlan = planValidation.daily.currentPlan;
     const monthlyPlan = planValidation.monthly.currentPlan;
@@ -852,8 +905,9 @@ function getProductionDashboardV2Shadow() {
     };
 
     performanceLog_("getProductionDashboardV2Shadow", "wip_health", wipHealthStartedAt, {
-      wipTotal: wipTotal,
-      healthStatus: healthStatus
+      success: healthStatus === "OK",
+      rowCount: wipTotal,
+      errorCount: healthErrors.length
     });
     const reconciliationStartedAt = performanceTimerStart_();
     result.reconciliation = productionDashboardV2Reconciliation_(
@@ -865,14 +919,19 @@ function getProductionDashboardV2Shadow() {
     );
     performanceLog_("getProductionDashboardV2Shadow", "reconciliation", reconciliationStartedAt);
     performanceLog_("getProductionDashboardV2Shadow", "total", totalStartedAt, {
-      status: "success",
-      transactionCount: sourceTransactions.length,
-      pipeCount: pipeObjects.length
+      success: true,
+      rowCount: sourceTransactions.length,
+      errorCount: healthErrors.length,
+      sizeCount: sizeBreakdown.length
     });
-    Logger.log(JSON.stringify(result));
     return result;
   } catch (error) {
-    performanceLog_("getProductionDashboardV2Shadow", "total", totalStartedAt, { status: "error" });
+    performanceLog_("getProductionDashboardV2Shadow", "total", totalStartedAt, {
+      success: false,
+      rowCount: 0,
+      errorCount: 1,
+      sizeCount: 0
+    });
     const result = {
       success: false,
       mode: "SHADOW",
@@ -885,7 +944,6 @@ function getProductionDashboardV2Shadow() {
         warnings: []
       }
     };
-    Logger.log(JSON.stringify(result));
     return result;
   }
 }
@@ -941,6 +999,5 @@ function debugProductionDashboardV2DailyEvents(dateKey) {
 
 function debugProductionDashboardV2DailyEvents20260712() {
   const result = debugProductionDashboardV2DailyEvents("2026-07-12");
-  Logger.log(JSON.stringify(result));
   return result;
 }

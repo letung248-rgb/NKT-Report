@@ -36,25 +36,55 @@ function performanceLog_(scope, phase, startedAt, details) {
     "durationMs=" + (Date.now() - startedAt)
   ];
   const safeDetails = details || {};
-  Object.keys(safeDetails).forEach(function(key) {
-    fields.push(key + "=" + safeDetails[key]);
+  ["success", "rowCount", "cache", "errorCount", "sizeCount"].forEach(function(key) {
+    if (safeDetails[key] !== undefined) fields.push(key + "=" + safeDetails[key]);
   });
   Logger.log(fields.join(" | "));
 }
 
 function getSpreadsheet() {
-  if (__SS_CACHE) return __SS_CACHE;
+  const totalStartedAt = performanceTimerStart_();
+  if (__SS_CACHE) {
+    performanceLog_("getSpreadsheet", "total", totalStartedAt, {
+      success: true,
+      cache: "hit"
+    });
+    return __SS_CACHE;
+  }
 
   if (typeof SPREADSHEET_ID !== "undefined" && SPREADSHEET_ID) {
+    const openByIdStartedAt = performanceTimerStart_();
     try {
       __SS_CACHE = SpreadsheetApp.openById(SPREADSHEET_ID);
+      performanceLog_("getSpreadsheet", "open_by_id", openByIdStartedAt, {
+        success: true,
+        cache: "miss"
+      });
+      performanceLog_("getSpreadsheet", "total", totalStartedAt, {
+        success: true,
+        cache: "miss"
+      });
       return __SS_CACHE;
     } catch (e) {
-      Logger.log("openById failed, fallback to active spreadsheet: " + e);
+      performanceLog_("getSpreadsheet", "open_by_id", openByIdStartedAt, {
+        success: false,
+        cache: "miss",
+        errorCount: 1
+      });
+      performanceLog_("getSpreadsheet", "total", totalStartedAt, {
+        success: false,
+        cache: "miss",
+        errorCount: 1
+      });
+      throw new Error("Unable to open target spreadsheet.");
     }
   }
 
   __SS_CACHE = SpreadsheetApp.getActiveSpreadsheet();
+  performanceLog_("getSpreadsheet", "total", totalStartedAt, {
+    success: !!__SS_CACHE,
+    cache: "miss"
+  });
   return __SS_CACHE;
 }
 
@@ -108,7 +138,6 @@ function readDashboardDataCache_() {
     const cacheKey = getDashboardDataCacheKey_();
     const payload = CacheService.getScriptCache().get(cacheKey);
     if (payload === null) return null;
-    Logger.log("DASH_CACHE data hit | key=" + cacheKey);
     return deserializeDashboardTransactionsCache_(payload);
   } catch (error) {
     Logger.log("DASH_CACHE data read error | " + error);
@@ -116,22 +145,36 @@ function readDashboardDataCache_() {
   }
 }
 
-function writeDashboardDataCache_(transactions) {
+function writeDashboardDataCache_(transactions, timingScope) {
   try {
     const cacheKey = getDashboardDataCacheKey_();
+    const serializeStartedAt = performanceTimerStart_();
     const payload = serializeDashboardTransactionsCache_(transactions);
     const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    performanceLog_(timingScope || "writeDashboardDataCache", "cache_serialize", serializeStartedAt, {
+      cache: "miss",
+      rowCount: (transactions || []).length
+    });
     if (payloadBytes > DASH_DATA_CACHE_MAX_BYTES) {
-      Logger.log("DASH_CACHE data write skipped payload too large | key=" + cacheKey + " | payloadBytes=" + payloadBytes);
+      performanceLog_(timingScope || "writeDashboardDataCache", "cache_put", performanceTimerStart_(), {
+        success: false,
+        cache: "miss",
+        rowCount: (transactions || []).length
+      });
       return false;
     }
 
+    const cachePutStartedAt = performanceTimerStart_();
     CacheService.getScriptCache().put(
       cacheKey,
       payload,
       DASH_DATA_CACHE_TTL_SECONDS
     );
-    Logger.log("DASH_CACHE data write ok | key=" + cacheKey + " | payloadBytes=" + payloadBytes + " | ttl=" + DASH_DATA_CACHE_TTL_SECONDS);
+    performanceLog_(timingScope || "writeDashboardDataCache", "cache_put", cachePutStartedAt, {
+      success: true,
+      cache: "miss",
+      rowCount: (transactions || []).length
+    });
     return true;
   } catch (error) {
     Logger.log("writeDashboardDataCache_ error: " + error);
@@ -197,7 +240,6 @@ function readDashboardPlanCache_() {
     const cacheKey = getDashboardPlanCacheKey_();
     const payload = CacheService.getScriptCache().get(cacheKey);
     if (payload === null) return null;
-    Logger.log("DASH_CACHE plan hit | key=" + cacheKey);
     return deserializeDashboardPlansCache_(payload);
   } catch (error) {
     Logger.log("DASH_CACHE plan read error | " + error);
@@ -205,22 +247,36 @@ function readDashboardPlanCache_() {
   }
 }
 
-function writeDashboardPlanCache_(plans) {
+function writeDashboardPlanCache_(plans, timingScope) {
   try {
     const cacheKey = getDashboardPlanCacheKey_();
+    const serializeStartedAt = performanceTimerStart_();
     const payload = serializeDashboardPlansCache_(plans);
     const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    performanceLog_(timingScope || "writeDashboardPlanCache", "cache_serialize", serializeStartedAt, {
+      cache: "miss",
+      rowCount: (plans || []).length
+    });
     if (payloadBytes > DASH_PLAN_CACHE_MAX_BYTES) {
-      Logger.log("DASH_CACHE plan write skipped payload too large | key=" + cacheKey + " | payloadBytes=" + payloadBytes);
+      performanceLog_(timingScope || "writeDashboardPlanCache", "cache_put", performanceTimerStart_(), {
+        success: false,
+        cache: "miss",
+        rowCount: (plans || []).length
+      });
       return false;
     }
 
+    const cachePutStartedAt = performanceTimerStart_();
     CacheService.getScriptCache().put(
       cacheKey,
       payload,
       DASH_PLAN_CACHE_TTL_SECONDS
     );
-    Logger.log("DASH_CACHE plan write ok payloadBytes=" + payloadBytes + " | key=" + cacheKey + " | ttl=" + DASH_PLAN_CACHE_TTL_SECONDS);
+    performanceLog_(timingScope || "writeDashboardPlanCache", "cache_put", cachePutStartedAt, {
+      success: true,
+      cache: "miss",
+      rowCount: (plans || []).length
+    });
     return true;
   } catch (error) {
     Logger.log("DASH_CACHE plan write error | " + error);
@@ -386,33 +442,48 @@ function getRawTransactions() {
   if (cachedTransactions !== null) {
     performanceLog_("getRawTransactions", "cache_read", cacheStartedAt, {
       cache: "hit",
-      transactionCount: cachedTransactions.length
+      rowCount: cachedTransactions.length
     });
     performanceLog_("getRawTransactions", "total", totalStartedAt, {
       cache: "hit",
-      transactionCount: cachedTransactions.length
+      rowCount: cachedTransactions.length
     });
     return cachedTransactions;
   }
   performanceLog_("getRawTransactions", "cache_read", cacheStartedAt, { cache: "miss" });
-  Logger.log("DASH_CACHE data miss | key=" + getDashboardDataCacheKey_());
 
+  const spreadsheetStartedAt = performanceTimerStart_();
   const ss = getSpreadsheet();
-  if (!ss) return [];
+  performanceLog_("getRawTransactions", "acquire_spreadsheet", spreadsheetStartedAt, {
+    success: !!ss,
+    cache: "miss"
+  });
+  if (!ss) {
+    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: false, cache: "miss", rowCount: 0 });
+    return [];
+  }
+  const sheetStartedAt = performanceTimerStart_();
   const sheet = ss.getSheetByName(SHEET_DATA);
-  if (!sheet) return [];
-  
-  const sheetReadStartedAt = performanceTimerStart_();
-  const data = sheet.getDataRange().getValues();
-  performanceLog_("getRawTransactions", "sheet_read", sheetReadStartedAt, { rowCount: data.length });
-  if (data.length <= 1) {
-    writeDashboardDataCache_([]);
-    performanceLog_("getRawTransactions", "total", totalStartedAt, { cache: "miss", transactionCount: 0 });
+  performanceLog_("getRawTransactions", "get_sheet", sheetStartedAt, { success: !!sheet, cache: "miss" });
+  if (!sheet) {
+    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: false, cache: "miss", rowCount: 0 });
     return [];
   }
 
-  const tableInfo = getDataTableInfo(data);
+  const rangeStartedAt = performanceTimerStart_();
+  const dataRange = sheet.getDataRange();
+  performanceLog_("getRawTransactions", "get_data_range", rangeStartedAt, { success: !!dataRange, cache: "miss" });
+  const valuesStartedAt = performanceTimerStart_();
+  const data = dataRange.getValues();
+  performanceLog_("getRawTransactions", "get_values", valuesStartedAt, { cache: "miss", rowCount: data.length });
+  if (data.length <= 1) {
+    writeDashboardDataCache_([], "getRawTransactions");
+    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: true, cache: "miss", rowCount: 0 });
+    return [];
+  }
+
   const normalizeStartedAt = performanceTimerStart_();
+  const tableInfo = getDataTableInfo(data);
   const transactions = [];
   // Đọc từ dòng sau header thật của sheet Data.
   for (let i = tableInfo.headerRowIdx + 1; i < data.length; i++) {
@@ -456,17 +527,14 @@ function getRawTransactions() {
   }
 
   performanceLog_("getRawTransactions", "normalize", normalizeStartedAt, {
-    rowCount: data.length,
-    transactionCount: transactions.length
-  });
-  const cacheWriteStartedAt = performanceTimerStart_();
-  writeDashboardDataCache_(transactions);
-  performanceLog_("getRawTransactions", "cache_write", cacheWriteStartedAt, {
-    transactionCount: transactions.length
-  });
-  performanceLog_("getRawTransactions", "total", totalStartedAt, {
     cache: "miss",
-    transactionCount: transactions.length
+    rowCount: transactions.length
+  });
+  writeDashboardDataCache_(transactions, "getRawTransactions");
+  performanceLog_("getRawTransactions", "total", totalStartedAt, {
+    success: true,
+    cache: "miss",
+    rowCount: transactions.length
   });
   return transactions;
 }
@@ -481,31 +549,47 @@ function getPlanData() {
   if (cachedPlans !== null) {
     performanceLog_("getPlanData", "cache_read", cacheStartedAt, {
       cache: "hit",
-      planCount: cachedPlans.length
+      rowCount: cachedPlans.length
     });
     performanceLog_("getPlanData", "total", totalStartedAt, {
       cache: "hit",
-      planCount: cachedPlans.length
+      rowCount: cachedPlans.length
     });
     return cachedPlans;
   }
   performanceLog_("getPlanData", "cache_read", cacheStartedAt, { cache: "miss" });
-  Logger.log("DASH_CACHE plan miss | key=" + getDashboardPlanCacheKey_());
 
+  const spreadsheetStartedAt = performanceTimerStart_();
   const ss = getSpreadsheet();
-  if (!ss) return [];
+  performanceLog_("getPlanData", "acquire_spreadsheet", spreadsheetStartedAt, {
+    success: !!ss,
+    cache: "miss"
+  });
+  if (!ss) {
+    performanceLog_("getPlanData", "total", totalStartedAt, { success: false, cache: "miss", rowCount: 0 });
+    return [];
+  }
+  const sheetStartedAt = performanceTimerStart_();
   const sheet = ss.getSheetByName(SHEET_PLAN);
-  if (!sheet) return [];
-  
-  const sheetReadStartedAt = performanceTimerStart_();
-  const data = sheet.getDataRange().getValues();
-  performanceLog_("getPlanData", "sheet_read", sheetReadStartedAt, { rowCount: data.length });
+  performanceLog_("getPlanData", "get_sheet", sheetStartedAt, { success: !!sheet, cache: "miss" });
+  if (!sheet) {
+    performanceLog_("getPlanData", "total", totalStartedAt, { success: false, cache: "miss", rowCount: 0 });
+    return [];
+  }
+
+  const rangeStartedAt = performanceTimerStart_();
+  const dataRange = sheet.getDataRange();
+  performanceLog_("getPlanData", "get_data_range", rangeStartedAt, { success: !!dataRange, cache: "miss" });
+  const valuesStartedAt = performanceTimerStart_();
+  const data = dataRange.getValues();
+  performanceLog_("getPlanData", "get_values", valuesStartedAt, { cache: "miss", rowCount: data.length });
   if (data.length <= 1) {
-    writeDashboardPlanCache_([]);
-    performanceLog_("getPlanData", "total", totalStartedAt, { cache: "miss", planCount: 0 });
+    writeDashboardPlanCache_([], "getPlanData");
+    performanceLog_("getPlanData", "total", totalStartedAt, { success: true, cache: "miss", rowCount: 0 });
     return []; // Bỏ qua tiêu đề
   }
   
+  const normalizeStartedAt = performanceTimerStart_();
   let header = data[0];
   let dateIdx = 0;
   let sizeIdx = 1;
@@ -520,7 +604,6 @@ function getPlanData() {
     }
   }
   
-  const normalizeStartedAt = performanceTimerStart_();
   const plans = [];
   for (let i = 1; i < data.length; i++) {
     let row = data[i];
@@ -548,17 +631,146 @@ function getPlanData() {
     });
   }
   performanceLog_("getPlanData", "normalize", normalizeStartedAt, {
-    rowCount: data.length,
-    planCount: plans.length
-  });
-  const cacheWriteStartedAt = performanceTimerStart_();
-  writeDashboardPlanCache_(plans);
-  performanceLog_("getPlanData", "cache_write", cacheWriteStartedAt, { planCount: plans.length });
-  performanceLog_("getPlanData", "total", totalStartedAt, {
     cache: "miss",
-    planCount: plans.length
+    rowCount: plans.length
+  });
+  writeDashboardPlanCache_(plans, "getPlanData");
+  performanceLog_("getPlanData", "total", totalStartedAt, {
+    success: true,
+    cache: "miss",
+    rowCount: plans.length
   });
   return plans;
+}
+
+function prewarmDashboardCaches() {
+  const startedAt = Date.now();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    Logger.log("PREWARM | skipped | lockBusy=true");
+    return {
+      success: false,
+      skipped: true,
+      reason: "lock busy",
+      durationMs: Date.now() - startedAt,
+      errorCount: 0
+    };
+  }
+
+  Logger.log("PREWARM | start");
+  const summary = {
+    success: false,
+    skipped: false,
+    dataRowCount: 0,
+    planRowCount: 0,
+    planValidationSuccess: false,
+    monthlyFinalCacheKey: "",
+    monthlyFinalFreshWritten: false,
+    monthlyFinalStaleWritten: false,
+    errorCount: 0,
+    durationMs: 0
+  };
+
+  try {
+    const transactions = getRawTransactions();
+    summary.dataRowCount = transactions.length;
+    Logger.log("PREWARM | dataCache warmed | rowCount=" + summary.dataRowCount);
+
+    const plans = getPlanData();
+    summary.planRowCount = plans.length;
+    Logger.log("PREWARM | planCache warmed | rowCount=" + summary.planRowCount);
+
+    if (typeof validateProductionDashboardV2Plans_ === "function") {
+      const validation = validateProductionDashboardV2Plans_(new Date());
+      summary.planValidationSuccess = !!(validation && validation.valid);
+      const validationErrorCount = validation && Array.isArray(validation.errors)
+        ? validation.errors.length
+        : 0;
+      Logger.log(
+        "PREWARM | planValidation warmed | success=" + summary.planValidationSuccess +
+        " | errorCount=" + validationErrorCount
+      );
+    } else {
+      Logger.log("PREWARM | planValidation warmed | success=false | errorCount=1");
+      summary.errorCount++;
+    }
+
+    if (
+      typeof getCurrentMonthlyReportCacheKey_ === "function" &&
+      typeof getMonthlyReportData === "function"
+    ) {
+      summary.monthlyFinalCacheKey = getCurrentMonthlyReportCacheKey_();
+      Logger.log("PREWARM | monthlyFinalCacheKey=" + summary.monthlyFinalCacheKey);
+      const cacheWriteSummary = { freshWritten: false, staleWritten: false };
+      const monthlyResponse = getMonthlyReportData(
+        summary.monthlyFinalCacheKey,
+        true,
+        cacheWriteSummary
+      );
+      summary.monthlyFinalFreshWritten = cacheWriteSummary.freshWritten;
+      summary.monthlyFinalStaleWritten = cacheWriteSummary.staleWritten;
+      const monthlyWarmed = !!(
+        monthlyResponse &&
+        monthlyResponse.success === true &&
+        summary.monthlyFinalFreshWritten &&
+        summary.monthlyFinalStaleWritten
+      );
+      Logger.log("PREWARM | monthlyFinal warmed=" + monthlyWarmed);
+      if (!monthlyWarmed) summary.errorCount++;
+    } else {
+      Logger.log("PREWARM | monthlyFinal warmed=false");
+      summary.errorCount++;
+    }
+
+    summary.success = summary.errorCount === 0;
+  } catch (error) {
+    summary.errorCount++;
+    Logger.log("PREWARM | failed | errorCount=" + summary.errorCount);
+  } finally {
+    summary.durationMs = Date.now() - startedAt;
+    Logger.log(
+      "PREWARM | total durationMs=" + summary.durationMs +
+      " | success=" + summary.success +
+      " | errorCount=" + summary.errorCount
+    );
+    lock.releaseLock();
+  }
+
+  return summary;
+}
+
+function installDashboardCacheWarmer() {
+  const handlerName = "prewarmDashboardCaches";
+  const existingTriggers = ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction() === handlerName;
+  });
+  if (existingTriggers.length > 0) {
+    return { success: true, created: false, triggerCount: existingTriggers.length, cadenceMinutes: 5 };
+  }
+
+  // Apps Script everyMinutes supports only 1, 5, 10, 15, or 30 minutes.
+  // At 5 minutes, the 300-second cache TTL can leave a brief expiry gap if the trigger is delayed.
+  ScriptApp.newTrigger(handlerName)
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+  Logger.log("PREWARM | trigger installed | cadenceMinutes=5");
+  return { success: true, created: true, triggerCount: 1, cadenceMinutes: 5 };
+}
+
+function removeDashboardCacheWarmer() {
+  const handlerName = "prewarmDashboardCaches";
+  const triggers = ScriptApp.getProjectTriggers();
+  let removedCount = 0;
+
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() !== handlerName) continue;
+    ScriptApp.deleteTrigger(triggers[i]);
+    removedCount++;
+  }
+
+  Logger.log("PREWARM | trigger removed | removedCount=" + removedCount);
+  return { success: true, removedCount: removedCount };
 }
 
 /**

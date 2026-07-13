@@ -5,7 +5,6 @@ var BUNDLE_LOOKUP_HEADER_SCAN_ROWS = 20;
 
 function testLookupBundleInfo() {
   var result = lookupBundleInfo('6/25A1');
-  Logger.log(JSON.stringify(result));
   return result;
 }
 

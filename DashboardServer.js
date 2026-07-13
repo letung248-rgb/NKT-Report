@@ -450,8 +450,7 @@ function buildPipeEngine(sourceTransactions) {
   }
   
   performanceLog_("buildPipeEngine", "group_transactions", groupingStartedAt, {
-    transactionCount: transactions.length,
-    pipeCount: Object.keys(pipesMap).length
+    rowCount: transactions.length
   });
 
   // Xác định Current State cho từng Pipe
@@ -484,11 +483,11 @@ function buildPipeEngine(sourceTransactions) {
   }
   
   performanceLog_("buildPipeEngine", "current_state", currentStateStartedAt, {
-    pipeCount: pipeObjects.length
+    rowCount: pipeObjects.length
   });
   performanceLog_("buildPipeEngine", "total", totalStartedAt, {
-    transactionCount: transactions.length,
-    pipeCount: pipeObjects.length
+    success: true,
+    rowCount: pipeObjects.length
   });
   return pipeObjects;
 }
@@ -557,7 +556,6 @@ function debugLatest10Pipes() {
       };
     });
 
-  samples.forEach(sample => Logger.log(JSON.stringify(sample)));
   return samples;
 }
 
@@ -2000,7 +1998,6 @@ function runDashboardDrilldownSnapshotBuild_(validateParity) {
       counts: parityResult.actualCounts
     };
     writeDashboardDrilldownMeta_(snapshot.snapshotMeta);
-    Logger.log("DASH_DRILLDOWN refresh ok | " + JSON.stringify(result));
     return result;
   } catch (error) {
     const errorMeta = {
@@ -2013,7 +2010,6 @@ function runDashboardDrilldownSnapshotBuild_(validateParity) {
       error: error && error.message ? error.message : error.toString()
     };
     writeDashboardDrilldownMeta_(errorMeta);
-    Logger.log("DASH_DRILLDOWN refresh error | " + JSON.stringify(errorMeta));
     return { success: false, snapshotMeta: errorMeta };
   } finally {
     try {
@@ -2075,7 +2071,6 @@ function adminGetDashboardDrilldownSnapshotStatus() {
       quotaExceeded: quotaExceeded,
       error: error
     };
-    Logger.log(JSON.stringify(result));
     return result;
   } catch (error) {
     const result = {
@@ -2093,7 +2088,6 @@ function adminGetDashboardDrilldownSnapshotStatus() {
       quotaExceeded: false,
       error: error.toString()
     };
-    Logger.log(JSON.stringify(result));
     return result;
   }
 }
@@ -2324,7 +2318,6 @@ function adminGetDashboardSnapshotStatus() {
       topLevelKeys: snapshot ? Object.keys(snapshot) : [],
       error: ""
     };
-    Logger.log(JSON.stringify(result));
     return result;
   } catch (error) {
     const result = {
@@ -2334,7 +2327,6 @@ function adminGetDashboardSnapshotStatus() {
       topLevelKeys: [],
       error: error.toString()
     };
-    Logger.log(JSON.stringify(result));
     return result;
   }
 }
@@ -2420,6 +2412,108 @@ function isSameDashboardMonth_(value, monthInfo) {
 
 function formatDashboardMonth_(monthInfo) {
   return (monthInfo.monthIndex + 1).toString().padStart(2, "0") + "/" + monthInfo.year;
+}
+
+const DASHBOARD_MONTHLY_FINAL_CACHE_PREFIX = "dashboard:monthly-final:v1:";
+const DASHBOARD_MONTHLY_FINAL_STALE_CACHE_PREFIX = "dashboard:monthly-final-stale:v1:";
+const DASHBOARD_MONTHLY_FINAL_CACHE_TTL_SECONDS = 300;
+const DASHBOARD_MONTHLY_FINAL_STALE_CACHE_TTL_SECONDS = 21600;
+const DASHBOARD_MONTHLY_FINAL_CACHE_MAX_BYTES = 90 * 1024;
+
+function getMonthlyReportCacheKey_(monthInfo) {
+  return monthInfo.year + "-" + (monthInfo.monthIndex + 1).toString().padStart(2, "0");
+}
+
+function getCurrentMonthlyReportCacheKey_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+}
+
+function getMonthlyReportFinalCacheSuffix_(monthKey) {
+  return monthKey +
+    ":data=" + getDashboardDataCacheVersion_() +
+    ":plan=" + getDashboardPlanCacheVersion_();
+}
+
+function getMonthlyReportFinalCacheKey_(monthKey) {
+  return DASHBOARD_MONTHLY_FINAL_CACHE_PREFIX + getMonthlyReportFinalCacheSuffix_(monthKey);
+}
+
+function getMonthlyReportFinalStaleCacheKey_(monthKey) {
+  return DASHBOARD_MONTHLY_FINAL_STALE_CACHE_PREFIX + getMonthlyReportFinalCacheSuffix_(monthKey);
+}
+
+function parseMonthlyReportFinalCache_(payload) {
+  if (!payload) return null;
+  try {
+    const response = JSON.parse(payload);
+    return response && response.success === true ? response : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function readMonthlyReportFinalCache_(monthKey) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const fresh = parseMonthlyReportFinalCache_(cache.get(getMonthlyReportFinalCacheKey_(monthKey)));
+    if (fresh) {
+      Logger.log("MONTHLY_CACHE | key=" + monthKey + " | status=fresh_hit");
+      return fresh;
+    }
+
+    const stale = parseMonthlyReportFinalCache_(cache.get(getMonthlyReportFinalStaleCacheKey_(monthKey)));
+    if (stale) {
+      Logger.log("MONTHLY_CACHE | key=" + monthKey + " | status=stale_hit");
+      return stale;
+    }
+  } catch (error) {
+    // CacheService is best effort; a read failure falls through to the existing build path.
+  }
+
+  Logger.log("MONTHLY_CACHE | key=" + monthKey + " | status=miss");
+  return null;
+}
+
+function writeMonthlyReportFinalCaches_(monthKey, response) {
+  const result = { freshWritten: false, staleWritten: false };
+  let payload;
+  try {
+    payload = JSON.stringify(response);
+    const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    if (payloadBytes > DASHBOARD_MONTHLY_FINAL_CACHE_MAX_BYTES) return result;
+  } catch (error) {
+    return result;
+  }
+
+  let cache;
+  try {
+    cache = CacheService.getScriptCache();
+  } catch (error) {
+    return result;
+  }
+  try {
+    cache.put(
+      getMonthlyReportFinalCacheKey_(monthKey),
+      payload,
+      DASHBOARD_MONTHLY_FINAL_CACHE_TTL_SECONDS
+    );
+    result.freshWritten = true;
+  } catch (error) {
+    result.freshWritten = false;
+  }
+
+  try {
+    cache.put(
+      getMonthlyReportFinalStaleCacheKey_(monthKey),
+      payload,
+      DASHBOARD_MONTHLY_FINAL_STALE_CACHE_TTL_SECONDS
+    );
+    result.staleWritten = true;
+  } catch (error) {
+    result.staleWritten = false;
+  }
+
+  return result;
 }
 
 function getDailyStatusGroup_(transaction) {
@@ -2522,40 +2616,52 @@ function getDailyReportData(dateText) {
   }
 }
 
-function getMonthlyReportData(monthText) {
+function getMonthlyReportData(monthText, bypassFinalCache, cacheWriteSummary) {
   const totalStartedAt = performanceTimerStart_();
   try {
     const parseStartedAt = performanceTimerStart_();
     const reportMonth = parseMonthlyReportMonth_(monthText);
-    performanceLog_("getMonthlyReportData", "parse_month", parseStartedAt, { valid: !!reportMonth });
+    performanceLog_("getMonthlyReportData", "parse_month", parseStartedAt, { success: !!reportMonth });
     if (!reportMonth) {
-      performanceLog_("getMonthlyReportData", "total", totalStartedAt, { status: "invalid_month" });
+      performanceLog_("getMonthlyReportData", "total", totalStartedAt, { success: false, errorCount: 1 });
       return { success: false, error: "Tháng báo cáo không hợp lệ." };
+    }
+
+    const monthKey = getMonthlyReportCacheKey_(reportMonth);
+    if (!bypassFinalCache) {
+      const cachedResponse = readMonthlyReportFinalCache_(monthKey);
+      if (cachedResponse) {
+        performanceLog_("getMonthlyReportData", "total", totalStartedAt, {
+          success: true,
+          cache: "hit",
+          rowCount: cachedResponse.kpi ? cachedResponse.kpi.transactions : 0,
+          sizeCount: Array.isArray(cachedResponse.sizeStats) ? cachedResponse.sizeStats.length : 0
+        });
+        return cachedResponse;
+      }
     }
 
     const rawTransactionsStartedAt = performanceTimerStart_();
     const transactions = getRawTransactions();
     performanceLog_("getMonthlyReportData", "getRawTransactions", rawTransactionsStartedAt, {
-      transactionCount: transactions.length
+      rowCount: transactions.length
     });
     const transactionFilterStartedAt = performanceTimerStart_();
     const monthlyTransactions = transactions.filter(txn => isSameDashboardMonth_(txn.date, reportMonth));
     performanceLog_("getMonthlyReportData", "filter_transactions", transactionFilterStartedAt, {
-      sourceCount: transactions.length,
-      matchedCount: monthlyTransactions.length
+      rowCount: monthlyTransactions.length
     });
     const planDataStartedAt = performanceTimerStart_();
     const allPlans = getPlanData();
     performanceLog_("getMonthlyReportData", "getPlanData", planDataStartedAt, {
-      planCount: allPlans.length
+      rowCount: allPlans.length
     });
     const planFilterStartedAt = performanceTimerStart_();
     const plans = allPlans.filter(plan => {
       return isSameDashboardMonth_(plan.month, reportMonth) || isSameDashboardMonth_(plan.date, reportMonth);
     });
     performanceLog_("getMonthlyReportData", "filter_plans", planFilterStartedAt, {
-      sourceCount: allPlans.length,
-      matchedCount: plans.length
+      rowCount: plans.length
     });
 
     const aggregationStartedAt = performanceTimerStart_();
@@ -2591,15 +2697,24 @@ function getMonthlyReportData(monthText) {
       sizeStats: summarizeMonthlyQtyList_(monthlyTransactions, "size"),
       planRows: planRows
     };
+    const cacheWrite = writeMonthlyReportFinalCaches_(monthKey, response);
+    if (cacheWriteSummary && typeof cacheWriteSummary === "object") {
+      cacheWriteSummary.freshWritten = cacheWrite.freshWritten;
+      cacheWriteSummary.staleWritten = cacheWrite.staleWritten;
+    }
     performanceLog_("getMonthlyReportData", "aggregate", aggregationStartedAt, {
-      transactionCount: monthlyTransactions.length,
-      pipeCount: Object.keys(pipeMap).length,
-      planCount: planRows.length
+      success: true,
+      rowCount: monthlyTransactions.length,
+      sizeCount: response.sizeStats.length
     });
-    performanceLog_("getMonthlyReportData", "total", totalStartedAt, { status: "success" });
+    performanceLog_("getMonthlyReportData", "total", totalStartedAt, {
+      success: true,
+      rowCount: monthlyTransactions.length,
+      sizeCount: response.sizeStats.length
+    });
     return response;
   } catch (e) {
-    performanceLog_("getMonthlyReportData", "total", totalStartedAt, { status: "error" });
+    performanceLog_("getMonthlyReportData", "total", totalStartedAt, { success: false, errorCount: 1 });
     return { success: false, error: e.toString(), stack: e.stack };
   }
 }
@@ -2822,20 +2937,16 @@ function validateDashboardData() {
   Logger.log("4. Chờ sửa: Dashboard (" + dbCs + ") vs Sheet (" + shCs + ")");
   Logger.log("5. Đang xử lý: Dashboard (" + dbDxl + ") vs Sheet (" + shDxl + ")");
   
-  Logger.log("--- CHI TIẾT CÁC PIPE BỊ LỆCH ---");
+  let mismatchCount = 0;
   for (let pNo in dashboardMap) {
     let dbPipe = dashboardMap[pNo];
     let shData = sheetFinalStatusMap[pNo];
     if (!shData) continue;
     
     if (dbPipe.currentBusinessStatus !== shData.sheetStatus) {
-      Logger.log(
-        "PipeNo: " + dbPipe.pipeNo + 
-        " | Nguyên nhân: " + (dbPipe.currentReason || "N/A") + 
-        " | Business Status: " + dbPipe.currentBusinessStatus + 
-        " | Current Process: " + (dbPipe.currentProcess || "N/A")
-      );
+      mismatchCount++;
     }
   }
+  Logger.log("VALIDATE_DASHBOARD | success=true | rowCount=" + dbTotal + " | errorCount=" + mismatchCount);
 }
 

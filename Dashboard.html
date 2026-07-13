@@ -155,6 +155,8 @@
         .daily-field { display: flex; flex-direction: column; gap: 0.4rem; }
         .daily-field label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
         .daily-field input { border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-base); color: var(--text-primary); padding: 0.55rem 0.75rem; font-size: 0.95rem; min-width: 180px; }
+        .daily-selected-date { color: var(--text-secondary); font-size: 0.82rem; }
+        .daily-selected-date strong { color: var(--text-primary); font-weight: 700; }
         .daily-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
         .daily-state { display: none; padding: 1rem; border: 1px solid var(--border-color); border-radius: 0.75rem; background: var(--bg-surface); color: var(--text-secondary); font-weight: 600; margin-bottom: 1rem; }
         .daily-state.loading, .daily-state.empty { display: block; }
@@ -182,6 +184,13 @@
         .production-kpi-view .production-kpi-table-cell { padding: 0.65rem 0.55rem; border-bottom: 1px solid var(--border-color); text-align: center; white-space: nowrap; }
         .production-kpi-view .production-kpi-table-heading { background: rgba(0,0,0,0.03); color: var(--text-primary); font-weight: 600; white-space: normal; }
         .production-kpi-view .production-kpi-table-first { text-align: left; }
+        .production-kpi-view #production-kpi-size-table,
+        .production-kpi-view #production-kpi-wip-table { font-size: 0.95rem; line-height: 1.35; }
+        .production-kpi-view #production-kpi-size-table tbody .production-kpi-table-cell,
+        .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell { padding: 0.75rem 0.65rem; }
+        .production-kpi-view #production-kpi-size-table tbody .production-kpi-table-cell:not(:first-child),
+        .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell:last-child { font-size: 1.08rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell:last-child { font-size: 1.2rem; }
         .production-kpi-view .production-kpi-health-row { display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem; margin-bottom: 0.85rem; color: var(--text-secondary); }
         .production-kpi-view .production-kpi-ok { color: var(--accent-success); font-weight: 700; }
         .production-kpi-view .production-kpi-bad { color: var(--accent-danger); font-weight: 700; }
@@ -420,7 +429,7 @@
                     <div class="production-kpi-section">
                         <h3 class="production-kpi-section-title">Theo Size ống</h3>
                         <div class="production-kpi-table-wrap">
-                            <table class="production-kpi-table">
+                            <table id="production-kpi-size-table" class="production-kpi-table">
                                 <thead>
                                     <tr>
                                         <th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th>
@@ -447,7 +456,7 @@
                             <span>Đối soát: <strong id="production-kpi-wip-match">—</strong></span>
                         </div>
                         <div class="production-kpi-table-wrap">
-                            <table class="production-kpi-table">
+                            <table id="production-kpi-wip-table" class="production-kpi-table">
                                 <thead><tr><th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Công đoạn hiện tại</th><th class="production-kpi-table-cell production-kpi-table-heading">Số lượng</th></tr></thead>
                                 <tbody id="production-kpi-wip-body"></tbody>
                             </table>
@@ -534,6 +543,7 @@
                         <div class="daily-field">
                             <label for="dailyReportDate">Ngày báo cáo</label>
                             <input type="date" id="dailyReportDate" onchange="loadDailyReportData()">
+                            <div class="daily-selected-date">Ngày báo cáo: <strong id="dailyReportSelectedDate">—</strong></div>
                         </div>
                         <div class="daily-actions">
                             <button type="button" id="dailyLoadBtn" class="sync-btn" onclick="loadDailyReportData()">
@@ -801,19 +811,100 @@
 
         let pendingSyncSuccessToast = false;
 
-        function formatSnapshotTime(value) {
-            if (!value) return '--';
-            const parsed = new Date(value);
-            if (isNaN(parsed.getTime())) return '--';
-            const parts = new Intl.DateTimeFormat('en-GB', {
+        const DASHBOARD_DISPLAY_MONTHS = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ];
+
+        function formatDashboardDateParts_(year, month, day, timeText) {
+            const parsed = new Date(year, month - 1, day);
+            if (
+                parsed.getFullYear() !== year ||
+                parsed.getMonth() !== month - 1 ||
+                parsed.getDate() !== day
+            ) return '';
+            return String(day).padStart(2, '0') + '-' +
+                DASHBOARD_DISPLAY_MONTHS[month - 1] + '-' + year + (timeText || '');
+        }
+
+        function formatDashboardDateObject_(date, includeTime) {
+            if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+            const options = {
                 timeZone: 'Asia/Ho_Chi_Minh',
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-            }).formatToParts(parsed).reduce((result, part) => {
-                result[part.type] = part.value;
-                return result;
-            }, {});
-            return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            };
+            if (includeTime) {
+                options.hour = '2-digit';
+                options.minute = '2-digit';
+                options.second = '2-digit';
+                options.hour12 = false;
+            }
+            const parts = new Intl.DateTimeFormat('en-GB', options)
+                .formatToParts(date)
+                .reduce((result, part) => {
+                    result[part.type] = part.value;
+                    return result;
+                }, {});
+            const timeText = includeTime
+                ? ' ' + parts.hour + ':' + parts.minute + ':' + parts.second
+                : '';
+            return parts.day + '-' + DASHBOARD_DISPLAY_MONTHS[Number(parts.month) - 1] + '-' + parts.year + timeText;
+        }
+
+        function formatDashboardDisplayDate(value, includeTime) {
+            if (value === null || value === undefined || value === '') return '';
+            if (value instanceof Date) return formatDashboardDateObject_(value, includeTime) || String(value);
+
+            const text = String(value).trim();
+            let match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+            if (match) {
+                const timeText = includeTime && match[4]
+                    ? ' ' + String(match[4]).padStart(2, '0') + ':' + match[5] + (match[6] ? ':' + match[6] : '')
+                    : '';
+                return formatDashboardDateParts_(
+                    Number(match[1]), Number(match[2]), Number(match[3]), timeText
+                ) || text;
+            }
+
+            match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+            if (match) {
+                const first = Number(match[1]);
+                const second = Number(match[2]);
+                const month = second > 12 && first <= 12 ? first : second;
+                const day = second > 12 && first <= 12 ? second : first;
+                const timeText = includeTime && match[4]
+                    ? ' ' + String(match[4]).padStart(2, '0') + ':' + match[5] + (match[6] ? ':' + match[6] : '')
+                    : '';
+                return formatDashboardDateParts_(Number(match[3]), month, day, timeText) || text;
+            }
+
+            const parsed = new Date(text);
+            return formatDashboardDateObject_(parsed, includeTime) || text;
+        }
+
+        function formatDashboardDisplayMonth(value) {
+            if (value === null || value === undefined || value === '') return '';
+            if (value instanceof Date && !Number.isNaN(value.getTime())) {
+                return DASHBOARD_DISPLAY_MONTHS[value.getMonth()] + '-' + value.getFullYear();
+            }
+            const text = String(value).trim();
+            let match = text.match(/^(\d{4})-(\d{2})$/);
+            if (match && Number(match[2]) >= 1 && Number(match[2]) <= 12) {
+                return DASHBOARD_DISPLAY_MONTHS[Number(match[2]) - 1] + '-' + match[1];
+            }
+            match = text.match(/^(\d{1,2})[\/-](\d{4})$/);
+            if (match && Number(match[1]) >= 1 && Number(match[1]) <= 12) {
+                return DASHBOARD_DISPLAY_MONTHS[Number(match[1]) - 1] + '-' + match[2];
+            }
+            const parsed = new Date('1 ' + text);
+            if (Number.isNaN(parsed.getTime())) return text;
+            return DASHBOARD_DISPLAY_MONTHS[parsed.getMonth()] + '-' + parsed.getFullYear();
+        }
+
+        function formatSnapshotTime(value) {
+            return value ? formatDashboardDisplayDate(value, true) : '--';
         }
 
         function showSyncSuccessToast(data) {
@@ -839,9 +930,7 @@
 
         function formatQueueSyncTime(value) {
             if (!value) return 'Chưa có';
-            const parsed = new Date(value);
-            if (isNaN(parsed.getTime())) return value;
-            return parsed.toLocaleString('vi-VN');
+            return formatDashboardDisplayDate(value, true);
         }
 
         function renderQueueStatus(status) {
@@ -1128,7 +1217,7 @@
             let tbody = document.getElementById('recentTable');
             tbody.innerHTML = data.recent.map(r => `
                 <tr>
-                    <td>${r.date}</td>
+                    <td>${formatDashboardDisplayDate(r.date, false)}</td>
                     <td>${r.shift}</td>
                     <td>${r.process}</td>
                     <td><strong>${r.pipeNo}</strong></td>
@@ -1379,20 +1468,7 @@
             }
 
             function formatDate(value, includeTime) {
-                if (!value) return '—';
-                const keyMatch = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-                const date = keyMatch
-                    ? new Date(Number(keyMatch[1]), Number(keyMatch[2]) - 1, Number(keyMatch[3]))
-                    : new Date(value);
-                if (Number.isNaN(date.getTime())) return valueOrDash(value);
-                let formatted = String(date.getDate()).padStart(2, '0') + '/' +
-                    String(date.getMonth() + 1).padStart(2, '0') + '/' + date.getFullYear();
-                if (includeTime) {
-                    formatted += ' ' + String(date.getHours()).padStart(2, '0') + ':' +
-                        String(date.getMinutes()).padStart(2, '0') + ':' +
-                        String(date.getSeconds()).padStart(2, '0');
-                }
-                return formatted;
+                return value ? formatDashboardDisplayDate(value, includeTime) : '—';
             }
 
             function setStatus(message, isError) {
@@ -1537,7 +1613,7 @@
                 setText('built-at', formatDate(data.builtAt, true));
                 setText('plan-version', data.planVersion);
                 setText('daily-period', daily.period ? '(' + formatDate(daily.period, false) + ')' : '');
-                setText('monthly-period', monthly.period ? '(' + monthly.period + ')' : '');
+                setText('monthly-period', monthly.period ? '(' + formatDashboardDisplayMonth(monthly.period) + ')' : '');
                 renderCards('daily-cards', [
                     { label: 'Đã kiểm tra', value: numberOrZero(dailyChecked.actual) },
                     { label: 'Thành phẩm', value: numberOrZero(dailyFinished.actual) },
@@ -1715,7 +1791,7 @@
             const rows = data.rows || [];
             const kpi = data.kpi || {};
 
-            document.getElementById('dailyReportTitleDate').innerText = data.date || '';
+            document.getElementById('dailyReportTitleDate').innerText = formatDashboardDisplayDate(data.date, false);
             document.getElementById('dailyKpiTransactions').innerText = kpi.transactions || 0;
             document.getElementById('dailyKpiPipes').innerText = kpi.pipes || 0;
             document.getElementById('dailyKpiQty').innerText = kpi.qty || 0;
@@ -1728,7 +1804,7 @@
             const tbody = document.getElementById('dailyReportTable');
             tbody.innerHTML = rows.map(r => `
                 <tr>
-                    <td>${escapeHtml(r.receiveTime || r.date)}</td>
+                    <td>${escapeHtml(formatDashboardDisplayDate(r.receiveTime || r.date, true))}</td>
                     <td>${escapeHtml(r.shift)}</td>
                     <td>${escapeHtml(r.process)}</td>
                     <td><strong>${escapeHtml(r.pipeNo)}</strong></td>
@@ -1751,9 +1827,19 @@
             }
         }
 
+        function updateDailySelectedDateLabel() {
+            const input = document.getElementById('dailyReportDate');
+            const label = document.getElementById('dailyReportSelectedDate');
+            if (!label) return;
+            label.textContent = input && input.value
+                ? formatDashboardDisplayDate(input.value, false)
+                : '—';
+        }
+
         function loadDailyReportData() {
             const input = document.getElementById('dailyReportDate');
             const dateText = input ? input.value : '';
+            updateDailySelectedDateLabel();
             if (!dateText) {
                 setDailyState('Chọn ngày để tải báo cáo.', 'empty');
                 document.getElementById('dailyReportResults').style.display = 'none';
@@ -1827,7 +1913,7 @@
             const kpi = data.kpi || {};
             const planRows = data.planRows || [];
 
-            document.getElementById('monthlyReportTitleMonth').innerText = data.month || '';
+            document.getElementById('monthlyReportTitleMonth').innerText = formatDashboardDisplayMonth(data.month || data.monthText);
             document.getElementById('monthlyKpiTransactions').innerText = kpi.transactions || 0;
             document.getElementById('monthlyKpiPipes').innerText = kpi.pipes || 0;
             document.getElementById('monthlyKpiQty').innerText = kpi.qty || 0;
@@ -1840,7 +1926,7 @@
             const tbody = document.getElementById('monthlyPlanTable');
             tbody.innerHTML = planRows.map(r => `
                 <tr>
-                    <td>${escapeHtml(r.date)}</td>
+                    <td>${escapeHtml(formatDashboardDisplayDate(r.date, false))}</td>
                     <td>${escapeHtml(r.size)}</td>
                     <td>${escapeHtml(r.qty)}</td>
                 </tr>
@@ -2138,7 +2224,7 @@
                 let sClass = (h.status || '').toLowerCase().includes('dat') || (h.status || '').toLowerCase().includes('thanh pham') ? 'text-success' : 'text-danger';
                 return `
                 <div class="timeline-item">
-                    <div class="timeline-date">${h.date instanceof Date ? h.date.toLocaleDateString('vi-VN') : h.date} - Ca ${h.shift}</div>
+                    <div class="timeline-date">${formatDashboardDisplayDate(h.date, false)} - Ca ${h.shift}</div>
                     <div class="timeline-content">
                         <strong>${h.process}</strong>
                         <div class="timeline-details">
