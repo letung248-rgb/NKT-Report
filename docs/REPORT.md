@@ -109,3 +109,15 @@
 Docs are ready to commit after reviewing the generated diff.
 
 No source code, Google Sheet, commit, push, or deploy action was performed.
+
+## Sprint 7 Production Release Closure - 2026-07-13
+
+- Sprint 7 candidate source: commit `277eec8`.
+- Apps Script version 42 was deployed temporarily to the main Production deployment for release verification.
+- Production verification found that `submitReport()` waited synchronously for `refreshDashboardSnapshot_()`, causing Worker App submit responses to take approximately 51-52 seconds after the data write completed.
+- No runtime exception or data-write failure was identified; the blocking delay came from the synchronous dashboard snapshot rebuild.
+- The main Production deployment was rolled back to Apps Script version 37.
+- Main Production deployment ID: `AKfycbyYIPl-YJj4Oftxf7G_XV1Bl6sC4D1AEiQ0NTOVpzwyqKfnk0PD7TJ7_n5tA6fRUTwA`.
+- Worker App operation was confirmed stable again after rollback.
+- Version 42 remains a non-active release candidate and investigation reference; it is not the active main Production version.
+- No source change, commit, GitHub push, `clasp push`, or additional deployment was performed while closing the release.

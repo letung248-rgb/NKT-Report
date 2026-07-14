@@ -299,6 +299,24 @@
                     <div class="kpi-card"><span class="kpi-title">% Thành phẩm</span><span class="kpi-value text-purple" id="kpi-percent">0%</span></div>
                 </div>
 
+                <div class="card">
+                    <div class="card-header">Xuất biên bản theo Mã bó</div>
+                    <div class="daily-toolbar">
+                        <div class="daily-field">
+                            <label for="bundleExportCode">Mã bó</label>
+                            <input type="text" id="bundleExportCode" placeholder="Nhập Mã bó">
+                        </div>
+                        <div class="daily-actions">
+                            <button type="button" id="bundleExportBtn" class="sync-btn" onclick="runBundleExport()">
+                                <i class="ph ph-file-xls"></i>
+                                <span id="bundleExportBtnText">Xuất biên bản</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="bundleExportState" class="daily-state"></div>
+                    <div id="bundleExportResults" class="daily-mini-list"></div>
+                </div>
+
                 <!-- Production Queue -->
                 <div class="card">
                     <div class="card-header">Tiến độ sản xuất</div>
@@ -968,6 +986,68 @@
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/\r?\n/g, ' ');
+        }
+
+        function setBundleExportLoading(isLoading) {
+            const button = document.getElementById('bundleExportBtn');
+            const text = document.getElementById('bundleExportBtnText');
+            if (!button || !text) return;
+            button.disabled = isLoading;
+            text.innerText = isLoading ? 'Đang xuất...' : 'Xuất biên bản';
+        }
+
+        function setBundleExportState(message, type) {
+            const state = document.getElementById('bundleExportState');
+            if (!state) return;
+            state.innerText = message || '';
+            state.className = 'daily-state ' + (type || 'empty');
+            state.style.display = message ? 'block' : 'none';
+        }
+
+        function runBundleExport() {
+            const input = document.getElementById('bundleExportCode');
+            const results = document.getElementById('bundleExportResults');
+            const bundleCode = input ? input.value.trim() : '';
+
+            if (!bundleCode) {
+                setBundleExportState('Vui lòng nhập Mã bó.', 'error');
+                return;
+            }
+            if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                setBundleExportState('Ứng dụng cần chạy trên Google Apps Script môi trường thật.', 'error');
+                return;
+            }
+
+            setBundleExportLoading(true);
+            setBundleExportState('Đang tạo biên bản...', 'loading');
+            if (results) results.innerHTML = '';
+
+            google.script.run
+                .withSuccessHandler(response => {
+                    setBundleExportLoading(false);
+                    if (!response || response.success !== true) {
+                        setBundleExportState((response && response.error) || 'Không thể tạo biên bản.', 'error');
+                        return;
+                    }
+
+                    const files = Array.isArray(response.files) ? response.files : [];
+                    if (results) {
+                        results.innerHTML = files.map(file => `
+                            <div class="daily-mini-row">
+                                <span>${escapeHtml(file.businessStatus)} · ${Number(file.count || 0)} ống</span>
+                                <a href="${escapeHtml(file.url)}" target="_blank" rel="noopener noreferrer">Mở biên bản</a>
+                            </div>`).join('');
+                    }
+                    setBundleExportState('Đã tạo ' + files.length + ' biên bản.', '');
+                })
+                .withFailureHandler(error => {
+                    setBundleExportLoading(false);
+                    setBundleExportState(
+                        'Không thể tạo biên bản: ' + (error && error.message ? error.message : error),
+                        'error'
+                    );
+                })
+                .exportBundleReports(bundleCode);
         }
 
         function getTodayInputValue() {

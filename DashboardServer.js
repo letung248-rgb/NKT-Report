@@ -62,18 +62,17 @@ function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
   if (s.includes("cho sua") || s.includes("hong") || s.includes("loi")) return "CHO_SUA";
   
   // Logic 3: Đóng gói phát hiện lỗi -> CHỜ SỬA
-  if (p.includes("dong goi") && !s.includes("dat") && !s.includes("thanh pham") && s !== "") {
+  if (p.includes("dong goi") && !s.includes("dat") && !s.includes("thanh pham") && s !== "ok" && s !== "") {
     return "CHO_SUA";
   }
 
   // Logic 4: Các nguyên công + Đạt
-  if (s.includes("dat") || s.includes("thanh pham")) {
+  if (s.includes("dat") || s.includes("thanh pham") || (p.includes("dong goi") && s === "ok")) {
     if (p.includes("ep thuy luc")) {
       return "THANH_PHAM";
     }
     if (p.includes("dong goi")) {
-      // Giữ nguyên THÀNH PHẨM, không tạo mới
-      return previousStatus === "THANH_PHAM" ? "THANH_PHAM" : "DANG_XU_LY";
+      return "THANH_PHAM";
     }
     // Các nguyên công còn lại
     return "DANG_XU_LY";
