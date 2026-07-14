@@ -6,6 +6,14 @@ const DATA_COLUMN_COUNT = 23;
 
 function doGet(e) {
   const view = e && e.parameter ? String(e.parameter.view || e.parameter.page || '').toLowerCase() : '';
+  if (view === 'ke-hoach' || view === 'plan') {
+    return HtmlService
+      .createHtmlOutputFromFile('PlanModule')
+      .setTitle('Kế hoạch sản xuất')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+  }
+
   if (view === 'dashboard-v2') {
     return HtmlService
       .createHtmlOutputFromFile('DashboardV2')
