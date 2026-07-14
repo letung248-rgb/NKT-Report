@@ -1356,9 +1356,17 @@
         }
 
         function getPlanBadge(percent) {
-            if (percent >= 100) return `<span class="badge tp">${percent}%</span>`;
-            if (percent >= 80) return `<span class="badge cs">${percent}%</span>`;
-            return `<span class="badge hong">${percent}%</span>`;
+            if (percent === null || percent === undefined || percent === '' || !Number.isFinite(Number(percent))) {
+                return '--';
+            }
+            const value = Number(percent);
+            if (value >= 100) return `<span class="badge tp">${value}%</span>`;
+            if (value >= 80) return `<span class="badge cs">${value}%</span>`;
+            return `<span class="badge hong">${value}%</span>`;
+        }
+
+        function getPlanValue(value) {
+            return value === null || value === undefined || value === '' ? '--' : value;
         }
 
         function renderPlanTable() {
@@ -1369,8 +1377,8 @@
             tbody.innerHTML = pStats.map(p => `
                 <tr>
                     <td><strong>${p.name}</strong></td>
-                    <td>${p.plan}</td>
-                    <td>${p.actual}</td>
+                    <td>${getPlanValue(p.plan)}</td>
+                    <td>${getPlanValue(p.actual)}</td>
                     <td>${getPlanBadge(p.percent)}</td>
                 </tr>
             `).join('');

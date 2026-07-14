@@ -578,6 +578,144 @@ function getDashboardData() {
   };
 }
 
+function getDashboardMonthlyPlansBySize_(monthKey) {
+  const plansBySize = {};
+
+  try {
+    const response = getPlanModuleData();
+    const monthlyRows = response && response.success === true && response.data &&
+      Array.isArray(response.data.monthly) ? response.data.monthly : [];
+
+    monthlyRows.forEach(function(row) {
+      if (!row || row.thoiGian !== monthKey) return;
+      const size = (row.size || "").toString().trim();
+      if (!size) return;
+      plansBySize[size] = {
+        checked: Number(row.kiemTra || 0),
+        finished: Number(row.thanhPham || 0)
+      };
+    });
+  } catch (error) {
+    Logger.log("Dashboard monthly plan unavailable: " + (error && error.message ? error.message : error));
+  }
+
+  return plansBySize;
+}
+
+function buildDashboardPlanComparisonRow_(name, size, metric, plan, actual, hasPlan) {
+  const normalizedActual = Number(actual || 0);
+  const normalizedPlan = hasPlan ? Number(plan || 0) : null;
+  return {
+    name: name,
+    size: size,
+    metric: metric,
+    plan: normalizedPlan,
+    actual: normalizedActual,
+    percent: hasPlan
+      ? productionDashboardV2Completion_(normalizedActual, normalizedPlan)
+      : null
+  };
+}
+
+function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
+  const dayKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
+  const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+  const projections = pipeObjects.map(projectProductionDashboardV2Pipe_);
+  const actualRows = productionDashboardV2SizeBreakdown_(projections, dayKey, monthKey, null);
+  const plansBySize = getDashboardMonthlyPlansBySize_(monthKey);
+  const actualBySize = {};
+  const sizeSet = {};
+
+  actualRows.forEach(function(row) {
+    actualBySize[row.size] = row.monthly || {};
+    sizeSet[row.size] = true;
+  });
+  Object.keys(plansBySize).forEach(function(size) { sizeSet[size] = true; });
+
+  const bySize = [];
+  const sizeComparison = [];
+  let checkedActualTotal = 0;
+  let finishedActualTotal = 0;
+  let checkedPlanTotal = 0;
+  let finishedPlanTotal = 0;
+  const sizes = Object.keys(sizeSet).sort(function(left, right) {
+    return left.localeCompare(right, "vi");
+  });
+
+  sizes.forEach(function(size) {
+    const actual = actualBySize[size] || {};
+    const hasPlan = Object.prototype.hasOwnProperty.call(plansBySize, size);
+    const plan = hasPlan ? plansBySize[size] : {};
+    const checkedActual = Number(actual.checked || 0);
+    const finishedActual = Number(actual.finished || 0);
+
+    checkedActualTotal += checkedActual;
+    finishedActualTotal += finishedActual;
+    if (hasPlan) {
+      checkedPlanTotal += Number(plan.checked || 0);
+      finishedPlanTotal += Number(plan.finished || 0);
+    }
+
+    const checkedRow = buildDashboardPlanComparisonRow_(
+      size + " · Kiểm tra", size, "checked", plan.checked, checkedActual, hasPlan
+    );
+    const finishedRow = buildDashboardPlanComparisonRow_(
+      size + " · Thành phẩm", size, "finished", plan.finished, finishedActual, hasPlan
+    );
+    bySize.push(checkedRow, finishedRow);
+    sizeComparison.push({
+      size: size,
+      checked: {
+        plan: checkedRow.plan,
+        actual: checkedRow.actual,
+        completionPercent: checkedRow.percent
+      },
+      finished: {
+        plan: finishedRow.plan,
+        actual: finishedRow.actual,
+        completionPercent: finishedRow.percent
+      }
+    });
+  });
+
+  const hasMonthlyPlan = Object.keys(plansBySize).length > 0;
+  const monthLabel = monthKey.slice(5, 7) + "/" + monthKey.slice(0, 4);
+  const monthlyChecked = buildDashboardPlanComparisonRow_(
+    monthLabel + " · Kiểm tra", "", "checked",
+    checkedPlanTotal, checkedActualTotal, hasMonthlyPlan
+  );
+  const monthlyFinished = buildDashboardPlanComparisonRow_(
+    monthLabel + " · Thành phẩm", "", "finished",
+    finishedPlanTotal, finishedActualTotal, hasMonthlyPlan
+  );
+
+  return {
+    total: {
+      plan: monthlyFinished.plan,
+      actual: monthlyFinished.actual,
+      percent: monthlyFinished.percent
+    },
+    byDate: [],
+    byMonth: [monthlyChecked, monthlyFinished],
+    bySize: bySize,
+    sizeComparison: sizeComparison,
+    monthlyComparison: {
+      checked: {
+        plan: monthlyChecked.plan,
+        actual: monthlyChecked.actual,
+        completionPercent: monthlyChecked.percent
+      },
+      finished: {
+        plan: monthlyFinished.plan,
+        actual: monthlyFinished.actual,
+        completionPercent: monthlyFinished.percent
+      }
+    },
+    month: monthKey,
+    source: "PlanService"
+  };
+}
+
 function buildDashboardDataFresh_() {
   try {
     const pipeObjects = buildPipeEngine();
@@ -717,71 +855,8 @@ function buildDashboardDataFresh_() {
         };
     });
     
-    // Xử lý dữ liệu Kế hoạch
-    const rawPlans = getPlanData();
-    let pStats = {
-      total: { plan: 0, actual: 0 },
-      byDate: {},
-      byMonth: {},
-      bySize: {}
-    };
-    
-    for (let p of rawPlans) {
-       pStats.total.plan += p.qty;
-       if (!pStats.byDate[p.date]) pStats.byDate[p.date] = { plan: 0, actual: 0 };
-       pStats.byDate[p.date].plan += p.qty;
-       if (!pStats.byMonth[p.month]) pStats.byMonth[p.month] = { plan: 0, actual: 0 };
-       pStats.byMonth[p.month].plan += p.qty;
-       if (p.size) {
-         if (!pStats.bySize[p.size]) pStats.bySize[p.size] = { plan: 0, actual: 0 };
-         pStats.bySize[p.size].plan += p.qty;
-       }
-    }
-    
-    for (let p of tpPipes) {
-       // Tim transaction khop KPI Thanh pham trong history.
-       let thanhPhamKpiTxn = p.history.find(t => isThanhPhamKpiPipe({ history: [t] }));
-       
-       if (!thanhPhamKpiTxn) {
-           continue; // Không tính vào actual planning nếu không có
-       }
-
-       pStats.total.actual++;
-       let dateVal = thanhPhamKpiTxn.date;
-       let dateStr = "Không rõ";
-       let monthStr = "Không rõ";
-       if (dateVal instanceof Date) {
-          dateStr = dateVal.toLocaleDateString('vi-VN');
-          monthStr = (dateVal.getMonth() + 1) + "/" + dateVal.getFullYear();
-       } else if (dateVal) {
-          dateStr = dateVal.toString().trim();
-          monthStr = dateStr;
-       }
-       
-       if (!pStats.byDate[dateStr]) pStats.byDate[dateStr] = { plan: 0, actual: 0 };
-       pStats.byDate[dateStr].actual++;
-       if (!pStats.byMonth[monthStr]) pStats.byMonth[monthStr] = { plan: 0, actual: 0 };
-       pStats.byMonth[monthStr].actual++;
-       let sz = p.size || "Khác";
-       if (!pStats.bySize[sz]) pStats.bySize[sz] = { plan: 0, actual: 0 };
-       pStats.bySize[sz].actual++;
-    }
-    
-    let formatPlan = (obj) => {
-        return Object.keys(obj).map(k => {
-           let pl = obj[k].plan;
-           let ac = obj[k].actual;
-           let pct = pl > 0 ? Math.round((ac / pl) * 100) : (ac > 0 ? 100 : 0);
-           return { name: k, plan: pl, actual: ac, percent: pct };
-        }).sort((a, b) => b.plan - a.plan);
-    };
-    
-    let finalPlanStats = {
-       total: { plan: pStats.total.plan, actual: pStats.total.actual, percent: pStats.total.plan > 0 ? Math.round((pStats.total.actual / pStats.total.plan) * 100) : 0 },
-       byDate: formatPlan(pStats.byDate),
-       byMonth: formatPlan(pStats.byMonth),
-       bySize: formatPlan(pStats.bySize)
-    };
+    // Kế hoạch tháng từ PlanService; thực tế tái sử dụng projection/aggregation của Dashboard V2.
+    const finalPlanStats = buildDashboardMonthlyPlanStats_(pipeObjects, new Date());
     
     // Calculate Factory Health & Alerts
     let health = "NORMAL";
