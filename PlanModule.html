@@ -62,18 +62,6 @@
     h1 { font-size: 24px; line-height: 1.25; letter-spacing: -0.015em; }
     h2 { font-size: 18px; }
     .mo-ta { margin-top: 4px; color: var(--mau-chu-phu); font-size: 13px; }
-    .nhan-xem-thu {
-      display: inline-block;
-      margin-left: 8px;
-      border-radius: 999px;
-      padding: 2px 7px;
-      background: #eef2f7;
-      color: #64748b;
-      font-size: 10px;
-      font-weight: 600;
-      vertical-align: middle;
-    }
-
     .nut {
       min-height: 40px;
       border: 1px solid transparent;
@@ -326,7 +314,7 @@
     <header class="khung dau-trang">
       <div>
         <h1>KẾ HOẠCH SẢN XUẤT</h1>
-        <p class="mo-ta">Quản lý kế hoạch kiểm tra và thành phẩm theo tháng hoặc theo ngày.<span class="nhan-xem-thu an" id="nhan-xem-thu">DỮ LIỆU XEM THỬ</span></p>
+        <p class="mo-ta">Quản lý kế hoạch kiểm tra và thành phẩm theo tháng hoặc theo ngày.</p>
       </div>
       <button class="nut nut-chinh nut-them quyen-them" id="nut-them-ke-hoach" type="button">
         <span class="dau-cong" aria-hidden="true">+</span>
@@ -490,26 +478,15 @@
   <div class="thong-bao an" id="thong-bao" role="status" aria-live="polite"></div>
 
   <script>
-    var DU_LIEU_MAU = [
-      { id: 'T-2026-07-D73', loai: 'thang', thoiGian: '2026-07', size: 'D73', kiemTra: 2650, thanhPham: 2580, ghiChu: 'Ưu tiên đơn hàng tháng 7.' },
-      { id: 'T-2026-07-D89', loai: 'thang', thoiGian: '2026-07', size: 'D89', kiemTra: 1720, thanhPham: 1680, ghiChu: 'Theo tiến độ tiếp nhận ống.' },
-      { id: 'T-2026-08-D73', loai: 'thang', thoiGian: '2026-08', size: 'D73', kiemTra: 2800, thanhPham: 2730, ghiChu: '' },
-      { id: 'N-2026-07-01-D73', loai: 'ngay', thoiGian: '2026-07-01', size: 'D73', kiemTra: 120, thanhPham: 118, ghiChu: 'Kế hoạch đầu tháng.' },
-      { id: 'N-2026-07-02-D73', loai: 'ngay', thoiGian: '2026-07-02', size: 'D73', kiemTra: 120, thanhPham: 118, ghiChu: 'Kế hoạch đầu tháng.' },
-      { id: 'N-2026-07-03-D73', loai: 'ngay', thoiGian: '2026-07-03', size: 'D73', kiemTra: 120, thanhPham: 118, ghiChu: 'Kế hoạch đầu tháng.' },
-      { id: 'N-2026-07-04-D89', loai: 'ngay', thoiGian: '2026-07-04', size: 'D89', kiemTra: 85, thanhPham: 82, ghiChu: '' }
-    ];
-
-    var CHE_DO_XEM_THU = location.hostname === '127.0.0.1' ||
-      location.hostname === 'localhost' ||
-      new URLSearchParams(location.search).get('xem-thu') === '1';
-
     var trangThai = {
       loaiDangChon: 'thang',
       cheDoBieuMau: 'them',
       idDangSua: '',
       idChoXoa: '',
-      duLieu: (CHE_DO_XEM_THU ? DU_LIEU_MAU : []).map(function(dong) { return Object.assign({}, dong); })
+      duLieu: [],
+      dangTaiDuLieu: true,
+      loiTaiDuLieu: '',
+      chiDoc: true
     };
     var phanTuTraTieuDiem = null;
 
@@ -535,23 +512,12 @@
       return (loai === 'thang' ? 'T-' : 'N-') + thoiGian + '-' + size + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     }
 
-    function datTrangThaiTaiDanhMucSize(dangTai, thongBao) {
-      ['loc-size', 'truong-size'].forEach(function(id) {
-        var truong = layPhanTu(id);
-        truong.disabled = dangTai;
-        if (thongBao) truong.placeholder = thongBao;
-      });
-    }
-
-    function apDungDanhMucSize(ketQua) {
-      var danhSach = Array.isArray(ketQua) ? ketQua : ketQua && ketQua.sizes;
-      if (!Array.isArray(danhSach) || !danhSach.length) {
-        throw new Error('Nguồn hiện tại không có danh mục Size.');
-      }
-
+    function apDungDanhMucSize(danhSach) {
+      var sizes = Array.isArray(danhSach) ? danhSach : [];
       var danhMuc = layPhanTu('danh-muc-size');
       danhMuc.replaceChildren();
-      danhSach.forEach(function(size) {
+
+      sizes.forEach(function(size) {
         var giaTri = String(size || '').trim();
         if (!giaTri) return;
         var luaChon = document.createElement('option');
@@ -559,49 +525,89 @@
         danhMuc.appendChild(luaChon);
       });
 
-      layPhanTu('loc-size').disabled = false;
-      layPhanTu('loc-size').placeholder = 'Tất cả Size — tìm theo số hoặc NVTL';
-      layPhanTu('truong-size').disabled = false;
-      layPhanTu('truong-size').placeholder = 'Chọn Size — tìm theo số hoặc NVTL';
+      var coDanhMuc = sizes.length > 0;
+      layPhanTu('loc-size').disabled = !coDanhMuc;
+      layPhanTu('loc-size').placeholder = coDanhMuc
+        ? 'Tất cả Size — tìm theo số hoặc NVTL'
+        : 'Chưa có Size đang hoạt động';
+      layPhanTu('truong-size').disabled = true;
+      layPhanTu('truong-size').placeholder = coDanhMuc
+        ? 'Chức năng ghi chưa được kết nối'
+        : 'Chưa có Size đang hoạt động';
     }
 
-    function baoLoiDanhMucSize(loi) {
+    function apDungKetQuaDanhMucSize(ketQua) {
+      if (!ketQua || ketQua.success !== true || !ketQua.data || !Array.isArray(ketQua.data.sizes)) {
+        throw new Error('Phản hồi danh mục Size không hợp lệ.');
+      }
+      apDungDanhMucSize(ketQua.data.sizes);
+    }
+
+    function baoLoiTaiDanhMucSize(loi) {
       console.error('Không tải được danh mục Size:', loi);
-      datTrangThaiTaiDanhMucSize(true, 'Không tải được danh mục Size');
+      apDungDanhMucSize([]);
+      layPhanTu('loc-size').placeholder = 'Không tải được danh mục Size';
+      layPhanTu('truong-size').placeholder = 'Không tải được danh mục Size';
     }
 
-    function docDanhMucSizeTuWorkerLocal() {
-      return fetch('Index.html', { cache: 'no-store' })
-        .then(function(phanHoi) {
-          if (!phanHoi.ok) throw new Error('HTTP ' + phanHoi.status);
-          return phanHoi.text();
-        })
-        .then(function(noiDung) {
-          var taiLieu = new DOMParser().parseFromString(noiDung, 'text/html');
-          var nguonSize = taiLieu.querySelector('#w-loai-ong');
-          if (!nguonSize) throw new Error('Không tìm thấy #w-loai-ong trong Index.html.');
-          return Array.from(nguonSize.options).map(function(luaChon) {
-            return String(luaChon.value || luaChon.textContent || '').trim();
-          }).filter(Boolean);
-        });
-    }
+    function taiDanhMucSize() {
+      apDungDanhMucSize([]);
+      layPhanTu('loc-size').placeholder = 'Đang tải danh mục Size...';
+      layPhanTu('truong-size').placeholder = 'Đang tải danh mục Size...';
 
-    function taiDanhMucSizeHeThong() {
-      datTrangThaiTaiDanhMucSize(true, 'Đang tải danh mục Size...');
-
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler(function(ketQua) {
-            try { apDungDanhMucSize(ketQua); } catch (loi) { baoLoiDanhMucSize(loi); }
-          })
-          .withFailureHandler(baoLoiDanhMucSize)
-          .getPlanSizeCatalog();
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        baoLoiTaiDanhMucSize(new Error('Preview local không có Apps Script service.'));
         return;
       }
 
-      docDanhMucSizeTuWorkerLocal()
-        .then(apDungDanhMucSize)
-        .catch(baoLoiDanhMucSize);
+      google.script.run
+        .withSuccessHandler(function(ketQua) {
+          try { apDungKetQuaDanhMucSize(ketQua); } catch (loi) { baoLoiTaiDanhMucSize(loi); }
+        })
+        .withFailureHandler(baoLoiTaiDanhMucSize)
+        .getActiveSizeCatalog();
+    }
+
+    function apDungDuLieuKeHoach(ketQua) {
+      if (!ketQua || ketQua.success !== true || !ketQua.data) {
+        throw new Error('Phản hồi dữ liệu kế hoạch không hợp lệ.');
+      }
+
+      var duLieuThang = Array.isArray(ketQua.data.monthly) ? ketQua.data.monthly : [];
+      var duLieuNgay = Array.isArray(ketQua.data.daily) ? ketQua.data.daily : [];
+      trangThai.duLieu = duLieuThang.concat(duLieuNgay).map(function(dong) {
+        return Object.assign({}, dong);
+      });
+      trangThai.dangTaiDuLieu = false;
+      trangThai.loiTaiDuLieu = '';
+      hienThiBang();
+    }
+
+    function baoLoiTaiDuLieuKeHoach(loi) {
+      var thongDiep = loi && loi.message ? loi.message : String(loi || 'Không xác định');
+      console.error('Không tải được dữ liệu kế hoạch:', loi);
+      trangThai.duLieu = [];
+      trangThai.dangTaiDuLieu = false;
+      trangThai.loiTaiDuLieu = 'Không tải được dữ liệu kế hoạch. ' + thongDiep;
+      hienThiBang();
+    }
+
+    function taiDuLieuKeHoach() {
+      trangThai.dangTaiDuLieu = true;
+      trangThai.loiTaiDuLieu = '';
+      hienThiBang();
+
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        baoLoiTaiDuLieuKeHoach(new Error('Preview local không có Apps Script service.'));
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(ketQua) {
+          try { apDungDuLieuKeHoach(ketQua); } catch (loi) { baoLoiTaiDuLieuKeHoach(loi); }
+        })
+        .withFailureHandler(baoLoiTaiDuLieuKeHoach)
+        .getPlanModuleData();
     }
 
     function layDuLieuDaLoc() {
@@ -635,6 +641,8 @@
       nut.textContent = nhan;
       nut.dataset.hanhDong = hanhDong;
       nut.dataset.id = id;
+      nut.disabled = trangThai.chiDoc;
+      if (trangThai.chiDoc) nut.title = 'Chức năng ghi chưa được kết nối trong Sprint 8.3.1';
       return nut;
     }
 
@@ -686,7 +694,20 @@
         dongRong.className = 'trang-thai-rong';
         var oRong = dongRong.insertCell();
         oRong.colSpan = 6;
-        oRong.textContent = 'Không có kế hoạch phù hợp với bộ lọc.';
+        var coDuLieuLoai = trangThai.duLieu.some(function(dong) {
+          return dong.loai === trangThai.loaiDangChon;
+        });
+        if (trangThai.dangTaiDuLieu) {
+          oRong.textContent = 'Đang tải dữ liệu kế hoạch...';
+        } else if (trangThai.loiTaiDuLieu) {
+          oRong.textContent = trangThai.loiTaiDuLieu;
+        } else if (!coDuLieuLoai) {
+          oRong.textContent = trangThai.loaiDangChon === 'thang'
+            ? 'Chưa có kế hoạch tháng.'
+            : 'Chưa có kế hoạch ngày.';
+        } else {
+          oRong.textContent = 'Không có kế hoạch phù hợp với bộ lọc.';
+        }
         return;
       }
 
@@ -1039,8 +1060,8 @@
       });
     }
 
-    taiDanhMucSizeHeThong();
-    layPhanTu('nhan-xem-thu').classList.toggle('an', !CHE_DO_XEM_THU);
+    layPhanTu('nut-them-ke-hoach').disabled = true;
+    layPhanTu('nut-them-ke-hoach').title = 'Chức năng ghi chưa được kết nối trong Sprint 8.3.1';
     document.querySelector('.thanh-tab').setAttribute('role', 'tablist');
     ['thang', 'ngay'].forEach(function(loai) {
       layPhanTu('tab-' + loai).setAttribute('role', 'tab');
@@ -1061,6 +1082,8 @@
     });
     ganSuKien();
     chonLoai('thang');
+    taiDuLieuKeHoach();
+    taiDanhMucSize();
   </script>
 </body>
 </html>
