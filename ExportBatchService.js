@@ -250,13 +250,13 @@ function exportBatchBuildReports_(pipes, metadataIndex) {
       pipes: group.pipes.sort(exportBatchComparePipes_),
       packingDate: Object.keys(group.packingDates)[0] || '',
       packingDateValue: group.packingDateValue,
-      issues: issues
+      issues: issues,
+      metadataIssues: []
     };
 
     report.metadata = exportBatchResolveMetadata_(metadataIndex[group.bundleKey], report);
     if (hasSingleFinalStatus) {
       report.metadataIssues = exportBatchMissingMetadata_(report.metadata);
-      report.issues = report.issues.concat(report.metadataIssues);
     }
     report.ready = report.issues.length === 0;
     return report;
@@ -343,12 +343,8 @@ function exportBatchComparePipes_(left, right) {
 function exportBatchToListItem_(report) {
   const isFinished = report.businessStatus === 'THANH_PHAM';
   const isRejected = report.businessStatus === 'LOAI';
-  const hasDataError = !isFinished && !isRejected || report.issues.some(issue =>
-    issue.indexOf('vượt giới hạn') !== -1 ||
-    issue.indexOf('không nhất quán') !== -1 ||
-    issue.indexOf('nhiều ngày') !== -1 ||
-    issue.indexOf('Không có dữ liệu') !== -1
-  );
+  const metadataIssues = report.metadataIssues || [];
+  const hasDataError = !report.ready;
 
   return {
     bundleCode: report.bundleCode,
@@ -359,9 +355,10 @@ function exportBatchToListItem_(report) {
     size: report.metadata.pipeType || '',
     lsx: report.metadata.lsx || '',
     ready: report.ready,
-    status: report.ready ? 'CHO_XUAT' : hasDataError ? 'LOI' : 'THIEU_DU_LIEU',
-    statusLabel: report.ready ? 'Chờ xuất' : hasDataError ? 'Lỗi' : 'Thiếu dữ liệu',
-    issues: report.issues.slice()
+    status: hasDataError ? 'LOI' : metadataIssues.length > 0 ? 'THIEU_THONG_TIN' : 'CHO_XUAT',
+    statusLabel: hasDataError ? 'Không thể xuất' : metadataIssues.length > 0 ? 'Thiếu thông tin' : 'Chờ xuất',
+    issues: report.issues.concat(metadataIssues),
+    metadataIssues: metadataIssues.slice()
   };
 }
 

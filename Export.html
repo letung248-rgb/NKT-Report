@@ -324,11 +324,11 @@
             : '<span class="badge badge-error">Không xác định</span>';
         const statusBadge = exported
           ? '<span class="badge badge-success">Thành công</span>'
-          : ready
-            ? '<span class="badge badge-pending">Chờ xuất</span>'
-            : item.status === 'LOI'
-              ? '<span class="badge badge-error">Lỗi</span>'
-              : '<span class="badge badge-missing">Thiếu dữ liệu</span>';
+          : item.status === 'LOI'
+            ? '<span class="badge badge-error">Không thể xuất</span>'
+            : item.status === 'THIEU_THONG_TIN'
+              ? '<span class="badge badge-missing">Thiếu thông tin</span>'
+              : '<span class="badge badge-pending">Chờ xuất</span>';
         const issue = Array.isArray(item.issues) && item.issues.length
           ? '<div class="issue">' + escapeHtml(item.issues.join('; ')) + '</div>'
           : '<span class="secondary-text">Sẵn sàng xuất</span>';
