@@ -14,6 +14,14 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   }
 
+  if (view === 'xuat-bao-cao' || view === 'export') {
+    return HtmlService
+      .createHtmlOutputFromFile('Export')
+      .setTitle('Xuất biên bản theo Mã bó')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+  }
+
   if (view === 'dashboard-v2') {
     return HtmlService
       .createHtmlOutputFromFile('DashboardV2')

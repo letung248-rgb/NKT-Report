@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xuất biên bản theo Mã bó</title>
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-subtle: #f8fafc;
+      --text: #172033;
+      --muted: #64748b;
+      --border: #dbe3ef;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #047857;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgb(15 23 42 / 0.06);
+      font-family: "Segoe UI Variable Text", "Segoe UI", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    a { color: inherit; }
+
+    .topbar { min-height: 72px; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; }
+    .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: #eaf1ff; color: var(--primary); font-size: 21px; }
+    .brand-copy { min-width: 0; }
+    .brand-title { font-size: 14px; font-weight: 700; line-height: 1.2; }
+    .brand-subtitle { margin-top: 2px; color: var(--muted); font-size: 12px; }
+    .back-link { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: #334155; text-decoration: none; font-weight: 600; }
+    .back-link:hover { border-color: #94a3b8; background: #f8fafc; }
+
+    main { width: min(1440px, 100%); margin: 0 auto; padding: 28px 32px 40px; }
+    .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 26px; line-height: 1.2; letter-spacing: 0; }
+    h2 { font-size: 16px; line-height: 1.3; }
+    .eyebrow { margin-bottom: 5px; color: var(--primary); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .description { margin-top: 6px; color: var(--muted); }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .filters { padding: 18px; }
+    .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+    .panel-heading-copy { min-width: 0; }
+    .panel-heading p { margin-top: 3px; color: var(--muted); font-size: 13px; }
+    .filter-grid { display: grid; grid-template-columns: minmax(160px, 0.75fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) minmax(260px, 1.25fr) auto; align-items: end; gap: 12px; }
+    .field { min-width: 0; }
+    .field label { display: block; margin-bottom: 6px; color: #475569; font-size: 12px; font-weight: 700; }
+    .control { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); outline: none; }
+    .control:hover { border-color: #94a3b8; }
+    .control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgb(37 99 235 / 0.12); }
+    .field-search { position: relative; }
+    .field-search i { position: absolute; top: 50%; left: 11px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+    .field-search .control { padding-left: 34px; }
+    .filter-actions { display: flex; gap: 8px; }
+
+    .button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 13px; border: 1px solid transparent; border-radius: 8px; font-weight: 700; white-space: nowrap; transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease; }
+    .button-primary { background: var(--primary); color: #fff; box-shadow: 0 1px 2px rgb(37 99 235 / 0.2); }
+    .button-primary:hover:not(:disabled) { background: var(--primary-dark); }
+    .button-secondary { background: var(--surface); border-color: var(--border); color: #334155; }
+    .button-secondary:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+
+    .selection-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+    .summary-card { min-height: 76px; padding: 13px 15px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-subtle); }
+    .summary-label { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .summary-value { display: block; margin-top: 4px; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .summary-card:nth-child(2) .summary-value { color: var(--success); }
+    .summary-card:nth-child(3) .summary-value { color: var(--danger); }
+
+    .list-panel { margin-top: 22px; overflow: hidden; }
+    .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .list-meta { color: var(--muted); font-size: 13px; }
+    .list-actions { display: flex; align-items: center; gap: 8px; }
+    .result-status { display: none; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: #334155; }
+    .result-status.error { display: block; border-color: #fecaca; background: #fff7f7; color: var(--danger); }
+    .result-status.loading { display: block; border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+    .result-status.success { display: block; border-color: #a7f3d0; background: #ecfdf5; color: var(--success); }
+    .export-result { display: none; margin-top: 12px; padding: 13px 14px; border: 1px solid #a7f3d0; border-radius: 9px; background: #ecfdf5; color: #065f46; }
+    .export-result a { color: #047857; font-weight: 700; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; min-width: 920px; border-collapse: collapse; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid #e8edf4; vertical-align: middle; text-align: left; }
+    th { background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    td { color: #334155; }
+    tbody tr { transition: background-color .14s ease; }
+    tbody tr:hover { background: #f8fbff; }
+    tbody tr.row-disabled { background: #fbfcfe; }
+    tbody tr.row-disabled td { color: #94a3b8; }
+    .check-cell, .number-cell, .date-cell { text-align: center; white-space: nowrap; }
+    .bundle-code { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .secondary-text { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+    .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .badge-tp { background: #ecfdf5; color: var(--success); }
+    .badge-hong { background: #fef2f2; color: var(--danger); }
+    .badge-pending { background: #eff6ff; color: #1d4ed8; }
+    .badge-missing { background: #fff7ed; color: var(--warning); }
+    .badge-error { background: #fef2f2; color: var(--danger); }
+    .badge-success { background: #ecfdf5; color: var(--success); }
+    .issue { max-width: 290px; color: var(--warning); font-size: 12px; line-height: 1.35; }
+    .empty { padding: 48px 20px; text-align: center; color: var(--muted); }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 1040px) {
+      .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .filter-actions { justify-content: flex-end; }
+    }
+    @media (max-width: 680px) {
+      .topbar { min-height: 64px; padding: 0 16px; }
+      .back-link span { display: none; }
+      main { padding: 22px 16px 32px; }
+      .page-heading { display: block; }
+      h1 { font-size: 23px; }
+      .filter-grid, .selection-summary { grid-template-columns: 1fr; }
+      .list-toolbar { align-items: flex-start; flex-direction: column; }
+      .list-actions { width: 100%; }
+      .list-actions .button { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="?view=dashboard" aria-label="Về Tổng quan điều hành">
+      <span class="brand-mark"><i class="ph ph-file-xls"></i></span>
+      <span class="brand-copy">
+        <span class="brand-title">Quản lý NKT</span>
+        <span class="brand-subtitle">Xuất biên bản theo Mã bó</span>
+      </span>
+    </a>
+    <a class="back-link" href="?view=dashboard"><i class="ph ph-arrow-left"></i><span>Về Tổng quan</span></a>
+  </header>
+
+  <main>
+    <section class="page-heading" aria-labelledby="pageTitle">
+      <div>
+        <div class="eyebrow">Tiện ích xuất báo cáo</div>
+        <h1 id="pageTitle">Xuất biên bản theo Mã bó</h1>
+        <p class="description">Chọn biên bản thành phẩm hoặc ống hỏng đã tạo tại nguyên công Đóng gói.</p>
+      </div>
+    </section>
+
+    <section class="panel filters" aria-labelledby="filterTitle">
+      <div class="panel-heading">
+        <div class="panel-heading-copy">
+          <h2 id="filterTitle">Bộ lọc biên bản</h2>
+          <p>Ngày và tháng được tính theo ngày Đóng gói.</p>
+        </div>
+      </div>
+      <form id="filterForm" class="filter-grid">
+        <div class="field">
+          <label for="filterType">Loại biên bản</label>
+          <select id="filterType" class="control">
+            <option value="ALL">Tất cả</option>
+            <option value="THANH_PHAM">Thành phẩm</option>
+            <option value="LOAI">Ống hỏng</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filterDate">Ngày Đóng gói</label>
+          <input id="filterDate" class="control" type="date">
+        </div>
+        <div class="field">
+          <label for="filterMonth">Tháng Đóng gói</label>
+          <input id="filterMonth" class="control" type="month">
+        </div>
+        <div class="field">
+          <label for="filterQuery">Tìm kiếm</label>
+          <div class="field-search">
+            <i class="ph ph-magnifying-glass"></i>
+            <input id="filterQuery" class="control" type="search" placeholder="Mã bó, Size hoặc LSX nếu có dữ liệu">
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button class="button button-primary" type="submit"><i class="ph ph-funnel"></i>Lọc</button>
+          <button class="button button-secondary" type="button" id="clearFilters"><i class="ph ph-arrow-counter-clockwise"></i>Xóa</button>
+        </div>
+      </form>
+
+      <div class="selection-summary" aria-label="Thống kê biên bản đã chọn">
+        <div class="summary-card"><span class="summary-label">Tổng số biên bản đã chọn</span><strong class="summary-value" id="selectedTotal">0</strong></div>
+        <div class="summary-card"><span class="summary-label">Biên bản thành phẩm</span><strong class="summary-value" id="selectedFinished">0</strong></div>
+        <div class="summary-card"><span class="summary-label">Biên bản ống hỏng</span><strong class="summary-value" id="selectedRejected">0</strong></div>
+      </div>
+    </section>
+
+    <div id="resultStatus" class="result-status" role="status"></div>
+    <div id="exportResult" class="export-result"></div>
+
+    <section class="panel list-panel" aria-labelledby="listTitle">
+      <div class="list-toolbar">
+        <div>
+          <h2 id="listTitle">Danh sách Mã bó</h2>
+          <div class="list-meta" id="listMeta">Đang tải dữ liệu...</div>
+        </div>
+        <div class="list-actions">
+          <button class="button button-secondary" type="button" id="selectAllBtn">Chọn tất cả</button>
+          <button class="button button-secondary" type="button" id="clearSelectionBtn">Bỏ chọn tất cả</button>
+          <button class="button button-primary" type="button" id="exportBtn" disabled><i class="ph ph-file-xls"></i><span id="exportBtnText">Xuất Excel</span></button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="check-cell"><input id="selectAllCheckbox" type="checkbox" aria-label="Chọn tất cả biên bản hợp lệ"></th>
+              <th>Mã bó</th>
+              <th>Loại</th>
+              <th class="date-cell">Ngày Đóng gói</th>
+              <th class="number-cell">Số ống</th>
+              <th>Size / LSX</th>
+              <th>Trạng thái</th>
+              <th>Kiểm tra dữ liệu</th>
+            </tr>
+          </thead>
+          <tbody id="bundleRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = { items: [], selected: new Set(), exported: new Set(), loading: false };
+
+    function bundleKey(item) {
+      return encodeURIComponent(item.bundleCode || '') + '__' + String(item.businessStatus || '');
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function setStatus(message, type) {
+      const element = document.getElementById('resultStatus');
+      element.textContent = message || '';
+      element.className = 'result-status' + (message ? ' ' + (type || '') : '');
+    }
+
+    function currentFilters() {
+      return {
+        businessStatus: document.getElementById('filterType').value,
+        date: document.getElementById('filterDate').value,
+        month: document.getElementById('filterMonth').value,
+        query: document.getElementById('filterQuery').value.trim()
+      };
+    }
+
+    function callServer(method, payload) {
+      if (window.google && google.script && google.script.run) {
+        return new Promise((resolve, reject) => {
+          const runner = google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject);
+          runner[method](payload);
+        });
+      }
+
+      if (window.__NKT_EXPORT_MOCK__ && typeof window.__NKT_EXPORT_MOCK__[method] === 'function') {
+        return Promise.resolve(window.__NKT_EXPORT_MOCK__[method](payload));
+      }
+
+      return Promise.reject(new Error('Ứng dụng cần chạy trong môi trường Google Apps Script.'));
+    }
+
+    async function loadBundles() {
+      state.loading = true;
+      state.selected.clear();
+      state.exported.clear();
+      document.getElementById('exportResult').style.display = 'none';
+      setStatus('Đang tải danh sách Mã bó...', 'loading');
+      document.getElementById('bundleRows').innerHTML = '<tr><td class="empty" colspan="8"><span class="spinner"></span> Đang tải dữ liệu...</td></tr>';
+
+      try {
+        const response = await callServer('getExportBundleList', currentFilters());
+        if (!response || response.success !== true) throw new Error((response && response.error) || 'Không thể tải danh sách Mã bó.');
+        state.items = Array.isArray(response.items) ? response.items : [];
+        setStatus('', '');
+        renderRows();
+      } catch (error) {
+        state.items = [];
+        renderRows();
+        setStatus(error && error.message ? error.message : String(error), 'error');
+      } finally {
+        state.loading = false;
+        updateSelectionSummary();
+      }
+    }
+
+    function renderRows() {
+      const body = document.getElementById('bundleRows');
+      const listMeta = document.getElementById('listMeta');
+      const items = state.items;
+      listMeta.textContent = items.length ? 'Tìm thấy ' + items.length + ' Mã bó theo bộ lọc hiện tại.' : 'Không có Mã bó phù hợp.';
+
+      if (!items.length) {
+        body.innerHTML = '<tr><td class="empty" colspan="8">Không có Mã bó phù hợp với bộ lọc.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = items.map(item => {
+        const key = bundleKey(item);
+        const ready = item.ready === true;
+        const exported = state.exported.has(key);
+        const typeBadge = item.businessStatus === 'THANH_PHAM'
+          ? '<span class="badge badge-tp">Thành phẩm</span>'
+          : item.businessStatus === 'LOAI'
+            ? '<span class="badge badge-hong">Ống hỏng</span>'
+            : '<span class="badge badge-error">Không xác định</span>';
+        const statusBadge = exported
+          ? '<span class="badge badge-success">Thành công</span>'
+          : ready
+            ? '<span class="badge badge-pending">Chờ xuất</span>'
+            : item.status === 'LOI'
+              ? '<span class="badge badge-error">Lỗi</span>'
+              : '<span class="badge badge-missing">Thiếu dữ liệu</span>';
+        const issue = Array.isArray(item.issues) && item.issues.length
+          ? '<div class="issue">' + escapeHtml(item.issues.join('; ')) + '</div>'
+          : '<span class="secondary-text">Sẵn sàng xuất</span>';
+        const details = [item.size, item.lsx ? 'LSX: ' + item.lsx : '']
+          .filter(Boolean)
+          .map(value => '<span class="secondary-text">' + escapeHtml(value) + '</span>')
+          .join('');
+
+        return '<tr class="' + (ready ? '' : 'row-disabled') + '">' +
+          '<td class="check-cell"><input class="bundle-checkbox" data-key="' + key + '" type="checkbox" ' + (ready ? '' : 'disabled') + ' aria-label="Chọn Mã bó ' + escapeHtml(item.bundleCode) + '"></td>' +
+          '<td><span class="bundle-code">' + escapeHtml(item.bundleCode) + '</span></td>' +
+          '<td>' + typeBadge + '</td>' +
+          '<td class="date-cell">' + escapeHtml(item.packingDate || '—') + '</td>' +
+          '<td class="number-cell">' + Number(item.pipeCount || 0) + '</td>' +
+          '<td>' + (details || '—') + '</td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td>' + issue + '</td>' +
+        '</tr>';
+      }).join('');
+
+      document.querySelectorAll('.bundle-checkbox').forEach(checkbox => {
+        checkbox.checked = state.selected.has(checkbox.dataset.key);
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) state.selected.add(checkbox.dataset.key);
+          else state.selected.delete(checkbox.dataset.key);
+          updateSelectionSummary();
+        });
+      });
+    }
+
+    function updateSelectionSummary() {
+      let total = 0;
+      let finished = 0;
+      let rejected = 0;
+      state.selected.forEach(key => {
+        const item = state.items.find(entry => bundleKey(entry) === key);
+        if (!item || !item.ready) return;
+        total++;
+        if (item.businessStatus === 'THANH_PHAM') finished++;
+        if (item.businessStatus === 'LOAI') rejected++;
+      });
+
+      document.getElementById('selectedTotal').textContent = total;
+      document.getElementById('selectedFinished').textContent = finished;
+      document.getElementById('selectedRejected').textContent = rejected;
+      document.getElementById('exportBtn').disabled = total === 0 || state.loading;
+      document.getElementById('selectAllCheckbox').checked = total > 0 && total === state.items.filter(item => item.ready).length;
+    }
+
+    function setExportLoading(isLoading) {
+      state.loading = isLoading;
+      const button = document.getElementById('exportBtn');
+      button.disabled = isLoading || state.selected.size === 0;
+      document.getElementById('exportBtnText').textContent = isLoading ? 'Đang xuất...' : 'Xuất Excel';
+    }
+
+    async function exportSelected() {
+      const selections = state.items
+        .filter(item => item.ready && state.selected.has(bundleKey(item)))
+        .map(item => ({ bundleCode: item.bundleCode, businessStatus: item.businessStatus }));
+      if (!selections.length) return;
+
+      setExportLoading(true);
+      setStatus('Đang kiểm tra dữ liệu và tạo file Excel...', 'loading');
+      document.getElementById('exportResult').style.display = 'none';
+
+      try {
+        const response = await callServer('exportBatchBundleReports', selections);
+        if (!response || response.success !== true) throw new Error((response && response.error) || 'Không thể xuất biên bản.');
+
+        selections.forEach(item => state.exported.add(bundleKey(item)));
+        renderRows();
+        const result = document.getElementById('exportResult');
+        result.innerHTML = '<strong>Đã xuất ' + Number(response.sheetCount || 0) + ' sheet.</strong> ' +
+          '<span>' + escapeHtml(response.fileName || 'File Excel') + '</span> · ' +
+          '<a href="' + escapeHtml(response.url || '#') + '" target="_blank" rel="noopener noreferrer">Mở file Excel</a>';
+        result.style.display = 'block';
+        setStatus('Xuất biên bản thành công.', 'success');
+      } catch (error) {
+        setStatus(error && error.message ? error.message : String(error), 'error');
+      } finally {
+        setExportLoading(false);
+        updateSelectionSummary();
+      }
+    }
+
+    function clearFilters() {
+      document.getElementById('filterType').value = 'ALL';
+      document.getElementById('filterDate').value = '';
+      document.getElementById('filterMonth').value = '';
+      document.getElementById('filterQuery').value = '';
+      loadBundles();
+    }
+
+    document.getElementById('filterForm').addEventListener('submit', event => {
+      event.preventDefault();
+      loadBundles();
+    });
+    document.getElementById('filterDate').addEventListener('change', event => {
+      if (event.target.value) document.getElementById('filterMonth').value = '';
+    });
+    document.getElementById('filterMonth').addEventListener('change', event => {
+      if (event.target.value) document.getElementById('filterDate').value = '';
+    });
+    document.getElementById('clearFilters').addEventListener('click', clearFilters);
+    document.getElementById('selectAllBtn').addEventListener('click', () => {
+      state.items.filter(item => item.ready).forEach(item => state.selected.add(bundleKey(item)));
+      renderRows();
+      updateSelectionSummary();
+    });
+    document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+      state.selected.clear();
+      renderRows();
+      updateSelectionSummary();
+    });
+    document.getElementById('selectAllCheckbox').addEventListener('change', event => {
+      if (event.target.checked) state.items.filter(item => item.ready).forEach(item => state.selected.add(bundleKey(item)));
+      else state.selected.clear();
+      renderRows();
+      updateSelectionSummary();
+    });
+    document.getElementById('exportBtn').addEventListener('click', exportSelected);
+
+    loadBundles();
+  </script>
+</body>
+</html>
