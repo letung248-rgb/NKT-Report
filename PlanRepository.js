@@ -4,6 +4,9 @@ var PLAN_REPOSITORY_CONFIG = {
     periodType: "month",
     headers: [
       "ID", "Tháng", "Size", "KH kiểm tra", "KH thành phẩm", "Ghi chú", "Tạo lúc", "Cập nhật lúc"
+    ],
+    legacyHeaders: [
+      "Tháng", "Size ống", "KH kiểm tra", "KH thành phẩm", "Ghi chú", "Cập nhật lúc", "Cập nhật bởi"
     ]
   },
   daily: {
@@ -11,9 +14,13 @@ var PLAN_REPOSITORY_CONFIG = {
     periodType: "day",
     headers: [
       "ID", "Ngày", "Size", "KH kiểm tra", "KH thành phẩm", "Ghi chú", "Tạo lúc", "Cập nhật lúc"
+    ],
+    legacyHeaders: [
+      "Ngày", "Size ống", "KH kiểm tra", "KH thành phẩm", "Ghi chú", "Cập nhật lúc", "Cập nhật bởi"
     ]
   },
-  columnCount: 8
+  columnCount: 8,
+  legacyColumnCount: 7
 };
 
 function planRepositoryListMonthly() {
@@ -76,19 +83,21 @@ function planRepositoryList_(config) {
 
 function planRepositoryListFromSpreadsheet_(spreadsheet, config) {
   var sheet = planRepositoryGetSheet_(spreadsheet, config);
-  planRepositoryValidateHeaders_(sheet, config);
+  var schema = planRepositoryValidateHeaders_(sheet, config);
   var timeZone = planRepositoryGetTimeZone_(spreadsheet);
 
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
 
-  var range = sheet.getRange(2, 1, lastRow - 1, PLAN_REPOSITORY_CONFIG.columnCount);
+  var range = sheet.getRange(2, 1, lastRow - 1, schema.columnCount);
   var values = range.getValues();
   var displayValues = range.getDisplayValues();
   var records = [];
   values.forEach(function(row, index) {
     if (!planRepositoryIsEmptyRow_(row)) {
-      records.push(planRepositoryFromRow_(row, displayValues[index], config, timeZone));
+      records.push(planRepositoryFromStoredRow_(
+        row, displayValues[index], config, timeZone, schema, index + 2
+      ));
     }
   });
   return records;
@@ -101,25 +110,30 @@ function planRepositoryInsertMany_(config, records) {
   var spreadsheet = getSpreadsheet();
   if (!spreadsheet) throw new Error("Không thể mở Spreadsheet dữ liệu.");
   var sheet = planRepositoryGetSheet_(spreadsheet, config);
-  planRepositoryValidateHeaders_(sheet, config);
+  var schema = planRepositoryValidateHeaders_(sheet, config);
   var timeZone = planRepositoryGetTimeZone_(spreadsheet);
   var now = new Date();
 
   var rows = input.map(function(record) {
-    return planRepositoryToRow_(record || {}, config, Utilities.getUuid(), timeZone, now, now);
+    return schema.legacy
+      ? planRepositoryToLegacyRow_(record || {}, config, timeZone, now, "")
+      : planRepositoryToRow_(record || {}, config, Utilities.getUuid(), timeZone, now, now);
   });
+  var startRow = sheet.getLastRow() + 1;
   var targetRange = sheet.getRange(
-    sheet.getLastRow() + 1,
+    startRow,
     1,
     rows.length,
-    PLAN_REPOSITORY_CONFIG.columnCount
+    schema.columnCount
   );
   targetRange.setValues(rows);
 
   var persistedRows = targetRange.getValues();
   var persistedDisplayRows = targetRange.getDisplayValues();
   return persistedRows.map(function(row, index) {
-    return planRepositoryFromRow_(row, persistedDisplayRows[index], config, timeZone);
+    return planRepositoryFromStoredRow_(
+      row, persistedDisplayRows[index], config, timeZone, schema, startRow + index
+    );
   });
 }
 
@@ -127,27 +141,34 @@ function planRepositoryUpdateById_(config, id, record) {
   var spreadsheet = getSpreadsheet();
   if (!spreadsheet) throw new Error("Không thể mở Spreadsheet dữ liệu.");
   var sheet = planRepositoryGetSheet_(spreadsheet, config);
-  planRepositoryValidateHeaders_(sheet, config);
+  var schema = planRepositoryValidateHeaders_(sheet, config);
   var timeZone = planRepositoryGetTimeZone_(spreadsheet);
 
-  var rowNumber = planRepositoryFindRowNumberById_(sheet, id);
-  var existingRow = sheet.getRange(rowNumber, 1, 1, PLAN_REPOSITORY_CONFIG.columnCount).getValues()[0];
+  var rowNumber = planRepositoryFindRowNumberById_(sheet, id, config, schema);
+  var existingRow = sheet.getRange(rowNumber, 1, 1, schema.columnCount).getValues()[0];
   var updateRecord = record || {};
-  var row = planRepositoryToRow_({
+  var normalizedRecord = {
     period: updateRecord.period,
     size: updateRecord.size,
     inspectionPlan: updateRecord.inspectionPlan,
     finishedPlan: updateRecord.finishedPlan,
     note: updateRecord.note
-  }, config, String(id || ""), timeZone, existingRow[6], new Date());
+  };
+  var row = schema.legacy
+    ? planRepositoryToLegacyRow_(normalizedRecord, config, timeZone, new Date(), existingRow[6])
+    : planRepositoryToRow_(
+      normalizedRecord, config, String(id || ""), timeZone, existingRow[6], new Date()
+    );
 
-  var targetRange = sheet.getRange(rowNumber, 1, 1, PLAN_REPOSITORY_CONFIG.columnCount);
+  var targetRange = sheet.getRange(rowNumber, 1, 1, schema.columnCount);
   targetRange.setValues([row]);
-  return planRepositoryFromRow_(
+  return planRepositoryFromStoredRow_(
     targetRange.getValues()[0],
     targetRange.getDisplayValues()[0],
     config,
-    timeZone
+    timeZone,
+    schema,
+    rowNumber
   );
 }
 
@@ -155,26 +176,37 @@ function planRepositoryDeleteById_(config, id) {
   var spreadsheet = getSpreadsheet();
   if (!spreadsheet) throw new Error("Không thể mở Spreadsheet dữ liệu.");
   var sheet = planRepositoryGetSheet_(spreadsheet, config);
-  planRepositoryValidateHeaders_(sheet, config);
+  var schema = planRepositoryValidateHeaders_(sheet, config);
   var timeZone = planRepositoryGetTimeZone_(spreadsheet);
 
-  var rowNumber = planRepositoryFindRowNumberById_(sheet, id);
-  var targetRange = sheet.getRange(rowNumber, 1, 1, PLAN_REPOSITORY_CONFIG.columnCount);
-  var deleted = planRepositoryFromRow_(
+  var rowNumber = planRepositoryFindRowNumberById_(sheet, id, config, schema);
+  var targetRange = sheet.getRange(rowNumber, 1, 1, schema.columnCount);
+  var deleted = planRepositoryFromStoredRow_(
     targetRange.getValues()[0],
     targetRange.getDisplayValues()[0],
     config,
-    timeZone
+    timeZone,
+    schema,
+    rowNumber
   );
   sheet.deleteRow(rowNumber);
   return deleted;
 }
 
-function planRepositoryFindRowNumberById_(sheet, id) {
+function planRepositoryFindRowNumberById_(sheet, id, config, schema) {
   var normalizedId = String(id || "");
   if (!normalizedId) throw new Error("Không tìm thấy kế hoạch ID (trống).");
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) throw new Error("Không tìm thấy kế hoạch ID " + normalizedId + ".");
+
+  if (schema && schema.legacy) {
+    var prefix = planRepositoryLegacyIdPrefix_(config);
+    var rowNumber = normalizedId.indexOf(prefix) === 0
+      ? Number(normalizedId.substring(prefix.length))
+      : 0;
+    if (Number.isInteger(rowNumber) && rowNumber >= 2 && rowNumber <= lastRow) return rowNumber;
+    throw new Error("Không tìm thấy kế hoạch ID " + normalizedId + ".");
+  }
 
   var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
   for (var index = 0; index < ids.length; index++) {
@@ -196,6 +228,18 @@ function planRepositoryToRow_(record, config, id, timeZone, createdAt, updatedAt
   ];
 }
 
+function planRepositoryToLegacyRow_(record, config, timeZone, updatedAt, updatedBy) {
+  return [
+    planRepositoryToPeriod_(record.period, config.periodType, timeZone),
+    planRepositoryToText_(record.size),
+    planRepositoryToNumber_(record.inspectionPlan),
+    planRepositoryToNumber_(record.finishedPlan),
+    planRepositoryToText_(record.note),
+    planRepositoryToDateTime_(updatedAt),
+    planRepositoryToText_(updatedBy)
+  ];
+}
+
 function planRepositoryFromRow_(row, displayRow, config, timeZone) {
   return {
     id: planRepositoryToText_(row[0]),
@@ -207,6 +251,30 @@ function planRepositoryFromRow_(row, displayRow, config, timeZone) {
     createdAt: planRepositoryFromDateTime_(row[6], timeZone),
     updatedAt: planRepositoryFromDateTime_(row[7], timeZone)
   };
+}
+
+function planRepositoryFromStoredRow_(row, displayRow, config, timeZone, schema, rowNumber) {
+  if (!schema.legacy) return planRepositoryFromRow_(row, displayRow, config, timeZone);
+
+  var updatedAt = planRepositoryFromDateTime_(row[5], timeZone);
+  return {
+    id: planRepositoryLegacyId_(config, rowNumber),
+    period: planRepositoryFromPeriod_(row[0], displayRow[0], config.periodType, timeZone),
+    size: planRepositoryToText_(row[1]),
+    inspectionPlan: planRepositoryToNumber_(row[2]),
+    finishedPlan: planRepositoryToNumber_(row[3]),
+    note: planRepositoryToText_(row[4]),
+    createdAt: updatedAt,
+    updatedAt: updatedAt
+  };
+}
+
+function planRepositoryLegacyIdPrefix_(config) {
+  return "legacy:" + config.sheetName + ":";
+}
+
+function planRepositoryLegacyId_(config, rowNumber) {
+  return planRepositoryLegacyIdPrefix_(config) + rowNumber;
 }
 
 function planRepositoryToPeriod_(value, periodType, timeZone) {
@@ -240,16 +308,11 @@ function planRepositoryFromPeriod_(value, displayValue, periodType, timeZone) {
     throw new Error("Giá trị thời gian trong Google Sheet không phải Date hợp lệ.");
   }
 
-  var parts = String(displayValue || "").trim().split("/");
-  var canonical;
-  if (periodType === "month" && parts.length === 2) {
-    canonical = String(parts[1]).padStart(4, "0") + "-" + String(parts[0]).padStart(2, "0");
-  } else if (periodType === "day" && parts.length === 3) {
-    canonical = String(parts[2]).padStart(4, "0") + "-" +
-      String(parts[1]).padStart(2, "0") + "-" + String(parts[0]).padStart(2, "0");
-  } else {
-    throw new Error("Định dạng thời gian trong Google Sheet không hợp lệ: " + displayValue + ".");
-  }
+  var canonical = Utilities.formatDate(
+    value,
+    timeZone,
+    periodType === "month" ? "yyyy-MM" : "yyyy-MM-dd"
+  );
 
   planRepositoryToPeriod_(canonical, periodType, timeZone);
   return canonical;
@@ -304,6 +367,14 @@ function planRepositoryValidateHeaders_(sheet, config) {
   var actualHeaders = sheet
     .getRange(1, 1, 1, headerColumnCount)
     .getDisplayValues()[0];
+
+  if (planRepositoryHeadersMatch_(actualHeaders, config.headers)) {
+    return { legacy: false, columnCount: PLAN_REPOSITORY_CONFIG.columnCount };
+  }
+  if (planRepositoryHeadersMatch_(actualHeaders, config.legacyHeaders)) {
+    return { legacy: true, columnCount: PLAN_REPOSITORY_CONFIG.legacyColumnCount };
+  }
+
   var mismatches = [];
 
   for (var index = 0; index < config.headers.length; index++) {
@@ -331,6 +402,16 @@ function planRepositoryValidateHeaders_(sheet, config) {
       ". Cấu trúc yêu cầu: " + config.headers.join(" | ") + "."
     );
   }
+}
+
+function planRepositoryHeadersMatch_(actualHeaders, expectedHeaders) {
+  for (var index = 0; index < expectedHeaders.length; index++) {
+    if (String(actualHeaders[index] || "").trim() !== expectedHeaders[index]) return false;
+  }
+  for (var extraIndex = expectedHeaders.length; extraIndex < actualHeaders.length; extraIndex++) {
+    if (String(actualHeaders[extraIndex] || "").trim()) return false;
+  }
+  return true;
 }
 
 function planRepositorySetupSheets_() {

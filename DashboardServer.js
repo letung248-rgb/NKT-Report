@@ -563,10 +563,10 @@ function debugLatest10Pipes() {
  */
 function getDashboardData() {
   const cachedSnapshot = readDashboardSnapshotCache_();
-  if (cachedSnapshot) return cachedSnapshot;
+  if (cachedSnapshot) return applyDashboardCurrentPlans_(cachedSnapshot);
 
   const durableSnapshot = readDashboardSnapshot_();
-  if (durableSnapshot) return durableSnapshot;
+  if (durableSnapshot) return applyDashboardCurrentPlans_(durableSnapshot);
 
   return {
     success: false,
@@ -577,28 +577,78 @@ function getDashboardData() {
   };
 }
 
-function getDashboardMonthlyPlansBySize_(monthKey) {
-  const plansBySize = {};
+function applyDashboardCurrentPlans_(snapshot) {
+  try {
+    const planStats = snapshot && snapshot.planStats;
+    if (!planStats) return snapshot;
+
+    const validation = validateProductionDashboardV2Plans_(new Date());
+    applyDashboardCurrentPlanRows_(planStats.byDate, validation.daily && validation.daily.currentPlan);
+    applyDashboardCurrentPlanRows_(planStats.byMonth, validation.monthly && validation.monthly.currentPlan);
+
+    const monthlyFinished = (planStats.byMonth || []).filter(row => row && row.metric === "finished")[0];
+    if (monthlyFinished) {
+      planStats.total = {
+        plan: monthlyFinished.plan,
+        actual: monthlyFinished.actual,
+        percent: monthlyFinished.percent
+      };
+    }
+    return snapshot;
+  } catch (error) {
+    Logger.log("Dashboard current plan overlay unavailable: " +
+      (error && error.message ? error.message : error));
+    return snapshot;
+  }
+}
+
+function applyDashboardCurrentPlanRows_(rows, currentPlan) {
+  if (!Array.isArray(rows) || !currentPlan) return;
+  rows.forEach(row => {
+    if (!row || (row.metric !== "checked" && row.metric !== "finished")) return;
+    const plan = row.metric === "checked" ? currentPlan.checkedPlan : currentPlan.finishedPlan;
+    row.plan = Number(plan || 0);
+    row.percent = productionDashboardV2Completion_(Number(row.actual || 0), row.plan);
+  });
+}
+
+function getDashboardPlansBySize_(dayKey, monthKey) {
+  const plans = {
+    daily: {},
+    monthly: {}
+  };
 
   try {
     const response = getPlanModuleData();
+    const dailyRows = response && response.success === true && response.data &&
+      Array.isArray(response.data.daily) ? response.data.daily : [];
     const monthlyRows = response && response.success === true && response.data &&
       Array.isArray(response.data.monthly) ? response.data.monthly : [];
+
+    dailyRows.forEach(function(row) {
+      if (!row || row.thoiGian !== dayKey) return;
+      const size = (row.size || "").toString().trim();
+      if (!size) return;
+      plans.daily[size] = {
+        checked: Number(row.kiemTra || 0),
+        finished: Number(row.thanhPham || 0)
+      };
+    });
 
     monthlyRows.forEach(function(row) {
       if (!row || row.thoiGian !== monthKey) return;
       const size = (row.size || "").toString().trim();
       if (!size) return;
-      plansBySize[size] = {
+      plans.monthly[size] = {
         checked: Number(row.kiemTra || 0),
         finished: Number(row.thanhPham || 0)
       };
     });
   } catch (error) {
-    Logger.log("Dashboard monthly plan unavailable: " + (error && error.message ? error.message : error));
+    Logger.log("Dashboard plan unavailable: " + (error && error.message ? error.message : error));
   }
 
-  return plansBySize;
+  return plans;
 }
 
 function buildDashboardPlanComparisonRow_(name, size, metric, plan, actual, hasPlan) {
@@ -621,18 +671,28 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
   const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
   const projections = pipeObjects.map(projectProductionDashboardV2Pipe_);
   const actualRows = productionDashboardV2SizeBreakdown_(projections, dayKey, monthKey, null);
-  const plansBySize = getDashboardMonthlyPlansBySize_(monthKey);
-  const actualBySize = {};
+  const plans = getDashboardPlansBySize_(dayKey, monthKey);
+  const aggregatePlans = validateProductionDashboardV2Plans_(asOf);
+  const dailyPlansBySize = plans.daily;
+  const monthlyPlansBySize = plans.monthly;
+  const monthlyActualBySize = {};
   const sizeSet = {};
+  let dailyCheckedActualTotal = 0;
+  let dailyFinishedActualTotal = 0;
 
   actualRows.forEach(function(row) {
-    actualBySize[row.size] = row.monthly || {};
+    const dailyActual = row.today || {};
+    dailyCheckedActualTotal += Number(dailyActual.checked || 0);
+    dailyFinishedActualTotal += Number(dailyActual.finished || 0);
+    monthlyActualBySize[row.size] = row.monthly || {};
     sizeSet[row.size] = true;
   });
-  Object.keys(plansBySize).forEach(function(size) { sizeSet[size] = true; });
+  Object.keys(monthlyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
 
   const bySize = [];
   const sizeComparison = [];
+  let dailyCheckedPlanTotal = 0;
+  let dailyFinishedPlanTotal = 0;
   let checkedActualTotal = 0;
   let finishedActualTotal = 0;
   let checkedPlanTotal = 0;
@@ -642,9 +702,9 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
   });
 
   sizes.forEach(function(size) {
-    const actual = actualBySize[size] || {};
-    const hasPlan = Object.prototype.hasOwnProperty.call(plansBySize, size);
-    const plan = hasPlan ? plansBySize[size] : {};
+    const actual = monthlyActualBySize[size] || {};
+    const hasPlan = Object.prototype.hasOwnProperty.call(monthlyPlansBySize, size);
+    const plan = hasPlan ? monthlyPlansBySize[size] : {};
     const checkedActual = Number(actual.checked || 0);
     const finishedActual = Number(actual.finished || 0);
 
@@ -677,8 +737,34 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
     });
   });
 
-  const hasMonthlyPlan = Object.keys(plansBySize).length > 0;
+  Object.keys(dailyPlansBySize).forEach(function(size) {
+    const plan = dailyPlansBySize[size] || {};
+    dailyCheckedPlanTotal += Number(plan.checked || 0);
+    dailyFinishedPlanTotal += Number(plan.finished || 0);
+  });
+
+  let hasDailyPlan = Object.keys(dailyPlansBySize).length > 0;
+  let hasMonthlyPlan = Object.keys(monthlyPlansBySize).length > 0;
+  if (!hasDailyPlan && aggregatePlans.daily && aggregatePlans.daily.currentPlan) {
+    dailyCheckedPlanTotal = Number(aggregatePlans.daily.currentPlan.checkedPlan || 0);
+    dailyFinishedPlanTotal = Number(aggregatePlans.daily.currentPlan.finishedPlan || 0);
+    hasDailyPlan = true;
+  }
+  if (!hasMonthlyPlan && aggregatePlans.monthly && aggregatePlans.monthly.currentPlan) {
+    checkedPlanTotal = Number(aggregatePlans.monthly.currentPlan.checkedPlan || 0);
+    finishedPlanTotal = Number(aggregatePlans.monthly.currentPlan.finishedPlan || 0);
+    hasMonthlyPlan = true;
+  }
+  const dayLabel = dayKey.slice(8, 10) + "/" + dayKey.slice(5, 7) + "/" + dayKey.slice(0, 4);
   const monthLabel = monthKey.slice(5, 7) + "/" + monthKey.slice(0, 4);
+  const dailyChecked = buildDashboardPlanComparisonRow_(
+    dayLabel + " · Kiểm tra", "", "checked",
+    dailyCheckedPlanTotal, dailyCheckedActualTotal, hasDailyPlan
+  );
+  const dailyFinished = buildDashboardPlanComparisonRow_(
+    dayLabel + " · Thành phẩm", "", "finished",
+    dailyFinishedPlanTotal, dailyFinishedActualTotal, hasDailyPlan
+  );
   const monthlyChecked = buildDashboardPlanComparisonRow_(
     monthLabel + " · Kiểm tra", "", "checked",
     checkedPlanTotal, checkedActualTotal, hasMonthlyPlan
@@ -694,7 +780,7 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
       actual: monthlyFinished.actual,
       percent: monthlyFinished.percent
     },
-    byDate: [],
+    byDate: [dailyChecked, dailyFinished],
     byMonth: [monthlyChecked, monthlyFinished],
     bySize: bySize,
     sizeComparison: sizeComparison,
@@ -854,7 +940,7 @@ function buildDashboardDataFresh_() {
         };
     });
     
-    // Kế hoạch tháng từ PlanService; thực tế tái sử dụng projection/aggregation của Dashboard V2.
+    // Kế hoạch ngày/tháng từ PlanService; thực tế tái sử dụng projection/aggregation của Dashboard V2.
     const finalPlanStats = buildDashboardMonthlyPlanStats_(pipeObjects, new Date());
     
     // Calculate Factory Health & Alerts

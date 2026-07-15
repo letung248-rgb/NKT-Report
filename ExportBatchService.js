@@ -2,6 +2,23 @@ const EXPORT_BATCH_XLSX_MIME = 'application/vnd.openxmlformats-officedocument.sp
 const EXPORT_BATCH_LOOKUP_SHEET_FALLBACK = 'SL nhận từ KH';
 const EXPORT_BATCH_HEADER_SCAN_ROWS = 20;
 
+/**
+ * Chạy thủ công trong Apps Script Editor để cấp quyền Drive cho Export.
+ * Tạo rồi đưa file kiểm tra rỗng vào thùng rác để xác nhận quyền ghi.
+ */
+function authorizeDriveForExport() {
+  var rootFolder = DriveApp.getRootFolder();
+  var writeCheckFile = DriveApp.createFile('NKT_EXPORT_AUTH_CHECK.txt', '');
+  var writeCheckFileId = writeCheckFile.getId();
+  writeCheckFile.setTrashed(true);
+
+  return {
+    success: true,
+    rootFolderId: rootFolder.getId(),
+    writeCheckFileId: writeCheckFileId
+  };
+}
+
 const EXPORT_BATCH_REQUIRED_METADATA = [
   { key: 'lsx', label: 'LSX' },
   { key: 'customer', label: 'Khách hàng' },
@@ -23,6 +40,7 @@ function getExportBundleList(filters) {
     const spreadsheet = exportBatchGetSpreadsheet_();
     const metadataIndex = exportBatchReadMetadataIndex_(spreadsheet);
     const reports = exportBatchBuildReports_(buildPipeEngine(), metadataIndex);
+    exportBatchApplyTemplateReadiness_(reports);
     const items = reports
       .filter(report => exportBatchMatchesFilters_(report, normalizedFilters))
       .sort(exportBatchCompareReports_)
@@ -78,10 +96,7 @@ function exportBatchBundleReports(selections) {
     SpreadsheetApp.flush();
 
     const fileName = exportBatchCreateFileName_();
-    const xlsxBlob = DriveApp
-      .getFileById(temporarySpreadsheet.getId())
-      .getAs(EXPORT_BATCH_XLSX_MIME)
-      .setName(fileName);
+    const xlsxBlob = exportBatchDownloadXlsx_(temporarySpreadsheet.getId(), fileName);
 
     outputFile = DriveApp.createFile(xlsxBlob);
     outputFile.setName(fileName);
@@ -110,6 +125,25 @@ function exportBatchBundleReports(selections) {
       error: exportBatchErrorMessage_(error)
     };
   }
+}
+
+function exportBatchDownloadXlsx_(spreadsheetId, fileName) {
+  const response = UrlFetchApp.fetch(
+    'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(spreadsheetId) + '/export?format=xlsx',
+    {
+      headers: {
+        Authorization: 'Bearer ' + ScriptApp.getOAuthToken()
+      },
+      muteHttpExceptions: true
+    }
+  );
+  const responseCode = response.getResponseCode();
+
+  if (responseCode < 200 || responseCode >= 300) {
+    throw new Error('Không thể xuất file XLSX (HTTP ' + responseCode + ').');
+  }
+
+  return response.getBlob().setContentType(EXPORT_BATCH_XLSX_MIME).setName(fileName);
 }
 
 function exportBatchNormalizeFilters_(filters) {
@@ -170,7 +204,8 @@ function exportBatchResolveSelections_(allReports, selections) {
       return;
     }
     if (!report.ready) {
-      issues.push('Mã bó ' + report.bundleCode + ': ' + report.issues.join('; ') + '.');
+      issues.push('Mã bó ' + report.bundleCode + ': ' +
+        (report.blockingIssues || report.issues).join('; ') + '.');
       return;
     }
     reports.push(report);
@@ -224,13 +259,14 @@ function exportBatchBuildReports_(pipes, metadataIndex) {
     const statuses = Object.keys(group.statuses).filter(Boolean);
     const finalStatuses = statuses.filter(status => status === 'THANH_PHAM' || status === 'LOAI');
     const issues = [];
+    const blockingIssues = [];
 
     if (Object.keys(group.bundleVariants).length > 1) {
       issues.push('Mã bó không nhất quán trong dữ liệu Đóng gói');
     }
-    if (group.pipes.length === 0) issues.push('Không có dữ liệu ống trong Mã bó');
+    if (group.pipes.length === 0) blockingIssues.push('Không có dữ liệu ống trong Mã bó');
     if (group.pipes.length > EXPORT_MAX_ROWS) {
-      issues.push('Có ' + group.pipes.length + ' ống, vượt giới hạn ' + EXPORT_MAX_ROWS + ' ống');
+      blockingIssues.push('Có ' + group.pipes.length + ' ống, vượt giới hạn ' + EXPORT_MAX_ROWS + ' ống');
     }
     if (Object.keys(group.packingDates).length === 0) issues.push('Thiếu ngày Đóng gói');
     if (Object.keys(group.packingDates).length > 1) issues.push('Có nhiều ngày Đóng gói');
@@ -239,9 +275,8 @@ function exportBatchBuildReports_(pipes, metadataIndex) {
     } else if (statuses.length > 1) {
       issues.push('Mã bó có trạng thái hiện tại không đồng nhất');
     }
-    if (finalStatuses.length === 0) return null;
-
     const hasSingleFinalStatus = finalStatuses.length === 1 && statuses.length === 1;
+    if (!hasSingleFinalStatus) blockingIssues.push('Không xác định được loại biên bản');
     const businessStatus = hasSingleFinalStatus ? finalStatuses[0] : 'INVALID';
     const report = {
       bundleCode: group.bundleCode,
@@ -251,6 +286,7 @@ function exportBatchBuildReports_(pipes, metadataIndex) {
       packingDate: Object.keys(group.packingDates)[0] || '',
       packingDateValue: group.packingDateValue,
       issues: issues,
+      blockingIssues: blockingIssues,
       metadataIssues: []
     };
 
@@ -258,7 +294,7 @@ function exportBatchBuildReports_(pipes, metadataIndex) {
     if (hasSingleFinalStatus) {
       report.metadataIssues = exportBatchMissingMetadata_(report.metadata);
     }
-    report.ready = report.issues.length === 0;
+    report.ready = report.blockingIssues.length === 0;
     return report;
   }).filter(Boolean);
 }
@@ -344,6 +380,7 @@ function exportBatchToListItem_(report) {
   const isFinished = report.businessStatus === 'THANH_PHAM';
   const isRejected = report.businessStatus === 'LOAI';
   const metadataIssues = report.metadataIssues || [];
+  const blockingIssues = report.blockingIssues || [];
   const hasDataError = !report.ready;
 
   return {
@@ -357,9 +394,30 @@ function exportBatchToListItem_(report) {
     ready: report.ready,
     status: hasDataError ? 'LOI' : metadataIssues.length > 0 ? 'THIEU_THONG_TIN' : 'CHO_XUAT',
     statusLabel: hasDataError ? 'Không thể xuất' : metadataIssues.length > 0 ? 'Thiếu thông tin' : 'Chờ xuất',
-    issues: report.issues.concat(metadataIssues),
+    issues: blockingIssues.concat(report.issues, metadataIssues),
     metadataIssues: metadataIssues.slice()
   };
+}
+
+function exportBatchApplyTemplateReadiness_(reports) {
+  const templateErrors = {};
+
+  (reports || []).forEach(report => {
+    if (!report.ready || templateErrors[report.businessStatus] !== undefined) return;
+    try {
+      exportBatchOpenTemplate_(report.businessStatus);
+      templateErrors[report.businessStatus] = '';
+    } catch (error) {
+      templateErrors[report.businessStatus] = 'Template lỗi: ' + exportBatchErrorMessage_(error);
+    }
+  });
+
+  (reports || []).forEach(report => {
+    const templateError = templateErrors[report.businessStatus];
+    if (!templateError) return;
+    report.blockingIssues.push(templateError);
+    report.ready = false;
+  });
 }
 
 function exportBatchLoadTemplates_(reports) {
@@ -370,19 +428,8 @@ function exportBatchLoadTemplates_(reports) {
     const businessStatus = report.businessStatus;
     if (templates[businessStatus]) return;
 
-    const config = EXPORT_TEMPLATE_CONFIG[businessStatus];
-    if (!config || !config.templateId || config.templateId.indexOf('PASTE_') === 0) {
-      errors.push('Không có cấu hình template cho ' + report.bundleCode + '.');
-      return;
-    }
-
     try {
-      const template = SpreadsheetApp.openById(config.templateId);
-      if (!template.getSheetByName(config.sheetName)) {
-        errors.push('Không tìm thấy sheet template ' + config.sheetName + ' cho Mã bó ' + report.bundleCode + '.');
-        return;
-      }
-      templates[businessStatus] = template;
+      templates[businessStatus] = exportBatchOpenTemplate_(businessStatus);
     } catch (error) {
       errors.push('Không thể mở template cho Mã bó ' + report.bundleCode + ': ' + exportBatchErrorMessage_(error));
     }
@@ -390,6 +437,19 @@ function exportBatchLoadTemplates_(reports) {
 
   if (errors.length > 0) throw new Error(errors.join('\n'));
   return templates;
+}
+
+function exportBatchOpenTemplate_(businessStatus) {
+  const config = EXPORT_TEMPLATE_CONFIG[businessStatus];
+  if (!config || !config.templateId || config.templateId.indexOf('PASTE_') === 0) {
+    throw new Error('Không có cấu hình template.');
+  }
+
+  const template = SpreadsheetApp.openById(config.templateId);
+  if (!template.getSheetByName(config.sheetName)) {
+    throw new Error('Không tìm thấy sheet template ' + config.sheetName + '.');
+  }
+  return template;
 }
 
 function exportBatchWriteReport_(sheet, report, config) {

@@ -7,9 +7,7 @@ function getPlanModuleData() {
     var repositoryData = planRepositoryReadAll_();
     var monthly = planServiceMapRows_(repositoryData.monthly, "thang");
     var daily = planServiceMapRows_(repositoryData.daily, "ngay");
-    var sizeCatalog = getActiveSizeCatalog();
-    var sizes = sizeCatalog && sizeCatalog.success === true && sizeCatalog.data &&
-      Array.isArray(sizeCatalog.data.sizes) ? sizeCatalog.data.sizes : [];
+    var sizes = planServiceGetActiveSizes_();
 
     return {
       success: true,
@@ -42,7 +40,7 @@ function createPlan(request) {
       ? [planServiceValidateMonth_(input.thang || input.thoiGian)]
       : planServiceValidateDailyRange_(input.tuNgay, input.denNgay);
 
-    return planServiceWithWriteLock_(function() {
+    var result = planServiceWithWriteLock_(function() {
       var existing = planServiceListRepositoryByType_(type);
       var conflicts = planServiceFindDuplicatePeriods_(existing, periods, common.size, type, "");
 
@@ -73,6 +71,8 @@ function createPlan(request) {
         }
       };
     });
+    planServiceRefreshDashboardSnapshot_();
+    return result;
   } catch (error) {
     planServiceThrowOperationError_("createPlan", "Không thể tạo kế hoạch", error);
   }
@@ -88,7 +88,7 @@ function updatePlan(request) {
       ? planServiceValidateMonth_(input.thoiGian || input.thang)
       : planServiceValidateSingleDay_(input.thoiGian || input.ngay);
 
-    return planServiceWithWriteLock_(function() {
+    var result = planServiceWithWriteLock_(function() {
       var existing = planServiceListRepositoryByType_(type);
       var current = existing.find(function(record) {
         return String(record.id || "") === id;
@@ -116,6 +116,8 @@ function updatePlan(request) {
         }
       };
     });
+    planServiceRefreshDashboardSnapshot_();
+    return result;
   } catch (error) {
     planServiceThrowOperationError_("updatePlan", "Không thể cập nhật kế hoạch", error);
   }
@@ -127,7 +129,7 @@ function deletePlan(request) {
     var type = planServiceValidateType_(input.loai);
     var id = planServiceRequiredText_(input.id, "ID kế hoạch");
 
-    return planServiceWithWriteLock_(function() {
+    var result = planServiceWithWriteLock_(function() {
       var deleted = planServiceDeleteRepositoryByType_(type, id);
       return {
         success: true,
@@ -136,6 +138,8 @@ function deletePlan(request) {
         }
       };
     });
+    planServiceRefreshDashboardSnapshot_();
+    return result;
   } catch (error) {
     planServiceThrowOperationError_("deletePlan", "Không thể xóa kế hoạch", error);
   }
@@ -189,10 +193,7 @@ function planServiceValidateCommonInput_(input) {
 
 function planServiceRequireActiveSize_(value) {
   var requested = planServiceRequiredText_(value, "Size");
-  var result = getActiveSizeCatalog();
-  var sizes = result && result.success === true && result.data && Array.isArray(result.data.sizes)
-    ? result.data.sizes
-    : [];
+  var sizes = planServiceGetActiveSizes_();
   var normalized = requested.toLocaleLowerCase("vi");
 
   for (var index = 0; index < sizes.length; index++) {
@@ -201,6 +202,38 @@ function planServiceRequireActiveSize_(value) {
   }
 
   throw new Error("Size không tồn tại hoặc không hoạt động: " + requested + ".");
+}
+
+/**
+ * Planning chỉ dùng danh mục Size chuẩn DANH_MUC_SIZE.
+ */
+function planServiceGetActiveSizes_() {
+  var catalog = getActiveSizeCatalog();
+  var catalogSizes = catalog && catalog.success === true && catalog.data &&
+    Array.isArray(catalog.data.sizes) ? catalog.data.sizes : [];
+  catalogSizes = planServiceUniqueSizes_(catalogSizes);
+
+  if (!catalogSizes.length) {
+    throw new Error("Danh mục Size DANH_MUC_SIZE chưa có Size đang hoạt động.");
+  }
+
+  return catalogSizes;
+}
+
+function planServiceUniqueSizes_(values) {
+  var seen = {};
+  var sizes = [];
+
+  (Array.isArray(values) ? values : []).forEach(function(value) {
+    var size = value === null || value === undefined ? "" : String(value).trim();
+    if (!size) return;
+    var key = size.toLocaleLowerCase("vi");
+    if (seen[key]) return;
+    seen[key] = true;
+    sizes.push(size);
+  });
+
+  return sizes;
 }
 
 function planServiceValidateNonNegativeNumber_(value, fieldName) {
@@ -321,6 +354,18 @@ function planServiceWithWriteLock_(callback) {
     return callback();
   } finally {
     lock.releaseLock();
+  }
+}
+
+function planServiceRefreshDashboardSnapshot_() {
+  try {
+    var result = refreshDashboardSnapshot_();
+    if (!result || result.success !== true) {
+      Logger.log("Planning dashboard snapshot rebuild failed: " + JSON.stringify(result));
+    }
+  } catch (error) {
+    Logger.log("Planning dashboard snapshot rebuild error: " +
+      (error && error.message ? error.message : String(error)));
   }
 }
 

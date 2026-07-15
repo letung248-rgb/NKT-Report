@@ -2,10 +2,14 @@
 
 ## Trang thai hien tai
 
+- Sprint 11A Patch Rescue: **CLOSED**. DEV review dung `/dev`; Production dung `/exec`.
 - Sprint 10A Dashboard: **PASS va da khoa**.
 - Sprint 11A Export bien ban theo Ma bo: **PASS**.
 - Module export: `?view=xuat-bao-cao`.
 - Git source da bao gom dieu chinh preflight cuoi: metadata thieu la canh bao, khong phai loi chan xuat.
+- Planning Size source la `DANH_MUC_SIZE`; khong fallback am tham sang `pipe.size`.
+- Neu doi Drive scope/API, chay `authorizeDriveForExport` trong Apps Script Editor.
+- Export XLSX dung spreadsheet export endpoint, khong dung `getAs(XLSX)`.
 
 ## Kien truc da khoa
 

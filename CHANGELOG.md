@@ -1,5 +1,12 @@
 # Changelog
 
+## Sprint 11A Patch Rescue - CLOSED - 2026-07-16
+
+- Fix Planning Size source bang `DANH_MUC_SIZE` va bo fallback am tham sang `pipe.size`.
+- Fix Planning date parsing ve ISO `yyyy-MM-dd`.
+- Fix Export Drive API/OAuth/createFile va XLSX export conversion.
+- Metadata thieu van cho phep chon va xuat Excel.
+
 ## Sprint 11A - Export bien ban theo Ma bo - 2026-07-15
 
 ### Hoan thanh
