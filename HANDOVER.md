@@ -3,6 +3,8 @@
 ## Trang thai hien tai
 
 - Sprint 11A Patch Rescue: **CLOSED**. DEV review dung `/dev`; Production dung `/exec`.
+- Production hien dang chay Apps Script version `49`.
+- Production navigation: **PASS**.
 - Sprint 10A Dashboard: **PASS va da khoa**.
 - Sprint 11A Export bien ban theo Ma bo: **PASS**.
 - Module export: `?view=xuat-bao-cao`.
@@ -10,6 +12,12 @@
 - Planning Size source la `DANH_MUC_SIZE`; khong fallback am tham sang `pipe.size`.
 - Neu doi Drive scope/API, chay `authorizeDriveForExport` trong Apps Script Editor.
 - Export XLSX dung spreadsheet export endpoint, khong dung `getAs(XLSX)`.
+
+## Route chinh Production
+
+- `/exec`
+- `/exec?view=ke-hoach`
+- `/exec?view=xuat-bao-cao`
 
 ## Kien truc da khoa
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Production version 49 - Navigation Patch - 2026-07-16
+
+- Production hien dang chay Apps Script version `49`.
+- Fix Planning back navigation: them nut `Về Tổng quan` tro ve `?view=dashboard`.
+- Production navigation: **PASS**; Export navigation khong bi anh huong.
+
 ## Sprint 11A Patch Rescue - CLOSED - 2026-07-16
 
 - Fix Planning Size source bang `DANH_MUC_SIZE` va bo fallback am tham sang `pipe.size`.
