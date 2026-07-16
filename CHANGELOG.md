@@ -1,5 +1,12 @@
 # Changelog
 
+## Sprint 12 Regression Smoke Test - CLOSED - 2026-07-16
+
+- Sprint 12 Regression Smoke Test hoan thanh tren DEV.
+- `runSprint12RegressionSmokeTest`: **PASS 6/6**.
+- Side effects: `0` (`sheetWrites`, `dashboardRefreshes`, `driveFilesCreated`, `temporaryFilesCreated`, `filesTrashed`, `filesRemaining`).
+- Production khong thay doi; van dang chay Apps Script version `49`.
+
 ## Production version 49 - Navigation Patch - 2026-07-16
 
 - Production hien dang chay Apps Script version `49`.

@@ -3,10 +3,13 @@
 ## Trang thai hien tai
 
 - Sprint 11A Patch Rescue: **CLOSED**. DEV review dung `/dev`; Production dung `/exec`.
+- Sprint 12 Regression Smoke Test: **CLOSED**; PM da xac nhan PASS.
 - Production hien dang chay Apps Script version `49`.
+- Sprint 12 khong deploy va khong tao Apps Script version moi; Production van la Apps Script version `49`.
 - Production navigation: **PASS**.
 - Sprint 10A Dashboard: **PASS va da khoa**.
 - Sprint 11A Export bien ban theo Ma bo: **PASS**.
+- Regression smoke test: `runSprint12RegressionSmokeTest` da xac nhan **PASS 6/6**, `failed: 0`, side effects `0`.
 - Module export: `?view=xuat-bao-cao`.
 - Git source da bao gom dieu chinh preflight cuoi: metadata thieu la canh bao, khong phai loi chan xuat.
 - Planning Size source la `DANH_MUC_SIZE`; khong fallback am tham sang `pipe.size`.
@@ -41,4 +44,4 @@
 - Route hien co, Planning CRUD, Export Sprint 9, Business Key Ma bo.
 - `buildPipeEngine`, `currentBusinessStatus`, Apps Script data flow va Google Sheet schema.
 - Quy tac 40 dong, mapping chinh, output XLSX nhieu sheet.
-- Khong mo Sprint 12, khong them PDF/ZIP hay mo rong chuc nang trong handover nay.
+- Sprint 12 da dong o Regression Smoke Test Layer; khong mo Sprint moi, khong them PDF/ZIP hay mo rong chuc nang trong handover nay.
