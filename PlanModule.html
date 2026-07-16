@@ -62,6 +62,7 @@
     h1 { font-size: 24px; line-height: 1.25; letter-spacing: -0.015em; }
     h2 { font-size: 18px; }
     .mo-ta { margin-top: 4px; color: var(--mau-chu-phu); font-size: 13px; }
+    .hanh-dong-dau-trang { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .nut {
       min-height: 40px;
       border: 1px solid transparent;
@@ -78,6 +79,7 @@
     .nut-chinh:hover { background: var(--mau-chinh-dam); box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18); }
     .nut-phu { background: var(--mau-card); border-color: var(--mau-vien); color: #374151; }
     .nut-phu:hover { background: #f9fafb; border-color: #9ca3af; }
+    .lien-ket-quay-lai { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; white-space: nowrap; }
     .nut-nguy-hiem { background: var(--mau-nguy-hiem); color: #fff; }
     .nut-nguy-hiem:hover { background: #991b1b; }
     .nut-them { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; padding-inline: 16px; white-space: nowrap; }
@@ -316,10 +318,13 @@
         <h1>KẾ HOẠCH SẢN XUẤT</h1>
         <p class="mo-ta">Quản lý kế hoạch kiểm tra và thành phẩm theo tháng hoặc theo ngày.</p>
       </div>
-      <button class="nut nut-chinh nut-them quyen-them" id="nut-them-ke-hoach" type="button">
-        <span class="dau-cong" aria-hidden="true">+</span>
-        LẬP KẾ HOẠCH
-      </button>
+      <div class="hanh-dong-dau-trang">
+        <a class="nut nut-phu lien-ket-quay-lai" href="?view=dashboard">Về Tổng quan</a>
+        <button class="nut nut-chinh nut-them quyen-them" id="nut-them-ke-hoach" type="button">
+          <span class="dau-cong" aria-hidden="true">+</span>
+          LẬP KẾ HOẠCH
+        </button>
+      </div>
     </header>
 
     <nav class="khung thanh-tab" aria-label="Loại kế hoạch">
