@@ -1,5 +1,14 @@
 # Changelog
 
+## NKT Management System v1.0.0 - Release Candidate Approved - 2026-07-16
+
+- PM da xac nhan Regression Release Candidate **PASS**.
+- `runSprint12RegressionSmokeTest`: **PASS 6/6**, `failed: 0`, side effects `0`.
+- `runSprint13BPlanningRegression`: **PASS 4/4**, `failed: 0`, side effects `0`.
+- Sprint 13B: harden Planning canonical source cho `KẾ_HOẠCH_THÁNG`, `KẾ_HOẠCH_NGÀY`, `DANH_MỤC_SIZE`.
+- Sprint 13C/13D: Dashboard Production va UI Polish hoan thanh, giu nguyen nghiep vu/KPI/Planning.
+- Release v1.0.0 duoc phe duyet de tao Apps Script Version moi va deploy Production.
+
 ## Sprint 12 Regression Smoke Test - CLOSED - 2026-07-16
 
 - Sprint 12 Regression Smoke Test hoan thanh tren DEV.

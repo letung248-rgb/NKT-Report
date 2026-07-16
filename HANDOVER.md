@@ -2,9 +2,13 @@
 
 ## Trang thai hien tai
 
+- NKT Management System v1.0.0: **Release Candidate PASS va duoc PM phe duyet Production release**.
+- `runSprint12RegressionSmokeTest`: **PASS 6/6**, `failed: 0`, side effects `0`.
+- `runSprint13BPlanningRegression`: **PASS 4/4**, `failed: 0`, side effects `0`.
+- Release flow v1.0.0: commit/push GitHub main, tao Apps Script Version `NKT Management System v1.0.0`, deploy Production dung version moi.
 - Sprint 11A Patch Rescue: **CLOSED**. DEV review dung `/dev`; Production dung `/exec`.
 - Sprint 12 Regression Smoke Test: **CLOSED**; PM da xac nhan PASS.
-- Production hien dang chay Apps Script version `49`.
+- Production truoc release v1.0.0 dang chay Apps Script version `49`.
 - Sprint 12 khong deploy va khong tao Apps Script version moi; Production van la Apps Script version `49`.
 - Production navigation: **PASS**.
 - Sprint 10A Dashboard: **PASS va da khoa**.

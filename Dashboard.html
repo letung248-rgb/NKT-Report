@@ -31,7 +31,7 @@
             --space-10: 2.5rem;
             --radius-control: 0.5rem;
             --radius-card: 0.75rem;
-            
+
             --sidebar-bg: #1e3a5f;
             --sidebar-hover: #294c75;
             --sidebar-active: #2d5b8c;
@@ -46,27 +46,27 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI Variable Text", "Segoe UI", Arial, sans-serif; }
         body { background-color: var(--bg-base); color: var(--text-primary); display: flex; height: 100vh; overflow: hidden; }
-        
+
         /* Layout */
         .sidebar { width: var(--sidebar-width); background-color: var(--sidebar-bg); border-right: 1px solid var(--sidebar-border); display: flex; flex-direction: column; }
         .sidebar-header { height: var(--header-height); display: flex; flex-direction: column; justify-content: center; padding: 0 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.14); background: var(--sidebar-bg); }
         .sidebar-title { font-weight: 700; font-size: 0.86rem !important; color: var(--sidebar-text); display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; letter-spacing: 0; }
         .sidebar-subtitle { font-size: 0.75rem; color: var(--sidebar-text-muted); margin-left: 1.75rem; }
-        
+
         .sidebar-menu { flex: 1; overflow-y: auto; padding: 1.5rem 0; display: flex; flex-direction: column; gap: 0.25rem; }
         .menu-item { display: flex; align-items: center; padding: 0.875rem 1.5rem; color: var(--sidebar-text-muted); text-decoration: none; gap: 1rem; cursor: pointer; transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease; font-weight: 500; border-left: 3px solid transparent; }
         .menu-item:hover:not(.disabled) { background-color: var(--sidebar-hover); color: var(--sidebar-text); }
         .menu-item.active { background-color: var(--sidebar-active); color: var(--sidebar-text); border-left-color: var(--accent-primary); font-weight: 600; }
         .menu-item.active i { color: #60a5fa; }
         .menu-item.disabled { opacity: 0.5; cursor: not-allowed; }
-        
+
         .main-wrapper { min-width: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         .header { z-index: 2; height: var(--header-height); background-color: var(--bg-surface); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; box-shadow: 0 1px 2px rgb(16 24 40 / 0.03); }
         .header > div { min-width: 0; }
         .header > div:last-child { flex-wrap: wrap; }
         .header #factoryHealth { display: none !important; }
         .main-content { flex: 1; padding: 1.75rem 2rem 2.5rem; overflow-y: auto; position: relative; }
-        
+
         /* Loading */
         #loader { position: absolute; inset: 0; background: rgba(255,255,255,0.8); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: var(--text-primary); }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: var(--accent-primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
@@ -90,7 +90,7 @@
         .kpi-icon.text-warning { background: rgb(217 119 6 / 0.1); }
         .kpi-icon.text-danger { background: rgb(220 38 38 / 0.1); }
         .kpi-icon.text-purple { background: rgb(124 58 237 / 0.1); }
-        
+
         /* Colors */
         .text-success { color: var(--accent-success); }
         .text-danger { color: var(--accent-danger); }
@@ -119,7 +119,7 @@
         .badge.hong { background: rgb(220 38 38 / 0.1); border-color: rgb(220 38 38 / 0.18); color: var(--accent-danger); }
         .badge.cs { background: rgb(217 119 6 / 0.1); border-color: rgb(217 119 6 / 0.18); color: var(--accent-warning); }
         .badge.dxl { background: rgb(37 99 235 / 0.1); border-color: rgb(37 99 235 / 0.18); color: var(--accent-primary); }
-        
+
         .kpi-card.clickable { cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
         .kpi-card.clickable:hover { transform: translateY(-2px); box-shadow: var(--card-shadow-hover); border-color: rgb(37 99 235 / 0.35); }
         #view-dashboard > .card, #view-dashboard > .charts-grid, #view-dashboard .kpi-card { animation: dashboardFadeIn 0.35s ease-out both; }
@@ -252,6 +252,8 @@
         .production-kpi-view .production-kpi-bad { color: var(--accent-danger); font-weight: 700; }
         .production-kpi-view .production-kpi-message-list { margin: 0.4rem 0 0; padding-left: 1.25rem; }
         .production-kpi-view .production-kpi-empty { color: var(--text-secondary); font-style: italic; }
+
+
         @media (max-width: 1500px) {
             .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
@@ -444,10 +446,68 @@
         .export-command .daily-toolbar { flex: 1; margin: 0; }
         .plan-table-cache { display: none !important; }
 
+        .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+        #view-dashboard { max-width: 1840px; }
+        #view-dashboard > * { animation: none !important; }
+        #view-dashboard > * + * { margin-top: 1.35rem; }
+        #view-dashboard .card { border: 1px solid #d7deea; border-radius: 14px; background: #ffffff; box-shadow: 0 10px 28px rgb(16 24 40 / 0.08); transition: none !important; }
+        #view-dashboard .card:hover, #view-dashboard > .card:hover { transform: none !important; box-shadow: 0 10px 28px rgb(16 24 40 / 0.08); }
+        .production-command-grid { grid-template-columns: 1.05fr 0.92fr 0.92fr 1fr 1.12fr; }
+        .command-center { padding: 1.35rem 1.6rem; border-color: #c8d7ee; background: #f6f9ff; box-shadow: 0 10px 26px rgb(37 99 235 / 0.09); }
+        .command-center-header { align-items: center; margin-bottom: 1rem; }
+        .command-center-title { font-size: 1.2rem; }
+        .command-center-actions { display: inline-flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; justify-content: flex-end; }
+        .command-plan-cta { height: 36px; padding: 0 0.9rem; display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid #b8c7dd; border-radius: 10px; background: #ffffff; color: #1d4ed8; text-decoration: none; font-size: 0.78rem; font-weight: 750; box-shadow: 0 1px 2px rgb(16 24 40 / 0.06); }
+        .command-plan-cta i { font-size: 1rem; }
+        .factory-state-metric .command-metric-value { max-width: 100%; font-size: clamp(1.55rem, 2.05vw, 2.35rem); letter-spacing: 0; overflow-wrap: anywhere; }
+        .command-metric-label { font-size: 0.72rem; letter-spacing: 0; }
+        .command-metric-value { font-size: 1.05rem; line-height: 1.22; }
+        .command-metric-note { font-size: 0.72rem; }
+        .production-kpi-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.35rem; }
+        .production-kpi-panel { position: relative; min-width: 0; min-height: 230px; padding: 1.65rem 1.85rem; border: 1px solid #cbd5e1; border-radius: 16px; background: #ffffff; box-shadow: 0 10px 28px rgb(16 24 40 / 0.09); transition: none !important; }
+        .production-kpi-panel::before { content: ''; position: absolute; inset: 0 0 auto; height: 4px; border-radius: 16px 16px 0 0; background: #2563eb; }
+        #finishedKpiPanel::before { background: #059669; }
+        .production-kpi-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
+        .production-kpi-panel .section-kicker { font-size: 0.8rem; letter-spacing: 0; }
+        .production-kpi-main { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.05rem; }
+        .production-kpi-percent { color: var(--text-primary); font-size: clamp(5.3rem, 6.8vw, 8rem); line-height: 0.82; font-weight: 850; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+        .production-kpi-period { color: var(--text-secondary); font-size: 0.92rem; font-weight: 750; white-space: nowrap; }
+        .production-kpi-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid #d7deea; border-radius: 12px; background: #d7deea; }
+        .production-kpi-metrics span { min-width: 0; padding: 0.82rem 0.95rem; background: #f8fafc; color: #667085; font-size: 0.72rem; font-weight: 750; text-transform: uppercase; }
+        .production-kpi-metrics strong { display: block; margin-top: 0.28rem; color: #172033; font-size: 1.34rem; line-height: 1; font-weight: 850; font-variant-numeric: tabular-nums; text-transform: none; }
+        .planning-progress { height: 9px; margin-top: 0.9rem; background: #e8edf5; }
+        .planning-progress-bar { transition: none !important; }
+        .dashboard-grid-main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(420px, 0.72fr); gap: 1.35rem; align-items: stretch; }
+        .production-chart { height: 350px; }
+        .insight-panel { min-width: 0; }
+        .insight-stack { display: grid; gap: 1rem; }
+        .insight-tile { padding: 1.15rem 1.2rem; border: 1px solid #d7deea; border-radius: 12px; background: #f8fafc; }
+        .insight-tile span { display: block; color: #667085; font-size: 0.76rem; font-weight: 750; text-transform: uppercase; }
+        .insight-tile strong { display: block; margin-top: 0.42rem; color: #172033; font-size: 1.35rem; line-height: 1.25; font-weight: 850; }
+        .insight-tile em { display: block; margin-top: 0.4rem; color: #667085; font-style: normal; font-size: 0.88rem; line-height: 1.35; }
+        .plan-size-card { padding: 1.55rem; }
+        .plan-size-chart { height: 400px; margin-bottom: 1rem; }
+        .plan-size-table-shell { margin-top: 1.1rem; max-height: 430px; border-color: #d7deea; border-radius: 12px; }
+        .plan-size-table-shell table { min-width: 980px; border-collapse: separate; border-spacing: 0; }
+        .plan-size-table-shell thead th { top: 0; z-index: 2; height: 48px; background: #eef3fb; color: #344054; font-size: 0.76rem; letter-spacing: 0; text-transform: uppercase; }
+        .plan-size-table-shell tbody tr:nth-child(even) td { background: #f9fbff; }
+        .plan-size-table-shell tbody tr:hover td { background: #eef6ff; }
+        .plan-size-table-shell td { height: 54px; border-bottom: 1px solid #e6ebf2; color: #263244; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+        .plan-size-table-shell td, .plan-size-table-shell th { text-align: right; padding: 0.85rem 1rem; }
+        .plan-size-table-shell td:first-child, .plan-size-table-shell th:first-child { text-align: left; font-weight: 800; }
+        .alert-card { border-radius: 12px; }
+        .dashboard-footer { min-height: 30px; padding: 0.15rem 0.25rem 0; display: flex; align-items: center; justify-content: flex-end; gap: 0.85rem; color: #667085; font-size: 0.72rem; font-weight: 650; }
+        .dashboard-footer span { display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; }
+        .dashboard-footer strong { color: #344054; font-weight: 750; }
+        .dashboard-hidden-cache { display: none !important; }
+
+
+
         @media (max-width: 1500px) {
             .kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
             .header-search { width: 190px; }
             .command-center-grid { grid-template-columns: 0.85fr 0.95fr 1.15fr 1.8fr 1fr; }
+            .production-command-grid { grid-template-columns: 1.1fr 0.9fr 0.9fr 1.05fr 1.1fr; }
             .command-metric { padding: 0 0.8rem; }
         }
         @media (max-width: 1180px) {
@@ -464,6 +524,7 @@
             .command-metric { padding: 0 0.65rem; }
             .command-metric-value.primary { font-size: 2rem; }
             .support-grid { grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr); }
+            .dashboard-grid-main { grid-template-columns: minmax(0, 1fr); }
         }
         @media (max-width: 980px) {
             .header-identity { min-width: 220px; }
@@ -474,7 +535,7 @@
             .command-metric:nth-child(odd) { padding-left: 0; border-left: 0; }
             .command-metric:last-child { grid-column: 1 / -1; padding-left: 0; border-left: 0; }
             .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-            .planning-periods, .support-grid, .process-layout { grid-template-columns: minmax(0, 1fr); }
+            .planning-periods, .support-grid, .process-layout, .production-kpi-panels, .dashboard-grid-main { grid-template-columns: minmax(0, 1fr); }
             .planning-periods { gap: 1px; }
             .plan-size-chart { height: 360px; }
         }
@@ -560,61 +621,86 @@
                 <div class="spinner"></div>
                 <div>Đang tải dữ liệu...</div>
             </div>
-            
+
             <div id="errorAlert" class="alert"></div>
 
             <section id="view-dashboard" style="display: none;">
                 <section class="command-center" aria-labelledby="commandCenterTitle">
                     <div class="command-center-header">
                         <div>
-                            <span class="command-center-kicker">Tổng quan điều hành</span>
-                            <h2 class="command-center-title" id="commandCenterTitle">Trung tâm điều hành sản xuất</h2>
+                            <span class="command-center-kicker">Dashboard sản xuất</span>
+                            <h2 class="command-center-title" id="commandCenterTitle">NKT Management System</h2>
                         </div>
-                        <span class="command-center-status">Ảnh chụp dữ liệu: <span id="dashboardHealthSnapshot" class="health-error">Chưa cập nhật</span></span>
+                        <div class="command-center-actions">
+                            <span class="command-center-status">Ảnh chụp dữ liệu: <span id="dashboardHealthSnapshot" class="health-error">Chưa cập nhật</span></span>
+                            <a class="command-plan-cta" href="?view=ke-hoach" target="_top"><i class="ph ph-calendar-plus"></i><span>Lập kế hoạch hôm nay</span></a>
+                        </div>
                     </div>
-                    <div class="command-center-grid">
+                    <div class="command-center-grid production-command-grid">
+                        <div class="command-metric factory-state-metric">
+                            <span class="command-metric-label">Trạng thái xưởng</span>
+                            <strong class="command-metric-value primary" id="factoryStateText">--</strong>
+                            <span class="command-metric-note" id="factoryStateNote">Theo KPI hôm nay</span>
+                        </div>
                         <div class="command-metric">
-                            <span class="command-metric-label">Đạt KH hôm nay</span>
-                            <strong class="command-metric-value primary" id="commandTodayPercent">--</strong>
+                            <span class="command-metric-label">KPI thấp nhất</span>
+                            <strong class="command-metric-value" id="commandTodayPercent">--</strong>
                             <span class="command-metric-note" id="commandTodayPlan">Chưa có kế hoạch</span>
                         </div>
                         <div class="command-metric">
-                            <span class="command-metric-label">Thiếu / Vượt</span>
+                            <span class="command-metric-label">Thiếu / Dư</span>
                             <strong class="command-metric-value" id="commandTodayGap">--</strong>
-                            <span class="command-metric-note">So với KH ngày</span>
+                            <span class="command-metric-note">So với kế hoạch ngày</span>
                         </div>
                         <div class="command-metric">
-                            <span class="command-metric-label">Size chậm nhất</span>
+                            <span class="command-metric-label">Size cần chú ý</span>
                             <strong class="command-metric-value" id="commandSlowestSize">--</strong>
                             <span class="command-metric-note" id="commandSlowestSizeNote">Chưa đủ dữ liệu</span>
                         </div>
                         <div class="command-metric">
-                            <span class="command-metric-label">Cảnh báo ưu tiên</span>
-                            <strong class="command-metric-value" id="commandPrimaryAlert">Không có cảnh báo trọng yếu</strong>
-                            <span class="command-metric-note">Theo thứ tự cảnh báo hiện có</span>
-                        </div>
-                        <div class="command-metric">
-                            <span class="command-metric-label">Cập nhật gần nhất</span>
-                            <strong class="command-metric-value" id="queueLastSync">Chưa cập nhật</strong>
+                            <span class="command-metric-label">Last update</span>
+                            <strong class="command-metric-value" id="queueLastSync">--</strong>
                             <span class="command-metric-note" id="dashboardHealthUpdated">KPI cập nhật: --</span>
-                            <span class="command-metric-note">Ảnh chụp dữ liệu: <strong id="dashboardHealthTotal">0</strong> ống</span>
+                            <span class="command-metric-note">Tổng: <strong id="dashboardHealthTotal">0</strong> ống</span>
                         </div>
                     </div>
                 </section>
 
-                <section aria-labelledby="operationalKpiTitle">
-                    <div class="kpi-section-header">
-                        <h2 class="kpi-section-title" id="operationalKpiTitle">Trạng thái vận hành</h2>
-                        <span class="kpi-section-meta">Sáu chỉ số chính trong ảnh chụp dữ liệu hiện tại</span>
-                    </div>
-                    <div class="kpi-grid">
-                        <div class="kpi-card with-icon"><i class="ph ph-stack kpi-icon text-primary" aria-hidden="true"></i><span class="kpi-title">Tổng số ống</span><span class="kpi-value text-primary" id="kpi-tong">0</span><span class="kpi-meta">Toàn bộ ảnh chụp dữ liệu</span></div>
-                        <div class="kpi-card with-icon clickable" onclick="loadDashboardPipeList('tp')"><i class="ph ph-check-circle kpi-icon text-success" aria-hidden="true"></i><span class="kpi-title">Thành phẩm</span><span class="kpi-value text-success" id="kpi-tp">0</span><span class="kpi-meta">Sẵn sàng bàn giao</span></div>
-                        <div class="kpi-card with-icon clickable" onclick="loadDashboardPipeList('cs')"><i class="ph ph-wrench kpi-icon text-warning" aria-hidden="true"></i><span class="kpi-title">Chờ sửa</span><span class="kpi-value text-warning" id="kpi-cs">0</span><span class="kpi-meta">Cần xử lý lại</span></div>
-                        <div class="kpi-card with-icon clickable" onclick="loadDashboardPipeList('hong')"><i class="ph ph-x-circle kpi-icon text-danger" aria-hidden="true"></i><span class="kpi-title">Hỏng / Loại</span><span class="kpi-value text-danger" id="kpi-hong">0</span><span class="kpi-meta">Không đạt yêu cầu</span></div>
-                        <div class="kpi-card with-icon clickable" onclick="loadDashboardPipeList('dxl')"><i class="ph ph-hourglass-medium kpi-icon text-primary" aria-hidden="true"></i><span class="kpi-title">Đang xử lý</span><span class="kpi-value text-primary" id="kpi-dxl">0</span><span class="kpi-meta">Trong dây chuyền</span></div>
-                        <div class="kpi-card with-icon"><i class="ph ph-chart-line-up kpi-icon text-purple" aria-hidden="true"></i><span class="kpi-title">% Thành phẩm</span><span class="kpi-value text-purple" id="kpi-percent">0%</span><span class="kpi-meta">Tỷ trọng toàn ảnh chụp dữ liệu</span></div>
-                    </div>
+                <section class="production-kpi-panels" aria-labelledby="productionKpiTitle">
+                    <h2 class="visually-hidden" id="productionKpiTitle">KPI kiểm tra và thành phẩm</h2>
+                    <article class="production-kpi-panel" id="inspectionKpiPanel">
+                        <div class="production-kpi-panel-head">
+                            <span class="section-kicker">KPI kiểm tra</span>
+                            <span id="plan-day-status" class="planning-status">Chưa lập KH</span>
+                        </div>
+                        <div class="production-kpi-main">
+                            <strong id="plan-day-percent" class="production-kpi-percent">--</strong>
+                            <span id="plan-day-label" class="production-kpi-period">--</span>
+                        </div>
+                        <div class="production-kpi-metrics">
+                            <span>KH kiểm tra<strong id="plan-day-plan">--</strong></span>
+                            <span>TH kiểm tra<strong id="plan-day-actual">--</strong></span>
+                            <span>Thiếu/Dư<strong id="plan-day-difference">--</strong></span>
+                        </div>
+                        <div class="planning-progress"><span id="plan-day-progress" class="planning-progress-bar"></span></div>
+                    </article>
+
+                    <article class="production-kpi-panel" id="finishedKpiPanel">
+                        <div class="production-kpi-panel-head">
+                            <span class="section-kicker">KPI thành phẩm</span>
+                            <span id="plan-month-status" class="planning-status">Chưa lập KH</span>
+                        </div>
+                        <div class="production-kpi-main">
+                            <strong id="plan-month-percent" class="production-kpi-percent">--</strong>
+                            <span id="plan-month-label" class="production-kpi-period">--</span>
+                        </div>
+                        <div class="production-kpi-metrics">
+                            <span>KH thành phẩm<strong id="plan-month-plan">--</strong></span>
+                            <span>TH thành phẩm<strong id="plan-month-actual">--</strong></span>
+                            <span>Thiếu/Dư<strong id="plan-month-difference">--</strong></span>
+                        </div>
+                        <div class="planning-progress"><span id="plan-month-progress" class="planning-progress-bar"></span></div>
+                    </article>
                 </section>
 
                 <aside class="alert-card" id="alertCenter" aria-live="polite">
@@ -627,72 +713,28 @@
                     <ul id="alertList"></ul>
                 </aside>
 
-                <section class="card planning-command" aria-labelledby="planningCommandTitle">
-                    <div class="section-heading">
-                        <div class="section-heading-copy">
-                            <span class="section-kicker">Điều hành kế hoạch</span>
-                            <h2 class="section-title" id="planningCommandTitle">Điều hành kế hoạch ngày và tháng</h2>
-                            <p class="section-description">Theo dõi mức hoàn thành, chênh lệch và ưu tiên cần xử lý.</p>
+                <section class="dashboard-grid-main">
+                    <section class="card" aria-labelledby="planOverviewTitle">
+                        <div class="section-heading">
+                            <div class="section-heading-copy"><span class="section-kicker">Tiến độ hôm nay</span><h2 class="section-title" id="planOverviewTitle">KH vs TH</h2></div>
                         </div>
-                        <a class="section-link" href="?view=ke-hoach" target="_top"><i class="ph ph-arrow-square-out"></i>Mở Kế hoạch</a>
-                    </div>
-                    <div class="planning-periods">
-                        <section class="planning-period">
-                            <div class="planning-period-header">
-                                <span class="planning-period-title">Kế hoạch ngày</span>
-                                <span id="plan-day-label" class="planning-period-label">--</span>
-                            </div>
-                            <div class="planning-period-main">
-                                <div>
-                                    <span class="planning-output-label">Thực hiện / Kế hoạch</span>
-                                    <strong id="plan-day-actual" class="planning-output">--</strong>
-                                    <span class="planning-target">/ <span id="plan-day-plan">--</span></span>
-                                </div>
-                                <div class="planning-status-stack">
-                                    <strong id="plan-day-percent" class="planning-completion">--</strong>
-                                    <span id="plan-day-status" class="planning-status">Chưa có KH</span>
-                                </div>
-                            </div>
-                            <div class="planning-progress"><span id="plan-day-progress" class="planning-progress-bar"></span></div>
-                            <div class="planning-period-footer"><span>Chênh lệch</span><strong id="plan-day-difference">--</strong></div>
-                        </section>
-                        <section class="planning-period">
-                            <div class="planning-period-header">
-                                <span class="planning-period-title">Kế hoạch tháng</span>
-                                <span id="plan-month-label" class="planning-period-label">--</span>
-                            </div>
-                            <div class="planning-period-main">
-                                <div>
-                                    <span class="planning-output-label">Thực hiện / Kế hoạch</span>
-                                    <strong id="plan-month-actual" class="planning-output">--</strong>
-                                    <span class="planning-target">/ <span id="plan-month-plan">--</span></span>
-                                </div>
-                                <div class="planning-status-stack">
-                                    <strong id="plan-month-percent" class="planning-completion">--</strong>
-                                    <span id="plan-month-status" class="planning-status">Chưa có KH</span>
-                                </div>
-                            </div>
-                            <div class="planning-progress"><span id="plan-month-progress" class="planning-progress-bar"></span></div>
-                            <div class="planning-period-footer"><span>Chênh lệch</span><strong id="plan-month-difference">--</strong></div>
-                        </section>
-                    </div>
-                    <div class="planning-priority">
-                        <span class="planning-priority-icon"><i class="ph ph-target"></i></span>
-                        <span>
-                            <span class="planning-priority-label">Ưu tiên hôm nay</span>
-                            <strong class="planning-priority-text" id="planPriorityText">Đang xác định từ dữ liệu kế hoạch...</strong>
-                        </span>
-                        <span class="planning-priority-focus" id="planPriorityFocus">--</span>
-                    </div>
+                        <div class="chart-container production-chart"><canvas id="planOverviewChart"></canvas></div>
+                    </section>
+                    <section class="card insight-panel" aria-labelledby="insightTitle">
+                        <div class="section-heading">
+                            <div class="section-heading-copy"><span class="section-kicker">Insight</span><h2 class="section-title" id="insightTitle">Điểm cần chú ý</h2></div>
+                        </div>
+                        <div class="insight-stack">
+                            <div class="insight-tile"><span>Lỗi nhiều nhất hôm nay</span><strong id="insightTopError">--</strong></div>
+                            <div class="insight-tile"><span>Tổng số ống chờ sửa</span><strong id="insightRepairCount">0</strong></div>
+                            <div class="insight-tile"><span>Ưu tiên điều hành</span><strong id="planPriorityText">--</strong><em id="planPriorityFocus">--</em></div>
+                        </div>
+                    </section>
                 </section>
 
                 <section class="card plan-size-card" id="planSizeCard" aria-labelledby="planSizeTitle">
                     <div class="section-heading">
-                        <div class="section-heading-copy">
-                            <span class="section-kicker">Phân tích chính</span>
-                            <h2 class="section-title" id="planSizeTitle">Kế hoạch và thực hiện theo Size</h2>
-                            <p class="section-description">So sánh sản lượng thành phẩm thực tế với kế hoạch tháng.</p>
-                        </div>
+                        <div class="section-heading-copy"><span class="section-kicker">Theo Size</span><h2 class="section-title" id="planSizeTitle">Kế hoạch và thực hiện theo Size</h2><p class="section-description">Chỉ hiển thị Size có kế hoạch.</p></div>
                     </div>
                     <div class="insight-bar" aria-label="Tóm tắt kế hoạch theo Size">
                         <div class="insight-item"><span class="insight-label">Còn thiếu / Vượt</span><strong class="insight-value" id="planChartGap">--</strong></div>
@@ -700,81 +742,41 @@
                         <div class="insight-item"><span class="insight-label">Ảnh hưởng lớn nhất</span><strong class="insight-value" id="planChartInfluence">--</strong></div>
                     </div>
                     <div id="planSizeChart" class="plan-size-chart"><canvas id="planSizeComparisonChart"></canvas></div>
-                    <div class="plan-table-cache" aria-hidden="true"><table><tbody id="planTable"></tbody></table></div>
-                </section>
-
-                <div class="support-grid">
-                    <section class="card" id="errorCard" aria-labelledby="errorChartTitle">
-                        <div class="section-heading">
-                            <div class="section-heading-copy"><span class="section-kicker">Rủi ro chất lượng</span><h2 class="section-title" id="errorChartTitle">Nguyên nhân lỗi chính</h2><p class="section-description">Các nhóm lỗi có ảnh hưởng lớn nhất trong ảnh chụp dữ liệu.</p></div>
-                        </div>
-                        <div class="chart-container support-chart"><canvas id="errorChart"></canvas></div>
-                    </section>
-                    <section class="card" aria-labelledby="qualityChartTitle">
-                        <div class="section-heading">
-                            <div class="section-heading-copy"><span class="section-kicker">Cơ cấu chất lượng</span><h2 class="section-title" id="qualityChartTitle">Chất lượng ống</h2><p class="section-description">Tỷ trọng thành phẩm, chờ sửa và hỏng.</p></div>
-                        </div>
-                        <div class="quality-chart-shell">
-                            <div class="chart-container"><canvas id="qualityChart"></canvas></div>
-                            <div class="donut-center"><strong id="qualityCenterValue">0%</strong><span>Thành phẩm</span></div>
-                        </div>
-                    </section>
-                </div>
-
-                <section class="card process-command" id="processCard" aria-labelledby="processChartTitle">
-                    <div class="section-heading">
-                        <div class="section-heading-copy"><span class="section-kicker">Luồng sản xuất</span><h2 class="section-title" id="processChartTitle">Sản lượng theo nguyên công</h2><p class="section-description">Phân bổ sản lượng và số ống đang nằm tại từng nguyên công.</p></div>
-                    </div>
-                    <div class="process-layout">
-                        <div class="chart-container process-chart"><canvas id="processChart"></canvas></div>
-                        <div class="process-table-shell">
-                            <table>
-                                <thead><tr><th>Nguyên công hiện tại</th><th>Số lượng</th></tr></thead>
-                                <tbody id="queueTable"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="card recent-card" aria-labelledby="recentTitle">
-                    <div class="section-heading">
-                        <div class="section-heading-copy"><span class="section-kicker">Hoạt động gần đây</span><h2 class="section-title" id="recentTitle">10 giao dịch gần nhất</h2><p class="section-description">Hoạt động sản xuất mới nhất được ghi nhận trong ảnh chụp dữ liệu.</p></div>
-                    </div>
-                    <div class="table-shell">
+                    <div class="table-shell plan-size-table-shell">
                         <table>
-                            <thead>
-                                <tr>
-                                    <th>Ngày</th>
-                                    <th>Ca</th>
-                                    <th>Nguyên công</th>
-                                    <th>Số ống</th>
-                                    <th>SL</th>
-                                    <th>Loại ống</th>
-                                    <th>Trạng thái</th>
-                                    <th>Lỗi</th>
-                                    <th>Giàn</th>
-                                    <th>Người TH1</th>
-                                    <th>Người TH2</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentTable"></tbody>
+                            <thead><tr><th>Size</th><th>KH KT</th><th>TH KT</th><th>% KT</th><th>KH TP</th><th>TH TP</th><th>% TP</th><th>Thiếu/Dư</th></tr></thead>
+                            <tbody id="planTable"></tbody>
                         </table>
                     </div>
                 </section>
 
-                <section class="card export-command" id="bundleExportCard" aria-labelledby="exportTitle">
-                    <div class="section-heading">
-                        <div class="section-heading-copy"><span class="section-kicker">Tiện ích xuất báo cáo</span><h2 class="section-title" id="exportTitle">Xuất báo cáo theo Mã bó</h2><p class="section-description">Tạo bộ biên bản từ dữ liệu Mã bó hiện có.</p></div>
-                    </div>
-                    <div class="export-layout">
-                        <div class="daily-toolbar">
-                            <div class="daily-field"><label for="bundleExportCode">Mã bó</label><input type="text" id="bundleExportCode" placeholder="Nhập Mã bó"></div>
-                            <div class="daily-actions"><button type="button" id="bundleExportBtn" class="sync-btn" onclick="runBundleExport()"><i class="ph ph-file-xls"></i><span id="bundleExportBtnText">Xuất biên bản</span></button></div>
+                <section class="dashboard-grid-main">
+                    <section class="card" aria-labelledby="trendChartTitle">
+                        <div class="section-heading">
+                            <div class="section-heading-copy"><span class="section-kicker">Xu hướng</span><h2 class="section-title" id="trendChartTitle">Sản lượng 7 ngày</h2></div>
                         </div>
-                    </div>
-                    <div id="bundleExportState" class="daily-state"></div>
-                    <div id="bundleExportResults" class="daily-mini-list"></div>
+                        <div class="chart-container production-chart"><canvas id="trend7Chart"></canvas></div>
+                    </section>
+                    <section class="card" id="errorCard" aria-labelledby="errorChartTitle">
+                        <div class="section-heading">
+                            <div class="section-heading-copy"><span class="section-kicker">Chất lượng</span><h2 class="section-title" id="errorChartTitle">Top lỗi chất lượng</h2></div>
+                        </div>
+                        <div class="chart-container production-chart"><canvas id="errorChart"></canvas></div>
+                    </section>
                 </section>
+
+                <footer class="dashboard-footer" aria-label="Thông tin phiên bản Dashboard">
+                    <span>Version <strong>v1.0</strong></span>
+                    <span>Last update <strong id="dashboardFooterUpdate">--</strong></span>
+                    <span>Environment <strong id="dashboardFooterEnv">DEV</strong></span>
+                </footer>
+
+                <div class="dashboard-hidden-cache" aria-hidden="true">
+                    <span id="kpi-tong">0</span><span id="kpi-tp">0</span><span id="kpi-cs">0</span><span id="kpi-hong">0</span><span id="kpi-dxl">0</span><span id="kpi-percent">0%</span>
+                    <span id="commandPrimaryAlert"></span><span id="qualityCenterValue"></span>
+                    <table><tbody id="recentTable"></tbody><tbody id="queueTable"></tbody></table>
+                    <canvas id="processChart"></canvas>
+                </div>
             </section>
 
             <section id="view-production-kpi" class="production-kpi-view" style="display: none;">
@@ -851,7 +853,7 @@
                     </div>
                 </div>
             </section>
-            
+
             <section id="view-pipe-list" style="display: none;">
                 <div class="view-header">
                     <button class="btn-back" onclick="backToDashboard()"><i class="ph ph-arrow-left"></i> Quay lại</button>
@@ -883,7 +885,7 @@
                     <button class="btn-back" onclick="backToList()"><i class="ph ph-arrow-left"></i> Quay lại Danh sách</button>
                     <h2 id="passport-title">Hồ sơ ống</h2>
                 </div>
-                
+
                 <div class="card">
                     <div class="passport-summary">
                         <div><strong>Số ống:</strong> <span id="pp-pipeNo"></span></div>
@@ -1124,26 +1126,26 @@
                 </div>
                 <div style="font-weight: 800; color: var(--text-primary); font-size: 1.5rem;">Hệ thống Quản lý NKT</div>
                 <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 2rem;">Phiên bản 1.1 Chuyên nghiệp</div>
-                
+
                 <div style="margin-bottom: 1.5rem;">
                     <div style="font-size: 0.875rem;">Thiết kế và phát triển bởi</div>
                     <div style="font-weight: 700; color: var(--text-primary); font-size: 1.1rem;">Lê Văn Tùng</div>
                     <div>Thợ nguội B4</div>
                     <div>Danh số: 22149</div>
                 </div>
-                
+
                 <div style="margin-bottom: 2rem; font-size: 0.875rem; line-height: 1.6;">
                     <div>Xưởng Cần ống & Thiết bị đầu giếng</div>
                     <div>Ban Thiết bị Dầu khí</div>
                     <div>Xí nghiệp Cơ điện</div>
                 </div>
-                
+
 
                 <div style="font-weight: 700; color: var(--text-primary); border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
                     &copy; 2026 Vietsovpetro
                 </div>
             </section>
-            
+
             <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); text-align: center; color: var(--text-secondary); font-size: 0.875rem; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 2rem;">
                 <div>Thiết kế và phát triển bởi <strong>Lê Văn Tùng</strong></div>
                 <div>Thợ nguội B4 - Danh số: 22149</div>
@@ -1614,7 +1616,7 @@
                 })
                 .syncDashboardDataQueue();
         }
-        
+
         function toggleLoader(show) {
             document.getElementById('loader').style.display = show ? 'flex' : 'none';
             if (show) {
@@ -1670,7 +1672,7 @@
 
         function renderDashboard(data) {
             document.getElementById('errorAlert').style.display = 'none';
-            
+
             // Fallbacks an toàn
             data.sizeStats = data.sizeStats || {};
             data.errorStats = data.errorStats || [];
@@ -1691,8 +1693,12 @@
             document.getElementById('dashboardHealthTotal').innerText = data.kpi.total;
             document.getElementById('queueLastSync').innerText = snapshotUpdatedAt;
             document.getElementById('lastUpdate').innerText = 'KPI cập nhật: ' + snapshotUpdatedAt;
+            const footerUpdate = document.getElementById('dashboardFooterUpdate');
+            if (footerUpdate) footerUpdate.innerText = snapshotUpdatedAt;
+            const footerEnv = document.getElementById('dashboardFooterEnv');
+            if (footerEnv) footerEnv.innerText = window.location.href.indexOf('/dev') >= 0 ? 'DEV' : 'Production';
             document.getElementById('headerCurrentDate').innerText = getDashboardCurrentDateLabel();
-            
+
             // Health
             let healthText = data.factoryHealth || "NORMAL";
             let hBadge = document.getElementById('factoryHealth');
@@ -1709,7 +1715,7 @@
                 hBadge.innerText = 'Không xác định';
                 hBadge.className = 'badge tp';
             }
-            
+
             // Alerts
             let alertBox = document.getElementById('alertCenter');
             let alertList = document.getElementById('alertList');
@@ -1726,7 +1732,7 @@
                 alertBox.style.display = 'none';
                 document.getElementById('commandPrimaryAlert').innerText = 'Không có cảnh báo trọng yếu';
             }
-            
+
             // KPIs
             animateKpiValue('kpi-tong', data.kpi.total);
             animateKpiValue('kpi-tp', data.kpi.tp);
@@ -1738,7 +1744,7 @@
 
             // Recent Table
             let tbody = document.getElementById('recentTable');
-            tbody.innerHTML = data.recent.map(r => `
+            if (tbody) tbody.innerHTML = data.recent.map(r => `
                 <tr>
                     <td>${formatDashboardDisplayDate(r.date, false)}</td>
                     <td>${r.shift}</td>
@@ -1764,9 +1770,11 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        animation: false,
+                        resizeDelay: 120,
                         indexAxis: 'y',
-                        layout: { padding: { top: 4, right: 12, bottom: 4, left: 4 } },
-                        datasets: { bar: { borderRadius: 7, borderSkipped: false, barPercentage: 0.56, categoryPercentage: 0.72, maxBarThickness: 18 } },
+                        layout: { padding: { top: 6, right: 18, bottom: 6, left: 4 } },
+                        datasets: { bar: { borderRadius: 10, borderSkipped: false, barPercentage: 0.78, categoryPercentage: 0.78, maxBarThickness: 34 } },
                         plugins: {
                             legend: { display: false },
                             tooltip: { callbacks: { label: context => datasetLabel + ': ' + Number(context.raw || 0).toLocaleString('vi-VN') } }
@@ -1779,62 +1787,18 @@
                 });
             };
 
-            // Quality Doughnut
-            try {
-                const qualityCanvas = document.getElementById('qualityChart');
-                if(charts.qualityChart) charts.qualityChart.destroy();
-                charts.qualityChart = new Chart(qualityCanvas, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Thành phẩm', 'Chờ sửa', 'Hỏng'],
-                        datasets: [{
-                            data: [data.kpi.tp, data.kpi.cs, data.kpi.hong],
-                            backgroundColor: ['#059669', '#d97706', '#dc2626'],
-                            borderColor: '#ffffff',
-                            borderWidth: 3,
-                            borderRadius: 6,
-                            spacing: 1,
-                            hoverOffset: 3
-                        }]
-                    },
-                    options: {
-                        cutout: '82%',
-                        radius: '88%',
-                        layout: { padding: 10 },
-                        plugins: {
-                            legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, padding: 15 } },
-                            tooltip: { callbacks: { label: context => context.label + ': ' + Number(context.raw || 0).toLocaleString('vi-VN') + ' ống' } }
-                        },
-                        maintainAspectRatio: false
-                    }
-                });
-            } catch (err) { console.error("Lỗi vẽ Quality Chart", err); }
-
             // Top Errors
             try {
                 const errorRows = data.errorStats.filter(item => Number(item && item.count || 0) > 0).slice(0, 8);
                 const errorCard = document.getElementById('errorCard');
                 errorCard.style.display = errorRows.length > 0 ? 'block' : 'none';
                 if (errorRows.length > 0) {
-                    createHBarChart('errorChart', errorRows.map(item => item.name), 'Số lượng lỗi', errorRows.map(item => item.count), '#dc2626');
+                    createHBarChart('errorChart', errorRows.map(item => item.name), 'Số lượng lỗi', errorRows.map(item => item.count), '#f97316');
                 } else if (charts.errorChart) {
                     charts.errorChart.destroy();
                     delete charts.errorChart;
                 }
             } catch (err) { console.error("Lỗi vẽ Error Chart", err); }
-
-            // Production by Process
-            try {
-                const processRows = data.processStats.filter(item => Number(item && item.count || 0) > 0).slice(0, 10);
-                const processCard = document.getElementById('processCard');
-                processCard.style.display = processRows.length > 0 || data.queueStats.length > 0 ? 'block' : 'none';
-                if (processRows.length > 0) {
-                    createHBarChart('processChart', processRows.map(item => item.name), 'Sản lượng', processRows.map(item => item.count), '#7c3aed');
-                } else if (charts.processChart) {
-                    charts.processChart.destroy();
-                    delete charts.processChart;
-                }
-            } catch (err) { console.error("Lỗi vẽ Process Chart", err); }
 
             // Production Queue
             let processOrder = ["đầu vào", "rửa ống", "thông nòng", "ndt", "làm sạch", "calip ren", "ép thủy lực", "tiện ren", "thay coupling", "đóng gói"];
@@ -1846,7 +1810,7 @@
                 return ia - ib;
             });
             let qBody = document.getElementById('queueTable');
-            qBody.innerHTML = qStats.map(p => `
+            if (qBody) qBody.innerHTML = qStats.map(p => `
                 <tr class="tr-clickable" onclick="showQueueList('${escapeJsString(p.name)}')">
                     <td>${p.name}</td>
                     <td><strong>${p.count}</strong></td>
@@ -1890,34 +1854,35 @@
         }
 
         function getPlanPresentationInsights(planStats) {
-            const daily = getPlanMetric(planStats.byDate, 'finished');
-            const monthly = getPlanMetric(planStats.byMonth, 'finished');
-            const finishedRows = (planStats.bySize || []).filter(row =>
-                row && (row.metric === 'finished' || (!row.metric && /thành phẩm/i.test(row.name || ''))) &&
-                Number(row.plan || 0) > 0 && Number.isFinite(Number(row.percent))
-            );
-            const slowest = finishedRows.slice().sort((left, right) => {
-                const percentDifference = Number(left.percent) - Number(right.percent);
-                if (percentDifference !== 0) return percentDifference;
-                return getPlanDifference(left) - getPlanDifference(right);
+            const dailyChecked = getPlanMetric(planStats.byDate, 'checked');
+            const dailyFinished = getPlanMetric(planStats.byDate, 'finished');
+            const monthlyChecked = getPlanMetric(planStats.byMonth, 'checked');
+            const monthlyFinished = getPlanMetric(planStats.byMonth, 'finished');
+            const comparisonRows = (planStats.sizeComparison || []).filter(row => row && (
+                Number(row.checked && row.checked.plan || 0) > 0 || Number(row.finished && row.finished.plan || 0) > 0
+            ));
+            const slowest = comparisonRows.map(row => {
+                const checkedPercent = row.checked && Number.isFinite(Number(row.checked.completionPercent)) ? Number(row.checked.completionPercent) : null;
+                const finishedPercent = row.finished && Number.isFinite(Number(row.finished.completionPercent)) ? Number(row.finished.completionPercent) : null;
+                const usablePercents = [checkedPercent, finishedPercent].filter(value => value !== null);
+                const percent = usablePercents.length ? Math.min.apply(null, usablePercents) : null;
+                const checkedShortage = Math.max(0, Number(row.checked && row.checked.plan || 0) - Number(row.checked && row.checked.actual || 0));
+                const finishedShortage = Math.max(0, Number(row.finished && row.finished.plan || 0) - Number(row.finished && row.finished.actual || 0));
+                return { size: row.size, percent: percent, shortage: checkedShortage + finishedShortage, row: row };
+            }).filter(row => row.percent !== null || row.shortage > 0).sort((left, right) => {
+                if (left.shortage !== right.shortage) return right.shortage - left.shortage;
+                return Number(left.percent || 0) - Number(right.percent || 0);
             })[0] || null;
 
-            const comparisonRows = (planStats.sizeComparison || []).filter(row =>
-                row && row.finished && row.finished.plan !== null && row.finished.plan !== undefined
-            );
-            const influence = comparisonRows.map(row => ({
-                size: row.size,
-                shortage: Math.max(0, Number(row.finished.plan || 0) - Number(row.finished.actual || 0)),
-                percent: row.finished.completionPercent
-            })).sort((left, right) => right.shortage - left.shortage)[0] || null;
-
             return {
-                daily: daily,
-                monthly: monthly,
-                dailyDifference: getPlanDifference(daily),
-                monthlyDifference: getPlanDifference(monthly),
-                slowest: slowest,
-                influence: influence && influence.shortage > 0 ? influence : null
+                dailyChecked: dailyChecked,
+                dailyFinished: dailyFinished,
+                monthlyChecked: monthlyChecked,
+                monthlyFinished: monthlyFinished,
+                dailyCheckedDifference: getPlanDifference(dailyChecked),
+                dailyFinishedDifference: getPlanDifference(dailyFinished),
+                monthlyFinishedDifference: getPlanDifference(monthlyFinished),
+                slowest: slowest
             };
         }
 
@@ -1925,6 +1890,22 @@
             if (!element) return;
             element.classList.remove('is-success', 'is-warning', 'is-danger');
             if (tone) element.classList.add(tone);
+        }
+
+        function getPlanTone(percent) {
+            if (percent === null || percent === undefined || !Number.isFinite(Number(percent))) return '';
+            const value = Number(percent);
+            if (value >= 100) return 'is-success';
+            if (value >= 80) return 'is-warning';
+            return 'is-danger';
+        }
+
+        function getFactoryStateText(percent) {
+            if (percent === null || percent === undefined || !Number.isFinite(Number(percent))) return 'Hôm nay chưa lập kế hoạch';
+            const value = Number(percent);
+            if (value >= 100) return 'TỐT';
+            if (value >= 80) return 'CẦN THEO DÕI';
+            return 'CHẬM';
         }
 
         function getPlanPeriodLabel(row) {
@@ -1947,11 +1928,11 @@
                 : (difference > 0 ? '+' : '') + getPlanValue(difference);
             const differenceTone = difference === null ? '' : (difference >= 0 ? 'text-success' : 'text-danger');
             const percent = row && row.percent !== null && row.percent !== undefined ? Number(row.percent) : null;
-            const stateTone = !hasPlan ? '' : (difference >= 0 ? 'is-success' : (percent >= 80 ? 'is-warning' : 'is-danger'));
+            const stateTone = getPlanTone(percent);
             const percentTone = stateTone === 'is-success'
                 ? 'text-success'
                 : (stateTone === 'is-warning' ? 'text-warning' : (stateTone === 'is-danger' ? 'text-danger' : ''));
-            const statusText = !hasPlan ? 'Chưa có KH' : (difference > 0 ? 'Vượt KH' : (difference === 0 ? 'Đạt KH' : 'Thiếu KH'));
+            const statusText = !hasPlan ? 'Chưa lập KH' : (percent >= 100 ? 'Đạt KH' : (percent >= 80 ? 'Theo dõi' : 'Chậm'));
 
             document.getElementById('plan-' + prefix + '-label').innerText = getPlanPeriodLabel(row);
             setPlanKpiValue('plan-' + prefix + '-plan', row ? getPlanValue(row.plan) : '--', 'text-primary');
@@ -1968,19 +1949,44 @@
             setPresentationTone(progress, stateTone);
         }
 
+        function renderPlanOverviewChart(planStats) {
+            const rows = [getPlanMetric(planStats.byDate, 'checked'), getPlanMetric(planStats.byDate, 'finished')];
+            const canvas = document.getElementById('planOverviewChart');
+            if (!canvas) return;
+            if (charts.planOverviewChart) charts.planOverviewChart.destroy();
+            charts.planOverviewChart = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: ['Kiểm tra', 'Thành phẩm'],
+                    datasets: [
+                        { label: 'Kế hoạch', data: rows.map(row => Number(row && row.plan || 0)), backgroundColor: createBarGradient('planOverviewChart', '#94a3b8'), borderWidth: 0 },
+                        { label: 'Thực hiện', data: rows.map(row => Number(row && row.actual || 0)), backgroundColor: createBarGradient('planOverviewChart', '#2563eb'), borderWidth: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    resizeDelay: 120,
+                    interaction: { mode: 'index', intersect: false },
+                    datasets: { bar: { borderRadius: 10, borderSkipped: false, barPercentage: 0.74, categoryPercentage: 0.66, maxBarThickness: 64 } },
+                    plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 18, color: '#344054', font: { size: 12, weight: '650' } } } },
+                    scales: {
+                        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#475467', font: { size: 12, weight: '600' } } },
+                        y: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)' }, border: { display: false }, ticks: { precision: 0 } }
+                    }
+                }
+            });
+        }
+
         function renderPlanSizeChart(planStats) {
             const chartWrap = document.getElementById('planSizeChart');
             const chartCard = document.getElementById('planSizeCard');
-            const comparisons = (planStats.sizeComparison || []).filter(row =>
-                row && row.finished && row.finished.plan !== null && row.finished.plan !== undefined
-            );
-            const shouldShow = comparisons.length >= 2 && comparisons.some(row =>
-                Number(row.finished.plan || 0) > 0 || Number(row.finished.actual || 0) > 0
-            );
+            const comparisons = (planStats.sizeComparison || []).filter(row => row && row.finished && Number(row.finished.plan || 0) > 0);
+            const shouldShow = comparisons.length > 0;
 
             if (!shouldShow) {
-                chartWrap.style.display = 'none';
-                chartCard.style.display = 'none';
+                if (chartWrap) chartWrap.style.display = 'none';
                 if (charts.planSizeComparisonChart) {
                     charts.planSizeComparisonChart.destroy();
                     delete charts.planSizeComparisonChart;
@@ -1988,44 +1994,60 @@
                 return;
             }
 
-            chartCard.style.display = 'block';
-            chartWrap.style.display = 'block';
+            if (chartCard) chartCard.style.display = 'block';
+            if (chartWrap) chartWrap.style.display = 'block';
             if (charts.planSizeComparisonChart) charts.planSizeComparisonChart.destroy();
             charts.planSizeComparisonChart = new Chart(document.getElementById('planSizeComparisonChart'), {
                 type: 'bar',
                 data: {
                     labels: comparisons.map(row => row.size),
                     datasets: [
-                        { label: 'Kế hoạch', data: comparisons.map(row => row.finished.plan), backgroundColor: createBarGradient('planSizeComparisonChart', '#2563eb'), borderWidth: 0 },
-                        { label: 'Thực hiện', data: comparisons.map(row => row.finished.actual), backgroundColor: createBarGradient('planSizeComparisonChart', '#059669'), borderWidth: 0 }
+                        { label: 'KH TP', data: comparisons.map(row => row.finished.plan), backgroundColor: createBarGradient('planSizeComparisonChart', '#94a3b8', 'horizontal'), borderWidth: 0 },
+                        { label: 'TH TP', data: comparisons.map(row => row.finished.actual), backgroundColor: createBarGradient('planSizeComparisonChart', '#2563eb', 'horizontal'), borderWidth: 0 }
+                    ]
+                },
+                options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        resizeDelay: 120,
+                        indexAxis: 'y',
+                    interaction: { mode: 'index', intersect: false },
+                    layout: { padding: { top: 6, right: 12, bottom: 4, left: 4 } },
+                    datasets: { bar: { borderRadius: 10, borderSkipped: false, barPercentage: 0.82, categoryPercentage: 0.78, maxBarThickness: 38 } },
+                    plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 20, color: '#344054', font: { size: 12, weight: '650' } } } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)', drawTicks: false }, border: { display: false }, ticks: { padding: 8, precision: 0 } },
+                        y: { grid: { display: false }, border: { display: false }, ticks: { padding: 8, color: '#475467', font: { size: 11, weight: '600' } } }
+                    }
+                }
+            });
+        }
+
+        function renderTrend7Chart(planStats) {
+            const rows = planStats.trend7Days || [];
+            const canvas = document.getElementById('trend7Chart');
+            if (!canvas) return;
+            if (charts.trend7Chart) charts.trend7Chart.destroy();
+            charts.trend7Chart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: rows.map(row => row.label || row.date),
+                    datasets: [
+                        { label: 'TH kiểm tra', data: rows.map(row => Number(row.checkedActual || 0)), borderColor: '#2563eb', backgroundColor: 'rgb(37 99 235 / 0.08)', tension: 0.28, borderWidth: 3, pointRadius: 3, pointHoverRadius: 5, fill: false },
+                        { label: 'TH thành phẩm', data: rows.map(row => Number(row.finishedActual || 0)), borderColor: '#059669', backgroundColor: 'rgb(5 150 105 / 0.08)', tension: 0.28, borderWidth: 3, pointRadius: 3, pointHoverRadius: 5, fill: false }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: false,
+                    resizeDelay: 120,
                     interaction: { mode: 'index', intersect: false },
-                    layout: { padding: { top: 6, right: 12, bottom: 4, left: 4 } },
-                    datasets: { bar: { borderRadius: 7, borderSkipped: false, barPercentage: 0.68, categoryPercentage: 0.58, maxBarThickness: 28 } },
-                    plugins: {
-                        legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 7, padding: 18 } },
-                        tooltip: {
-                            callbacks: {
-                                afterBody: items => {
-                                    if (!items || !items.length) return [];
-                                    const row = comparisons[items[0].dataIndex].finished;
-                                    const difference = Number(row.actual || 0) - Number(row.plan || 0);
-                                    const percent = row.completionPercent;
-                                    return [
-                                        'Chênh lệch: ' + (difference > 0 ? '+' : '') + getPlanValue(difference),
-                                        'Hoàn thành: ' + (percent === null || percent === undefined ? '--' : getPlanValue(percent) + '%')
-                                    ];
-                                }
-                            }
-                        }
-                    },
+                    plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 18, color: '#344054', font: { size: 12, weight: '650' } } } },
                     scales: {
-                        x: { grid: { display: false }, border: { display: false }, ticks: { padding: 10, color: '#475467', font: { size: 11, weight: '500' } } },
-                        y: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)', drawTicks: false }, border: { display: false }, ticks: { padding: 10, precision: 0, color: '#667085' } }
+                        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#475467' } },
+                        y: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)' }, border: { display: false }, ticks: { precision: 0 } }
                     }
                 }
             });
@@ -2036,80 +2058,93 @@
 
             const planStats = globalDashboardData.planStats;
             const insights = getPlanPresentationInsights(planStats);
-            const dailyFinished = insights.daily;
-            const monthlyFinished = insights.monthly;
-            const pStats = planStats.bySize || [];
+            const dailyChecked = insights.dailyChecked;
+            const dailyFinished = insights.dailyFinished;
             const tbody = document.getElementById('planTable');
+            const rows = (planStats.sizeComparison || []).filter(row => row && (
+                Number(row.checked && row.checked.plan || 0) > 0 || Number(row.finished && row.finished.plan || 0) > 0
+            ));
 
-            renderPlanPeriod('day', dailyFinished);
-            renderPlanPeriod('month', monthlyFinished);
+            renderPlanPeriod('day', dailyChecked);
+            renderPlanPeriod('month', dailyFinished);
+            renderPlanOverviewChart(planStats);
             renderPlanSizeChart(planStats);
+            renderTrend7Chart(planStats);
 
-            const dailyPercent = dailyFinished && dailyFinished.percent !== null && dailyFinished.percent !== undefined
-                ? Number(dailyFinished.percent)
-                : null;
+            const kpiPercents = [dailyChecked && dailyChecked.percent, dailyFinished && dailyFinished.percent]
+                .filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
+                .map(Number);
+            const commandPercentValue = kpiPercents.length ? Math.min.apply(null, kpiPercents) : null;
             const commandPercent = document.getElementById('commandTodayPercent');
-            commandPercent.innerText = dailyPercent === null ? '--' : getPlanValue(dailyPercent) + '%';
-            setPresentationTone(commandPercent, dailyPercent === null ? '' : (dailyPercent >= 100 ? 'is-success' : (dailyPercent >= 80 ? 'is-warning' : 'is-danger')));
-            document.getElementById('commandTodayPlan').innerText = dailyFinished && dailyFinished.plan !== null && dailyFinished.plan !== undefined
-                ? 'TH ' + getPlanValue(dailyFinished.actual) + ' / KH ' + getPlanValue(dailyFinished.plan)
-                : 'Chưa có kế hoạch ngày';
+            commandPercent.innerText = commandPercentValue === null ? '--' : getPlanValue(commandPercentValue) + '%';
+            setPresentationTone(commandPercent, getPlanTone(commandPercentValue));
 
+            const stateText = document.getElementById('factoryStateText');
+            stateText.innerText = getFactoryStateText(commandPercentValue);
+            setPresentationTone(stateText, getPlanTone(commandPercentValue));
+            document.getElementById('factoryStateNote').innerText = commandPercentValue === null ? 'Bấm Kế hoạch để bắt đầu' : 'Theo KPI thấp nhất hôm nay';
+            document.getElementById('commandTodayPlan').innerText = 'KT ' + (dailyChecked && dailyChecked.percent !== null ? getPlanValue(dailyChecked.percent) + '%' : '--') + ' · TP ' + (dailyFinished && dailyFinished.percent !== null ? getPlanValue(dailyFinished.percent) + '%' : '--');
+
+            const worstDifference = [insights.dailyCheckedDifference, insights.dailyFinishedDifference]
+                .filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
+                .sort((left, right) => left - right)[0];
             const commandGap = document.getElementById('commandTodayGap');
-            commandGap.innerText = getPlanDifferenceLabel(insights.dailyDifference);
-            setPresentationTone(commandGap, insights.dailyDifference === null ? '' : (insights.dailyDifference >= 0 ? 'is-success' : 'is-danger'));
+            commandGap.innerText = getPlanDifferenceLabel(worstDifference);
+            setPresentationTone(commandGap, worstDifference === undefined ? '' : (worstDifference >= 0 ? 'is-success' : 'is-danger'));
 
             const slowestSize = insights.slowest;
-            document.getElementById('commandSlowestSize').innerText = slowestSize ? (slowestSize.size || slowestSize.name.split(' · ')[0]) : '--';
+            document.getElementById('commandSlowestSize').innerText = slowestSize ? slowestSize.size : '--';
             document.getElementById('commandSlowestSizeNote').innerText = slowestSize
-                ? getPlanValue(slowestSize.percent) + '% · ' + getPlanDifferenceLabel(getPlanDifference(slowestSize))
+                ? (slowestSize.percent === null ? 'Thiếu ' + getPlanValue(slowestSize.shortage) : getPlanValue(slowestSize.percent) + '% · thiếu ' + getPlanValue(slowestSize.shortage))
                 : 'Chưa đủ dữ liệu';
 
             const chartGap = document.getElementById('planChartGap');
-            chartGap.innerText = getPlanDifferenceLabel(insights.monthlyDifference);
-            setPresentationTone(chartGap, insights.monthlyDifference === null ? '' : (insights.monthlyDifference >= 0 ? 'is-success' : 'is-danger'));
+            chartGap.innerText = getPlanDifferenceLabel(insights.dailyFinishedDifference);
+            setPresentationTone(chartGap, insights.dailyFinishedDifference === null ? '' : (insights.dailyFinishedDifference >= 0 ? 'is-success' : 'is-danger'));
 
             const chartPercent = document.getElementById('planChartPercent');
-            const monthlyPercent = monthlyFinished && monthlyFinished.percent !== null && monthlyFinished.percent !== undefined
-                ? Number(monthlyFinished.percent)
-                : null;
-            chartPercent.innerText = monthlyPercent === null ? '--' : getPlanValue(monthlyPercent) + '%';
-            setPresentationTone(chartPercent, monthlyPercent === null ? '' : (monthlyPercent >= 100 ? 'is-success' : (monthlyPercent >= 80 ? 'is-warning' : 'is-danger')));
-            document.getElementById('planChartInfluence').innerText = insights.influence
-                ? insights.influence.size + ' · thiếu ' + getPlanValue(insights.influence.shortage)
-                : 'Không có Size thiếu KH';
+            const finishedPercent = dailyFinished && dailyFinished.percent !== null && dailyFinished.percent !== undefined ? Number(dailyFinished.percent) : null;
+            chartPercent.innerText = finishedPercent === null ? '--' : getPlanValue(finishedPercent) + '%';
+            setPresentationTone(chartPercent, getPlanTone(finishedPercent));
+            document.getElementById('planChartInfluence').innerText = slowestSize ? slowestSize.size + ' · thiếu ' + getPlanValue(slowestSize.shortage) : 'Không có Size thiếu KH';
+
+            const topError = (globalDashboardData.errorStats || []).filter(item => Number(item && item.count || 0) > 0)[0] || null;
+            document.getElementById('insightTopError').innerText = topError ? topError.name : 'Không ghi nhận lỗi';
+            document.getElementById('insightRepairCount').innerText = getPlanValue(globalDashboardData.kpi && globalDashboardData.kpi.cs || 0);
 
             const priorityText = document.getElementById('planPriorityText');
             const priorityFocus = document.getElementById('planPriorityFocus');
-            if (insights.dailyDifference !== null && insights.dailyDifference < 0) {
-                priorityText.innerText = 'Ưu tiên hoàn thành thêm ' + getPlanValue(Math.abs(insights.dailyDifference)) + ' ống để đạt kế hoạch ngày.';
-            } else if (insights.monthlyDifference !== null && insights.monthlyDifference < 0) {
-                priorityText.innerText = insights.influence
-                    ? 'Tập trung ' + insights.influence.size + ', còn thiếu ' + getPlanValue(insights.influence.shortage) + ' ống trong kế hoạch tháng.'
-                    : 'Tiếp tục bám tiến độ để thu hẹp chênh lệch kế hoạch tháng.';
-            } else if (dailyFinished && dailyFinished.plan !== null && dailyFinished.plan !== undefined) {
-                priorityText.innerText = 'Kế hoạch ngày đang đạt mục tiêu. Duy trì nhịp sản xuất hiện tại.';
+            if (worstDifference !== undefined && worstDifference < 0) {
+                priorityText.innerText = 'Ưu tiên bù thêm ' + getPlanValue(Math.abs(worstDifference)) + ' ống để kéo KPI ngày về kế hoạch.';
+            } else if (commandPercentValue !== null) {
+                priorityText.innerText = 'KPI ngày đang trong vùng kiểm soát. Duy trì nhịp sản xuất hiện tại.';
             } else {
-                priorityText.innerText = 'Chưa có đủ dữ liệu kế hoạch để xác định ưu tiên.';
+                priorityText.innerText = 'Chưa có đủ dữ liệu kế hoạch ngày để xác định ưu tiên.';
             }
-            priorityFocus.innerText = slowestSize
-                ? 'Size cần chú ý: ' + (slowestSize.size || slowestSize.name.split(' · ')[0])
-                : 'Chưa xác định Size cần chú ý';
+            priorityFocus.innerText = slowestSize ? 'Size cần chú ý: ' + slowestSize.size : 'Chưa xác định Size cần chú ý';
 
-            tbody.innerHTML = pStats.map(p => `
+            tbody.innerHTML = rows.map(row => {
+                const checked = row.checked || {};
+                const finished = row.finished || {};
+                const checkedDiff = Number(checked.actual || 0) - Number(checked.plan || 0);
+                const finishedDiff = Number(finished.actual || 0) - Number(finished.plan || 0);
+                return `
                 <tr>
-                    <td><strong>${escapeHtml(p.name)}</strong></td>
-                    <td>${getPlanValue(p.plan)}</td>
-                    <td>${getPlanValue(p.actual)}</td>
-                    <td>${getPlanBadge(p.percent)}</td>
-                </tr>
-            `).join('');
-            
-            if (pStats.length === 0) {
-                 tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu kế hoạch</td></tr>`;
+                    <td><strong>${escapeHtml(row.size)}</strong></td>
+                    <td>${getPlanValue(checked.plan)}</td>
+                    <td>${getPlanValue(checked.actual)}</td>
+                    <td>${getPlanBadge(checked.completionPercent)}</td>
+                    <td>${getPlanValue(finished.plan)}</td>
+                    <td>${getPlanValue(finished.actual)}</td>
+                    <td>${getPlanBadge(finished.completionPercent)}</td>
+                    <td>${getPlanDifferenceLabel(checkedDiff)} / ${getPlanDifferenceLabel(finishedDiff)}</td>
+                </tr>`;
+            }).join('');
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu kế hoạch</td></tr>`;
             }
         }
-
         // Drilldown Logic
         function getDashboardStatusTitle(statusKey) {
             const titles = {
@@ -2450,9 +2485,9 @@
             if(document.getElementById('view-daily-report')) document.getElementById('view-daily-report').style.display = 'none';
             if(document.getElementById('view-monthly-report')) document.getElementById('view-monthly-report').style.display = 'none';
             if(document.getElementById('view-error-analysis')) document.getElementById('view-error-analysis').style.display = 'none';
-            
+
             document.getElementById('list-title').innerText = isLoading ? "Đang tải danh sách " + title + "..." : "Danh sách " + title + " (" + currentPipeList.length + " ống)";
-            
+
             let tbody = document.getElementById('pipeListTable');
             if (isLoading) {
                 tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-secondary);">Đang tải dữ liệu...</td></tr>`;
@@ -2485,7 +2520,7 @@
             if(document.getElementById('view-monthly-report')) document.getElementById('view-monthly-report').style.display = 'none';
             if(document.getElementById('view-error-analysis')) document.getElementById('view-error-analysis').style.display = 'none';
             if(document.getElementById('view-about')) document.getElementById('view-about').style.display = 'none';
-            
+
             let mDash = document.getElementById('menu-dashboard');
             let mDailyReport = document.getElementById('menu-daily-report');
             let mMonthlyReport = document.getElementById('menu-monthly-report');
@@ -2835,7 +2870,7 @@
 
             loadErrorAnalysisData();
         }
-        
+
         function showAbout() {
             ProductionKpiView.hide();
             document.getElementById('view-dashboard').style.display = 'none';
@@ -2845,7 +2880,7 @@
             if(document.getElementById('view-monthly-report')) document.getElementById('view-monthly-report').style.display = 'none';
             if(document.getElementById('view-error-analysis')) document.getElementById('view-error-analysis').style.display = 'none';
             if(document.getElementById('view-about')) document.getElementById('view-about').style.display = 'block';
-            
+
             let mDash = document.getElementById('menu-dashboard');
             let mDailyReport = document.getElementById('menu-daily-report');
             let mMonthlyReport = document.getElementById('menu-monthly-report');
@@ -2956,7 +2991,7 @@
             document.getElementById('pp-process').innerText = p.currentProcess || '';
             document.getElementById('pp-reason').innerText = p.currentReason || '';
             document.getElementById('pp-nextProcess').innerText = p.currentNextProcess || '';
-            
+
             let timeline = document.getElementById('passportTimeline');
             timeline.innerHTML = (p.history || []).map(h => {
                 let sClass = (h.status || '').toLowerCase().includes('dat') || (h.status || '').toLowerCase().includes('thanh pham') ? 'text-success' : 'text-danger';

@@ -171,10 +171,11 @@ function planServiceMapRecord_(repositoryRow, type) {
 }
 
 function planServiceValidateType_(value) {
-  if (value !== "thang" && value !== "ngay") {
+  var type = planServiceText_("", value);
+  if (type !== "thang" && type !== "ngay") {
     throw new Error("Loại kế hoạch phải là thang hoặc ngay.");
   }
-  return value;
+  return type;
 }
 
 function planServiceValidateCommonInput_(input) {
@@ -241,8 +242,8 @@ function planServiceValidateNonNegativeNumber_(value, fieldName) {
     throw new Error(fieldName + " là bắt buộc.");
   }
   var number = Number(value);
-  if (!isFinite(number) || number < 0) {
-    throw new Error(fieldName + " phải là số lớn hơn hoặc bằng 0.");
+  if (!isFinite(number) || number < 0 || Math.floor(number) !== number) {
+    throw new Error(fieldName + " phải là số nguyên lớn hơn hoặc bằng 0.");
   }
   return number;
 }

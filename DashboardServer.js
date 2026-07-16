@@ -5,14 +5,14 @@ function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
   let p = normalizeString(transaction.process);
   let s = normalizeString(transaction.status);
   let r = normalizeString(transaction.defectReason);
-  
+
   transaction.nextProcess = "";
 
   const loaiList = [
-    "khong du chieu day", "thieu chieu day", "khuyet tat ngang", "khuyet tat doc", 
+    "khong du chieu day", "thieu chieu day", "khuyet tat ngang", "khuyet tat doc",
     "ro than", "ro than, an mon", "tac paraffin", "tac ong", "loai ndt", "tien lai khong dat"
   ];
-  
+
   const choSuaList = [
     "hong ren", "hong coupling", "hong ren va coupling", "khong lap duoc coupling", "khac"
   ];
@@ -22,17 +22,17 @@ function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
     if (r.includes(kw)) return "LOAI";
   }
   if (s.includes("loai")) return "LOAI";
-  
+
   let threadRepairs = currentPipeState ? currentPipeState.threadRepairCount : 0;
   let couplingRepairs = currentPipeState ? currentPipeState.couplingChangeCount : 0;
-  
+
   // RULE 5: Đã từng sửa cả 2 đầu và ép lại vẫn xì -> LOẠI
   if (threadRepairs >= 1 && couplingRepairs >= 1) {
     if (p.includes("ep thuy luc") && r.includes("xi")) {
       return "LOAI";
     }
   }
-  
+
   // RULE 1 & 2: Process = Ép thủy lực, Reason = Xì pin
   if (p.includes("ep thuy luc") && r.includes("xi pin")) {
     if (threadRepairs >= 1) {
@@ -42,25 +42,25 @@ function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
       return "CHO_SUA"; // Rule 1
     }
   }
-  
+
   // RULE 3: Reason = Xì box
   if (r.includes("xi box")) {
     transaction.nextProcess = "Thay coupling";
     return "CHO_SUA";
   }
-  
+
   // RULE 4: Reason = Xì cả 2 đầu
   if (r.includes("xi ca 2 dau")) {
     transaction.nextProcess = "Tiện ren + Thay coupling";
     return "CHO_SUA";
   }
-  
+
   // Logic 2: Kiểm tra nhóm Lỗi Chờ sửa (Repair)
   for (let kw of choSuaList) {
     if (r.includes(kw)) return "CHO_SUA";
   }
   if (s.includes("cho sua") || s.includes("hong") || s.includes("loi")) return "CHO_SUA";
-  
+
   // Logic 3: Đóng gói phát hiện lỗi -> CHỜ SỬA
   if (p.includes("dong goi") && !s.includes("dat") && !s.includes("thanh pham") && s !== "ok" && s !== "") {
     return "CHO_SUA";
@@ -77,7 +77,7 @@ function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
     // Các nguyên công còn lại
     return "DANG_XU_LY";
   }
-  
+
   // Mặc định các nguyên công còn lại
   return "DANG_XU_LY";
 }
@@ -323,33 +323,33 @@ function getDashboardTime_(value) {
 function getCurrentPipeState(pipe) {
   let currentEntryNo = pipe.currentEntryNo;
   let entryTransactions = pipe.entries[currentEntryNo] || [];
-  
+
   if (entryTransactions.length === 0) return pipe;
-  
+
   pipe.pressureTestCount = 0;
   pipe.threadRepairCount = 0;
   pipe.couplingChangeCount = 0;
-  
+
   // Sắp xếp transactions theo thứ tự thời gian trước khi tính toán trạng thái
   entryTransactions.sort((a, b) => {
     let dateA = getDashboardTime_(a.date);
     let dateB = getDashboardTime_(b.date);
     if (dateA !== dateB) return dateA - dateB;
-    
+
     let timeA = getDashboardTime_(a.receiveTime);
     let timeB = getDashboardTime_(b.receiveTime);
     if (timeA !== timeB) return timeA - timeB;
-    
+
     let idA = (a.id || "").toString();
     let idB = (b.id || "").toString();
     return idA.localeCompare(idB);
   });
-  
+
   let finalBusinessStatus = "DANG_XU_LY";
-  
+
   for (let txn of entryTransactions) {
     let p = normalizeString(txn.process);
-    
+
     // Đếm số lần nguyên công
     if (p.includes("ep thuy luc")) {
       pipe.pressureTestCount++;
@@ -358,13 +358,13 @@ function getCurrentPipeState(pipe) {
     } else if (p.includes("thay coupling")) {
       pipe.couplingChangeCount++;
     }
-    
+
     // Xác định trạng thái nghiệp vụ cho bước này
     finalBusinessStatus = classifyBusinessStatus(txn, finalBusinessStatus, pipe);
   }
-  
+
   let latestTxn = entryTransactions[entryTransactions.length - 1];
-  
+
   pipe.currentProcess = latestTxn.process;
   pipe.currentStatus = latestTxn.status;
   pipe.currentReason = latestTxn.defectReason;
@@ -374,7 +374,7 @@ function getCurrentPipeState(pipe) {
   pipe.currentWorker2 = latestTxn.worker2;
   pipe.currentShift = latestTxn.shift;
   pipe.currentDate = latestTxn.date;
-  
+
   return pipe;
 }
 
@@ -396,11 +396,11 @@ function buildPipeEngine(sourceTransactions) {
   const transactions = sourceTransactions || getRawTransactions();
   const groupingStartedAt = performanceTimerStart_();
   const pipesMap = {};
-  
+
   for (let txn of transactions) {
     let pNo = txn.pipeNo;
     if (!pNo) continue; // Bỏ qua nếu không có số ống định danh
-    
+
     // Khởi tạo Object Pipe nếu chưa có
     if (!pipesMap[pNo]) {
       pipesMap[pNo] = {
@@ -426,28 +426,28 @@ function buildPipeEngine(sourceTransactions) {
         entries: {}
       };
     }
-    
+
     let pipe = pipesMap[pNo];
-    
+
     // Cập nhật thông tin nhận diện mới nhất
     if (txn.size) pipe.size = txn.size;
     if (txn.rig) pipe.rig = txn.rig;
     if (txn.well) pipe.well = txn.well;
     if (txn.wellProfile) pipe.wellProfile = txn.wellProfile;
-    
+
     let eNo = txn.entryNo;
     if (!pipe.entries[eNo]) {
       pipe.entries[eNo] = [];
     }
-    
+
     // Thêm transaction vào lịch sử
     pipe.entries[eNo].push(txn);
     pipe.history.push(txn);
     pipe.entryCount = Object.keys(pipe.entries).length;
-    
+
     // Loại bỏ gán currentEntryNo tĩnh
   }
-  
+
   performanceLog_("buildPipeEngine", "group_transactions", groupingStartedAt, {
     rowCount: transactions.length
   });
@@ -457,30 +457,30 @@ function buildPipeEngine(sourceTransactions) {
   const pipeObjects = [];
   for (let pNo in pipesMap) {
     let pipe = pipesMap[pNo];
-    
+
     // Sort toàn bộ lịch sử để tìm Entry mới nhất
     pipe.history.sort((a, b) => {
       let dateA = getDashboardTime_(a.date);
       let dateB = getDashboardTime_(b.date);
       if (dateA !== dateB) return dateA - dateB;
-      
+
       let timeA = getDashboardTime_(a.receiveTime);
       let timeB = getDashboardTime_(b.receiveTime);
       if (timeA !== timeB) return timeA - timeB;
-      
+
       let idA = (a.id || "").toString();
       let idB = (b.id || "").toString();
       return idA.localeCompare(idB);
     });
-    
+
     if (pipe.history.length > 0) {
       let latestGlobalTxn = pipe.history[pipe.history.length - 1];
       pipe.currentEntryNo = latestGlobalTxn.entryNo;
     }
-    
+
     pipeObjects.push(getCurrentPipeState(pipe));
   }
-  
+
   performanceLog_("buildPipeEngine", "current_state", currentStateStartedAt, {
     rowCount: pipeObjects.length
   });
@@ -500,20 +500,20 @@ function debugPipeEngine() {
     let totalTransactions = 0;
     let statusSummary = { "THANH_PHAM": 0, "CHO_SUA": 0, "LOAI": 0, "DANG_XU_LY": 0 };
     let processQueueSummary = {};
-    
+
     for (let pipe of pipeObjects) {
       totalTransactions += pipe.history.length;
-      
+
       let bStatus = pipe.currentBusinessStatus;
       if (statusSummary[bStatus] !== undefined) {
         statusSummary[bStatus]++;
       }
-      
+
       let cp = pipe.currentProcess || "Chưa có";
       if (!processQueueSummary[cp]) processQueueSummary[cp] = 0;
       processQueueSummary[cp]++;
     }
-    
+
     return {
       totalTransactions: totalTransactions,
       totalPipes: pipeObjects.length,
@@ -581,19 +581,6 @@ function applyDashboardCurrentPlans_(snapshot) {
   try {
     const planStats = snapshot && snapshot.planStats;
     if (!planStats) return snapshot;
-
-    const validation = validateProductionDashboardV2Plans_(new Date());
-    applyDashboardCurrentPlanRows_(planStats.byDate, validation.daily && validation.daily.currentPlan);
-    applyDashboardCurrentPlanRows_(planStats.byMonth, validation.monthly && validation.monthly.currentPlan);
-
-    const monthlyFinished = (planStats.byMonth || []).filter(row => row && row.metric === "finished")[0];
-    if (monthlyFinished) {
-      planStats.total = {
-        plan: monthlyFinished.plan,
-        actual: monthlyFinished.actual,
-        percent: monthlyFinished.percent
-      };
-    }
     return snapshot;
   } catch (error) {
     Logger.log("Dashboard current plan overlay unavailable: " +
@@ -602,20 +589,11 @@ function applyDashboardCurrentPlans_(snapshot) {
   }
 }
 
-function applyDashboardCurrentPlanRows_(rows, currentPlan) {
-  if (!Array.isArray(rows) || !currentPlan) return;
-  rows.forEach(row => {
-    if (!row || (row.metric !== "checked" && row.metric !== "finished")) return;
-    const plan = row.metric === "checked" ? currentPlan.checkedPlan : currentPlan.finishedPlan;
-    row.plan = Number(plan || 0);
-    row.percent = productionDashboardV2Completion_(Number(row.actual || 0), row.plan);
-  });
-}
-
-function getDashboardPlansBySize_(dayKey, monthKey) {
+function getDashboardCanonicalPlans_() {
   const plans = {
-    daily: {},
-    monthly: {}
+    dailyByDate: {},
+    monthlyByMonth: {},
+    source: "PlanService"
   };
 
   try {
@@ -626,20 +604,22 @@ function getDashboardPlansBySize_(dayKey, monthKey) {
       Array.isArray(response.data.monthly) ? response.data.monthly : [];
 
     dailyRows.forEach(function(row) {
-      if (!row || row.thoiGian !== dayKey) return;
+      if (!row || !row.thoiGian) return;
       const size = (row.size || "").toString().trim();
       if (!size) return;
-      plans.daily[size] = {
+      if (!plans.dailyByDate[row.thoiGian]) plans.dailyByDate[row.thoiGian] = {};
+      plans.dailyByDate[row.thoiGian][size] = {
         checked: Number(row.kiemTra || 0),
         finished: Number(row.thanhPham || 0)
       };
     });
 
     monthlyRows.forEach(function(row) {
-      if (!row || row.thoiGian !== monthKey) return;
+      if (!row || !row.thoiGian) return;
       const size = (row.size || "").toString().trim();
       if (!size) return;
-      plans.monthly[size] = {
+      if (!plans.monthlyByMonth[row.thoiGian]) plans.monthlyByMonth[row.thoiGian] = {};
+      plans.monthlyByMonth[row.thoiGian][size] = {
         checked: Number(row.kiemTra || 0),
         finished: Number(row.thanhPham || 0)
       };
@@ -651,13 +631,14 @@ function getDashboardPlansBySize_(dayKey, monthKey) {
   return plans;
 }
 
-function buildDashboardPlanComparisonRow_(name, size, metric, plan, actual, hasPlan) {
+function buildDashboardPlanComparisonRow_(name, size, metric, plan, actual, hasPlan, periodKey) {
   const normalizedActual = Number(actual || 0);
   const normalizedPlan = hasPlan ? Number(plan || 0) : null;
   return {
     name: name,
     size: size,
     metric: metric,
+    period: periodKey || "",
     plan: normalizedPlan,
     actual: normalizedActual,
     percent: hasPlan
@@ -666,113 +647,187 @@ function buildDashboardPlanComparisonRow_(name, size, metric, plan, actual, hasP
   };
 }
 
+function dashboardPlanFormatDayKey_(date) {
+  return Utilities.formatDate(date, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
+}
+
+function dashboardPlanStatusEvent_(pipe, finishedEvent) {
+  if (!pipe) return null;
+  if (isThanhPhamKpiPipe(pipe)) return finishedEvent || null;
+  if (pipe.currentBusinessStatus !== "CHO_SUA" && pipe.currentBusinessStatus !== "LOAI") return null;
+  return productionDashboardV2Event_({
+    date: pipe.currentDate,
+    process: pipe.currentProcess,
+    status: pipe.currentStatus,
+    defectReason: pipe.currentReason,
+    id: pipe.pipeNo,
+    entryNo: pipe.currentEntryNo
+  }, pipe.currentBusinessStatus);
+}
+
+function dashboardPlanBuildActuals_(pipeObjects, dayKey, monthKey) {
+  const result = {
+    bySize: {},
+    byDate: {}
+  };
+
+  pipeObjects.forEach(function(pipe) {
+    const projection = projectProductionDashboardV2Pipe_(pipe);
+    const size = projection.size || "UNKNOWN";
+    if (!result.bySize[size]) {
+      result.bySize[size] = {
+        today: { checked: 0, finished: 0 },
+        monthly: { checked: 0, finished: 0 }
+      };
+    }
+
+    const checkedEvent = dashboardPlanStatusEvent_(pipe, projection.finishedEvent);
+    const finishedEvent = projection.finishedEvent;
+    const sizeActual = result.bySize[size];
+
+    if (checkedEvent && checkedEvent.dayKey === dayKey) sizeActual.today.checked++;
+    if (checkedEvent && checkedEvent.monthKey === monthKey) sizeActual.monthly.checked++;
+    if (finishedEvent && finishedEvent.dayKey === dayKey) sizeActual.today.finished++;
+    if (finishedEvent && finishedEvent.monthKey === monthKey) sizeActual.monthly.finished++;
+
+    if (checkedEvent && checkedEvent.dayKey) {
+      if (!result.byDate[checkedEvent.dayKey]) result.byDate[checkedEvent.dayKey] = { checked: 0, finished: 0 };
+      result.byDate[checkedEvent.dayKey].checked++;
+    }
+    if (finishedEvent && finishedEvent.dayKey) {
+      if (!result.byDate[finishedEvent.dayKey]) result.byDate[finishedEvent.dayKey] = { checked: 0, finished: 0 };
+      result.byDate[finishedEvent.dayKey].finished++;
+    }
+  });
+
+  return result;
+}
+
+function dashboardPlanTotal_(plansBySize, metric) {
+  let total = 0;
+  Object.keys(plansBySize || {}).forEach(function(size) {
+    total += Number(plansBySize[size] && plansBySize[size][metric] || 0);
+  });
+  return total;
+}
+
 function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
   const dayKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
   const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
-  const projections = pipeObjects.map(projectProductionDashboardV2Pipe_);
-  const actualRows = productionDashboardV2SizeBreakdown_(projections, dayKey, monthKey, null);
-  const plans = getDashboardPlansBySize_(dayKey, monthKey);
-  const aggregatePlans = validateProductionDashboardV2Plans_(asOf);
-  const dailyPlansBySize = plans.daily;
-  const monthlyPlansBySize = plans.monthly;
-  const monthlyActualBySize = {};
-  const sizeSet = {};
-  let dailyCheckedActualTotal = 0;
-  let dailyFinishedActualTotal = 0;
-
-  actualRows.forEach(function(row) {
-    const dailyActual = row.today || {};
-    dailyCheckedActualTotal += Number(dailyActual.checked || 0);
-    dailyFinishedActualTotal += Number(dailyActual.finished || 0);
-    monthlyActualBySize[row.size] = row.monthly || {};
-    sizeSet[row.size] = true;
-  });
-  Object.keys(monthlyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
+  const plans = getDashboardCanonicalPlans_();
+  const dailyPlansBySize = plans.dailyByDate[dayKey] || {};
+  const monthlyPlansBySize = plans.monthlyByMonth[monthKey] || {};
+  const actuals = dashboardPlanBuildActuals_(pipeObjects, dayKey, monthKey);
 
   const bySize = [];
   const sizeComparison = [];
-  let dailyCheckedPlanTotal = 0;
-  let dailyFinishedPlanTotal = 0;
+  let dailyCheckedActualTotal = 0;
+  let dailyFinishedActualTotal = 0;
   let checkedActualTotal = 0;
   let finishedActualTotal = 0;
-  let checkedPlanTotal = 0;
-  let finishedPlanTotal = 0;
+  const checkedPlanTotal = dashboardPlanTotal_(monthlyPlansBySize, "checked");
+  const finishedPlanTotal = dashboardPlanTotal_(monthlyPlansBySize, "finished");
+  const dailyCheckedPlanTotal = dashboardPlanTotal_(dailyPlansBySize, "checked");
+  const dailyFinishedPlanTotal = dashboardPlanTotal_(dailyPlansBySize, "finished");
+  const sizeSet = {};
+  Object.keys(monthlyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
+  Object.keys(dailyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
   const sizes = Object.keys(sizeSet).sort(function(left, right) {
     return left.localeCompare(right, "vi");
   });
 
   sizes.forEach(function(size) {
-    const actual = monthlyActualBySize[size] || {};
-    const hasPlan = Object.prototype.hasOwnProperty.call(monthlyPlansBySize, size);
-    const plan = hasPlan ? monthlyPlansBySize[size] : {};
-    const checkedActual = Number(actual.checked || 0);
-    const finishedActual = Number(actual.finished || 0);
+    const monthlyActual = actuals.bySize[size] && actuals.bySize[size].monthly ? actuals.bySize[size].monthly : {};
+    const dailyActual = actuals.bySize[size] && actuals.bySize[size].today ? actuals.bySize[size].today : {};
+    const monthlyPlan = monthlyPlansBySize[size] || {};
+    const dailyPlan = dailyPlansBySize[size] || null;
+    const hasMonthlySizePlan = Object.prototype.hasOwnProperty.call(monthlyPlansBySize, size);
+    const comparisonPlan = dailyPlan || monthlyPlan;
+    const comparisonActual = dailyPlan ? dailyActual : monthlyActual;
+    const checkedActual = Number(monthlyActual.checked || 0);
+    const finishedActual = Number(monthlyActual.finished || 0);
 
-    checkedActualTotal += checkedActual;
-    finishedActualTotal += finishedActual;
-    if (hasPlan) {
-      checkedPlanTotal += Number(plan.checked || 0);
-      finishedPlanTotal += Number(plan.finished || 0);
+    if (hasMonthlySizePlan) {
+      checkedActualTotal += checkedActual;
+      finishedActualTotal += finishedActual;
+
+      const checkedRow = buildDashboardPlanComparisonRow_(
+        size + " · Kiểm tra", size, "checked", monthlyPlan.checked, checkedActual, true, monthKey
+      );
+      const finishedRow = buildDashboardPlanComparisonRow_(
+        size + " · Thành phẩm", size, "finished", monthlyPlan.finished, finishedActual, true, monthKey
+      );
+      bySize.push(checkedRow, finishedRow);
     }
 
-    const checkedRow = buildDashboardPlanComparisonRow_(
-      size + " · Kiểm tra", size, "checked", plan.checked, checkedActual, hasPlan
+    const checkedComparison = buildDashboardPlanComparisonRow_(
+      size + " · Kiểm tra", size, "checked", comparisonPlan.checked, Number(comparisonActual.checked || 0), true, dailyPlan ? dayKey : monthKey
     );
-    const finishedRow = buildDashboardPlanComparisonRow_(
-      size + " · Thành phẩm", size, "finished", plan.finished, finishedActual, hasPlan
+    const finishedComparison = buildDashboardPlanComparisonRow_(
+      size + " · Thành phẩm", size, "finished", comparisonPlan.finished, Number(comparisonActual.finished || 0), true, dailyPlan ? dayKey : monthKey
     );
-    bySize.push(checkedRow, finishedRow);
     sizeComparison.push({
       size: size,
       checked: {
-        plan: checkedRow.plan,
-        actual: checkedRow.actual,
-        completionPercent: checkedRow.percent
+        plan: checkedComparison.plan,
+        actual: checkedComparison.actual,
+        completionPercent: checkedComparison.percent
       },
       finished: {
-        plan: finishedRow.plan,
-        actual: finishedRow.actual,
-        completionPercent: finishedRow.percent
+        plan: finishedComparison.plan,
+        actual: finishedComparison.actual,
+        completionPercent: finishedComparison.percent
+      },
+      difference: {
+        checked: checkedComparison.actual - Number(comparisonPlan.checked || 0),
+        finished: finishedComparison.actual - Number(comparisonPlan.finished || 0)
       }
     });
   });
 
   Object.keys(dailyPlansBySize).forEach(function(size) {
-    const plan = dailyPlansBySize[size] || {};
-    dailyCheckedPlanTotal += Number(plan.checked || 0);
-    dailyFinishedPlanTotal += Number(plan.finished || 0);
+    const actual = actuals.bySize[size] && actuals.bySize[size].today ? actuals.bySize[size].today : {};
+    dailyCheckedActualTotal += Number(actual.checked || 0);
+    dailyFinishedActualTotal += Number(actual.finished || 0);
   });
 
-  let hasDailyPlan = Object.keys(dailyPlansBySize).length > 0;
-  let hasMonthlyPlan = Object.keys(monthlyPlansBySize).length > 0;
-  if (!hasDailyPlan && aggregatePlans.daily && aggregatePlans.daily.currentPlan) {
-    dailyCheckedPlanTotal = Number(aggregatePlans.daily.currentPlan.checkedPlan || 0);
-    dailyFinishedPlanTotal = Number(aggregatePlans.daily.currentPlan.finishedPlan || 0);
-    hasDailyPlan = true;
-  }
-  if (!hasMonthlyPlan && aggregatePlans.monthly && aggregatePlans.monthly.currentPlan) {
-    checkedPlanTotal = Number(aggregatePlans.monthly.currentPlan.checkedPlan || 0);
-    finishedPlanTotal = Number(aggregatePlans.monthly.currentPlan.finishedPlan || 0);
-    hasMonthlyPlan = true;
-  }
+  const hasDailyPlan = Object.keys(dailyPlansBySize).length > 0;
+  const hasMonthlyPlan = Object.keys(monthlyPlansBySize).length > 0;
   const dayLabel = dayKey.slice(8, 10) + "/" + dayKey.slice(5, 7) + "/" + dayKey.slice(0, 4);
   const monthLabel = monthKey.slice(5, 7) + "/" + monthKey.slice(0, 4);
   const dailyChecked = buildDashboardPlanComparisonRow_(
     dayLabel + " · Kiểm tra", "", "checked",
-    dailyCheckedPlanTotal, dailyCheckedActualTotal, hasDailyPlan
+    dailyCheckedPlanTotal, dailyCheckedActualTotal, hasDailyPlan, dayKey
   );
   const dailyFinished = buildDashboardPlanComparisonRow_(
     dayLabel + " · Thành phẩm", "", "finished",
-    dailyFinishedPlanTotal, dailyFinishedActualTotal, hasDailyPlan
+    dailyFinishedPlanTotal, dailyFinishedActualTotal, hasDailyPlan, dayKey
   );
   const monthlyChecked = buildDashboardPlanComparisonRow_(
     monthLabel + " · Kiểm tra", "", "checked",
-    checkedPlanTotal, checkedActualTotal, hasMonthlyPlan
+    checkedPlanTotal, checkedActualTotal, hasMonthlyPlan, monthKey
   );
   const monthlyFinished = buildDashboardPlanComparisonRow_(
     monthLabel + " · Thành phẩm", "", "finished",
-    finishedPlanTotal, finishedActualTotal, hasMonthlyPlan
+    finishedPlanTotal, finishedActualTotal, hasMonthlyPlan, monthKey
   );
+
+  const trend7Days = [];
+  for (let offset = 6; offset >= 0; offset--) {
+    const date = new Date(asOf.getTime());
+    date.setDate(date.getDate() - offset);
+    const trendKey = dashboardPlanFormatDayKey_(date);
+    const trendPlans = plans.dailyByDate[trendKey] || {};
+    const trendActual = actuals.byDate[trendKey] || { checked: 0, finished: 0 };
+    trend7Days.push({
+      date: trendKey,
+      label: trendKey.slice(8, 10) + "/" + trendKey.slice(5, 7),
+      checkedPlan: dashboardPlanTotal_(trendPlans, "checked"),
+      checkedActual: Number(trendActual.checked || 0),
+      finishedPlan: dashboardPlanTotal_(trendPlans, "finished"),
+      finishedActual: Number(trendActual.finished || 0)
+    });
+  }
 
   return {
     total: {
@@ -784,6 +839,7 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
     byMonth: [monthlyChecked, monthlyFinished],
     bySize: bySize,
     sizeComparison: sizeComparison,
+    trend7Days: trend7Days,
     monthlyComparison: {
       checked: {
         plan: monthlyChecked.plan,
@@ -796,74 +852,74 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
         completionPercent: monthlyFinished.percent
       }
     },
+    day: dayKey,
     month: monthKey,
-    source: "PlanService"
+    source: plans.source
   };
 }
-
 function buildDashboardDataFresh_() {
   try {
     const pipeObjects = buildPipeEngine();
     if (pipeObjects.length === 0) return { success: false, error: "Không có dữ liệu pipe." };
-    
+
     let totalPipes = pipeObjects.length;
     let tpCount = 0;
     let hongCount = 0;
     let csCount = 0;
     let dxlCount = 0;
-    
+
     let tpPipes = [];
     let csPipes = [];
     let hongPipes = [];
     let dxlPipes = [];
-    
+
     let processQueueSummary = {};
     let errorSummary = {};
     let rigSummary = {};
-    
+
     let sizeStats = {};
     let shiftSummary = {};
     let allTxns = [];
-    
+
     let xiPinCount = 0;
     let xiBoxCount = 0;
-    
+
     let processPipeLists = {};
     let queueSummary = {};
-    
+
     // Đếm theo Pipe Objects thay vì Transactions
     for (let pipe of pipeObjects) {
       let bStatus = pipe.currentBusinessStatus;
       let isThanhPhamByPressureTest = isThanhPhamKpiPipe(pipe);
-      
+
       if (isThanhPhamByPressureTest) { tpCount++; tpPipes.push(pipe); }
-      
+
       if (bStatus === "LOAI") { hongCount++; hongPipes.push(pipe); }
       else if (bStatus === "CHO_SUA") { csCount++; csPipes.push(pipe); }
       else if (bStatus === "DANG_XU_LY") { dxlCount++; dxlPipes.push(pipe); }
-      
+
       let cp = pipe.currentProcess || "Khác";
       if (!processQueueSummary[cp]) processQueueSummary[cp] = 0;
       processQueueSummary[cp]++;
-      
+
       if (bStatus === "DANG_XU_LY" || bStatus === "CHO_SUA") {
           if (!queueSummary[cp]) queueSummary[cp] = 0;
           queueSummary[cp]++;
-          
+
           if (!processPipeLists[cp]) processPipeLists[cp] = [];
           processPipeLists[cp].push(pipe);
       }
-      
+
       let reason = pipe.currentReason;
       if (reason) {
           if (!errorSummary[reason]) errorSummary[reason] = 0;
           errorSummary[reason]++;
       }
-      
+
       let rig = pipe.rig || "Khác";
       if (!rigSummary[rig]) rigSummary[rig] = 0;
       rigSummary[rig]++;
-      
+
       let size = pipe.size || "Khác";
       if (!sizeStats[size]) {
           sizeStats[size] = { tp: 0, cs: 0, hong: 0, dxl: 0 };
@@ -872,55 +928,55 @@ function buildDashboardDataFresh_() {
       else if (bStatus === "LOAI") { sizeStats[size].hong++; }
       else if (bStatus === "CHO_SUA") { sizeStats[size].cs++; }
       else if (bStatus === "DANG_XU_LY") { sizeStats[size].dxl++; }
-      
+
       let shift = pipe.currentShift || "Khác";
       if (!shiftSummary[shift]) shiftSummary[shift] = 0;
       shiftSummary[shift]++;
-      
+
       let r = (pipe.currentReason || "").toLowerCase();
       if (r.includes("xi pin")) xiPinCount++;
       if (r.includes("xi box")) xiBoxCount++;
-      
+
       allTxns.push(...pipe.history);
     }
-    
-    let sortedProcess = Object.keys(processQueueSummary).map(k => ({ 
-      name: k, 
-      count: processQueueSummary[k] 
+
+    let sortedProcess = Object.keys(processQueueSummary).map(k => ({
+      name: k,
+      count: processQueueSummary[k]
     })).sort((a, b) => b.count - a.count);
-    
-    let queueStats = Object.keys(queueSummary).map(k => ({ 
-      name: k, 
-      count: queueSummary[k] 
+
+    let queueStats = Object.keys(queueSummary).map(k => ({
+      name: k,
+      count: queueSummary[k]
     })).sort((a, b) => b.count - a.count);
-    
+
     let errorStats = Object.keys(errorSummary).map(k => ({
         name: k, count: errorSummary[k]
     })).sort((a, b) => b.count - a.count);
-    
+
     let rigStats = Object.keys(rigSummary).map(k => ({
         name: k, count: rigSummary[k]
     })).sort((a, b) => b.count - a.count);
-    
+
     let shiftStats = Object.keys(shiftSummary).map(k => ({
         name: k, count: shiftSummary[k]
     })).sort((a, b) => b.count - a.count);
-    
+
     // Sort all transactions to get 10 recent (Mới nhất)
     allTxns.sort((a, b) => {
       let dateA = getDashboardTime_(a.date);
       let dateB = getDashboardTime_(b.date);
       if (dateA !== dateB) return dateB - dateA; // Giảm dần
-      
+
       let timeA = getDashboardTime_(a.receiveTime);
       let timeB = getDashboardTime_(b.receiveTime);
       if (timeA !== timeB) return timeB - timeA; // Giảm dần
-      
+
       let idA = (a.id || "").toString();
       let idB = (b.id || "").toString();
       return idB.localeCompare(idA); // Giảm dần
     });
-    
+
     let recent = allTxns.slice(0, 10).map(r => {
         let bStatus = classifyBusinessStatus(r, "", null);
         let sGroup = bStatus === "THANH_PHAM" ? "tp" : bStatus === "LOAI" ? "hong" : bStatus === "CHO_SUA" ? "cs" : "dxl";
@@ -939,25 +995,47 @@ function buildDashboardDataFresh_() {
             worker2: r.worker2
         };
     });
-    
-    // Kế hoạch ngày/tháng từ PlanService; thực tế tái sử dụng projection/aggregation của Dashboard V2.
+
     const finalPlanStats = buildDashboardMonthlyPlanStats_(pipeObjects, new Date());
-    
-    // Calculate Factory Health & Alerts
+    const qualityAnalysis = buildErrorAnalysis(pipeObjects);
+    errorStats = (qualityAnalysis.byError || []).map(function(row) {
+      return {
+        name: row.label,
+        code: row.code,
+        count: row.count,
+        rate: row.rate,
+        category: row.category,
+        severity: row.severity,
+        color: row.color
+      };
+    });
+
+    const dailyCheckedKpi = (finalPlanStats.byDate || []).filter(row => row && row.metric === "checked")[0] || null;
+    const dailyFinishedKpi = (finalPlanStats.byDate || []).filter(row => row && row.metric === "finished")[0] || null;
+    const kpiPercents = [dailyCheckedKpi, dailyFinishedKpi]
+      .map(row => row && row.percent !== null && row.percent !== undefined ? Number(row.percent) : null)
+      .filter(value => Number.isFinite(value));
+    const factoryKpiPercent = kpiPercents.length ? Math.min.apply(null, kpiPercents) : null;
+
     let health = "NORMAL";
-    if (hongCount > 0 || csCount > 30) {
+    if (factoryKpiPercent !== null && factoryKpiPercent < 80) {
       health = "CRITICAL";
-    } else if (csCount > 0 || dxlCount > 0) {
+    } else if (factoryKpiPercent !== null && factoryKpiPercent < 100) {
+      health = "WARNING";
+    } else if (factoryKpiPercent === null && (hongCount > 0 || csCount > 0)) {
       health = "WARNING";
     }
-    
+
     let alerts = [];
-    if (csCount > 0) alerts.push(`Có ${csCount} ống đang chờ sửa.`);
-    if (hongCount > 0) alerts.push(`Có ${hongCount} ống bị loại.`);
-    if (dxlCount > 0) alerts.push(`Có ${dxlCount} ống đang xử lý.`);
-    if (xiPinCount > 0) alerts.push(`Phát hiện ${xiPinCount} ống bị lỗi Xì pin.`);
-    if (xiBoxCount > 0) alerts.push(`Phát hiện ${xiBoxCount} ống bị lỗi Xì box.`);
-    
+    if (dailyCheckedKpi && dailyCheckedKpi.percent !== null && dailyCheckedKpi.percent < 100) {
+      alerts.push("KPI kiểm tra hôm nay đạt " + dailyCheckedKpi.percent + "%.");
+    }
+    if (dailyFinishedKpi && dailyFinishedKpi.percent !== null && dailyFinishedKpi.percent < 100) {
+      alerts.push("KPI thành phẩm hôm nay đạt " + dailyFinishedKpi.percent + "%.");
+    }
+    if (csCount > 0) alerts.push("Có " + csCount + " ống đang chờ sửa.");
+    if (hongCount > 0) alerts.push("Có " + hongCount + " ống hỏng.");
+    if (errorStats.length > 0) alerts.push("Lỗi nhiều nhất: " + errorStats[0].name + " (" + errorStats[0].count + ").");
     let resultData = {
       success: true,
       factoryHealth: health,
@@ -977,6 +1055,7 @@ function buildDashboardDataFresh_() {
       processQueueSummary: processQueueSummary,
       sizeStats: sizeStats,
       errorStats: errorStats,
+      qualityAnalysis: qualityAnalysis,
       rigStats: rigStats,
       shiftStats: shiftStats,
       recent: recent,
@@ -989,7 +1068,7 @@ function buildDashboardDataFresh_() {
       },
       processPipeLists: processPipeLists
     };
-    
+
     function sanitizeDates(obj) {
       if (obj === null || obj === undefined) return obj;
       if (obj instanceof Date) {
@@ -1017,9 +1096,9 @@ function buildDashboardDataFresh_() {
       }
       return obj;
     }
-    
+
     return sanitizeDates(resultData);
-    
+
   } catch (e) {
     return { success: false, error: e.toString(), stack: e.stack };
   }
@@ -1201,6 +1280,7 @@ function extractDashboardSnapshot_(fullResponse) {
     processQueueSummary: fullResponse.processQueueSummary || {},
     sizeStats: fullResponse.sizeStats || {},
     errorStats: fullResponse.errorStats || [],
+    qualityAnalysis: fullResponse.qualityAnalysis || {},
     rigStats: fullResponse.rigStats || [],
     shiftStats: fullResponse.shiftStats || [],
     recent: fullResponse.recent || [],
@@ -2972,19 +3052,19 @@ function writePipeEngineDebugToSheet() {
   const data = debugPipeEngine();
   const ss = getSpreadsheet();
   if (!ss) return;
-  
+
   let sheet = ss.getSheetByName("DEBUG");
   if (!sheet) {
     sheet = ss.insertSheet("DEBUG");
   } else {
     sheet.clear();
   }
-  
+
   sheet.getRange("A1").setValue("totalTransactions");
   sheet.getRange("B1").setValue(data.totalTransactions);
   sheet.getRange("A2").setValue("totalPipes");
   sheet.getRange("B2").setValue(data.totalPipes);
-  
+
   sheet.getRange("A4").setValue("statusSummary");
   let statusArr = [];
   for (let status in data.statusSummary) {
@@ -2993,7 +3073,7 @@ function writePipeEngineDebugToSheet() {
   if (statusArr.length > 0) {
     sheet.getRange(5, 1, statusArr.length, 2).setValues(statusArr);
   }
-  
+
   sheet.getRange("D4").setValue("processQueueSummary");
   let processArr = [];
   for (let process in data.processQueueSummary) {
@@ -3002,15 +3082,15 @@ function writePipeEngineDebugToSheet() {
   if (processArr.length > 0) {
     sheet.getRange(5, 4, processArr.length, 2).setValues(processArr);
   }
-  
+
   sheet.getRange("G4").setValue("samplePipes");
   let pipeArr = [["pipeNo", "currentProcess", "currentBusinessStatus", "currentReason"]];
   if (data.samplePipes && data.samplePipes.length > 0) {
     for (let pipe of data.samplePipes) {
       pipeArr.push([
-        pipe.pipeNo || "", 
-        pipe.currentProcess || "", 
-        pipe.currentBusinessStatus || "", 
+        pipe.pipeNo || "",
+        pipe.currentProcess || "",
+        pipe.currentBusinessStatus || "",
         pipe.currentReason || ""
       ]);
     }
@@ -3024,12 +3104,12 @@ function writePipeEngineDebugToSheet() {
  */
 function validateDashboardData() {
   Logger.log("--- BẮT ĐẦU VALIDATE DỮ LIỆU SPRINT 6.1 ---");
-  
+
   // 1. Lấy dữ liệu Dashboard
   const dashboardPipes = buildPipeEngine();
   let dbTotal = dashboardPipes.length;
   let dbTp = 0, dbLoai = 0, dbCs = 0, dbDxl = 0;
-  
+
   const dashboardMap = {};
   for (let p of dashboardPipes) {
     dashboardMap[p.pipeNo] = p;
@@ -3039,11 +3119,11 @@ function validateDashboardData() {
     else if (bStatus === "CHO_SUA") dbCs++;
     else if (bStatus === "DANG_XU_LY") dbDxl++;
   }
-  
+
   // 2. Lấy dữ liệu Google Sheet (Naive)
   const txns = getRawTransactions();
   const sheetMap = {};
-  
+
   for (let txn of txns) {
     let pNo = txn.pipeNo;
     if (!pNo) continue;
@@ -3052,61 +3132,60 @@ function validateDashboardData() {
     }
     sheetMap[pNo].push(txn);
   }
-  
+
   let shTotal = Object.keys(sheetMap).length;
   let shTp = 0, shLoai = 0, shCs = 0, shDxl = 0;
   const sheetFinalStatusMap = {};
-  
+
   for (let pNo in sheetMap) {
     let history = sheetMap[pNo];
-    
+
     // Sort transactions identically to find the exact last row in sheet
     history.sort((a, b) => {
       let dateA = getDashboardTime_(a.date);
       let dateB = getDashboardTime_(b.date);
       if (dateA !== dateB) return dateA - dateB;
-      
+
       let timeA = getDashboardTime_(a.receiveTime);
       let timeB = getDashboardTime_(b.receiveTime);
       if (timeA !== timeB) return timeA - timeB;
-      
+
       let idA = (a.id || "").toString();
       let idB = (b.id || "").toString();
       return idA.localeCompare(idB);
     });
-    
+
     let lastTxn = history[history.length - 1];
-    
+
     // Phân loại Naive (Dựa trên dòng cuối cùng của Google Sheet, không có Rule Engine & History)
     let sheetStatus = classifyBusinessStatus(lastTxn, "", null);
-    
+
     sheetFinalStatusMap[pNo] = {
       sheetStatus: sheetStatus
     };
-    
+
     if (sheetStatus === "THANH_PHAM") shTp++;
     else if (sheetStatus === "LOAI") shLoai++;
     else if (sheetStatus === "CHO_SUA") shCs++;
     else if (sheetStatus === "DANG_XU_LY") shDxl++;
   }
-  
+
   Logger.log("So sánh:");
   Logger.log("1. Tổng số Pipe: Dashboard (" + dbTotal + ") vs Sheet (" + shTotal + ")");
   Logger.log("2. Thành phẩm: Dashboard (" + dbTp + ") vs Sheet (" + shTp + ")");
   Logger.log("3. Loại: Dashboard (" + dbLoai + ") vs Sheet (" + shLoai + ")");
   Logger.log("4. Chờ sửa: Dashboard (" + dbCs + ") vs Sheet (" + shCs + ")");
   Logger.log("5. Đang xử lý: Dashboard (" + dbDxl + ") vs Sheet (" + shDxl + ")");
-  
+
   let mismatchCount = 0;
   for (let pNo in dashboardMap) {
     let dbPipe = dashboardMap[pNo];
     let shData = sheetFinalStatusMap[pNo];
     if (!shData) continue;
-    
+
     if (dbPipe.currentBusinessStatus !== shData.sheetStatus) {
       mismatchCount++;
     }
   }
   Logger.log("VALIDATE_DASHBOARD | success=true | rowCount=" + dbTotal + " | errorCount=" + mismatchCount);
 }
-

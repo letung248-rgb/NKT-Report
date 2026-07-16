@@ -287,6 +287,198 @@ function testCreatePlanDryRun() {
   });
 }
 
+function testSprint13BPlanningCanonicalSources() {
+  return sprint12RegressionRunCase_("testSprint13BPlanningCanonicalSources", function(test) {
+    test.assert(
+      "Monthly Planning source canonical",
+      PLAN_REPOSITORY_CONFIG.monthly.sheetName === "KẾ_HOẠCH_THÁNG",
+      "KẾ_HOẠCH_THÁNG",
+      PLAN_REPOSITORY_CONFIG.monthly.sheetName
+    );
+    test.assert(
+      "Daily Planning source canonical",
+      PLAN_REPOSITORY_CONFIG.daily.sheetName === "KẾ_HOẠCH_NGÀY",
+      "KẾ_HOẠCH_NGÀY",
+      PLAN_REPOSITORY_CONFIG.daily.sheetName
+    );
+    test.assert(
+      "Size source canonical",
+      SIZE_REPOSITORY_CONFIG.sheetName === "DANH_MUC_SIZE",
+      "DANH_MUC_SIZE",
+      SIZE_REPOSITORY_CONFIG.sheetName
+    );
+    test.assert(
+      "Monthly canonical headers",
+      JSON.stringify(PLAN_REPOSITORY_CONFIG.monthly.headers) === JSON.stringify([
+        "ID", "Tháng", "Size", "KH kiểm tra", "KH thành phẩm", "Ghi chú", "Tạo lúc", "Cập nhật lúc"
+      ]),
+      "Canonical monthly headers",
+      PLAN_REPOSITORY_CONFIG.monthly.headers
+    );
+    test.assert(
+      "Daily canonical headers",
+      JSON.stringify(PLAN_REPOSITORY_CONFIG.daily.headers) === JSON.stringify([
+        "ID", "Ngày", "Size", "KH kiểm tra", "KH thành phẩm", "Ghi chú", "Tạo lúc", "Cập nhật lúc"
+      ]),
+      "Canonical daily headers",
+      PLAN_REPOSITORY_CONFIG.daily.headers
+    );
+    test.assert(
+      "PlanSheetSetup không còn setup legacy 7 cột",
+      typeof PLAN_SHEET_SETUP_DEFINITIONS === "undefined" &&
+        typeof _setupPlanModuleSheet_ === "undefined",
+      "Không còn helper setup legacy",
+      {
+        definitions: typeof PLAN_SHEET_SETUP_DEFINITIONS,
+        helper: typeof _setupPlanModuleSheet_
+      }
+    );
+
+    return {
+      details: {
+        readOnly: true,
+        monthlySheet: PLAN_REPOSITORY_CONFIG.monthly.sheetName,
+        dailySheet: PLAN_REPOSITORY_CONFIG.daily.sheetName,
+        sizeSheet: SIZE_REPOSITORY_CONFIG.sheetName
+      }
+    };
+  });
+}
+
+function testSprint13BPlanningValidationDryRun() {
+  return sprint12RegressionRunCase_("testSprint13BPlanningValidationDryRun", function(test) {
+    var normalizedType = planServiceValidateType_(" ngay ");
+    var zeroPlan = planServiceValidateNonNegativeNumber_("0", "KH kiểm tra");
+    var integerPlan = planServiceValidateNonNegativeNumber_(12, "KH thành phẩm");
+    var decimalError = sprint12RegressionCaptureError_(function() {
+      planServiceValidateNonNegativeNumber_("1.5", "KH kiểm tra");
+    });
+    var negativeError = sprint12RegressionCaptureError_(function() {
+      planServiceValidateNonNegativeNumber_("-1", "KH kiểm tra");
+    });
+    var invalidMonthError = sprint12RegressionCaptureError_(function() {
+      planServiceValidateMonth_("2026-13");
+    });
+    var invalidRangeError = sprint12RegressionCaptureError_(function() {
+      planServiceValidateDailyRange_("2026-07-01", "2026-08-01");
+    });
+    var inactiveSizeError = sprint12RegressionCaptureError_(function() {
+      planServiceRequireActiveSize_("__SPRINT13B_INACTIVE_SIZE__");
+    });
+    var longNote = new Array(502).join("x");
+    var longNoteError = sprint12RegressionCaptureError_(function() {
+      planServiceValidateCommonInput_({
+        size: "Ø60",
+        kiemTra: 1,
+        thanhPham: 1,
+        ghiChu: longNote
+      });
+    });
+
+    test.assert("Loại kế hoạch được trim", normalizedType === "ngay", "ngay", normalizedType);
+    test.assert("Cho phép kế hoạch bằng 0", zeroPlan === 0, 0, zeroPlan);
+    test.assert("Cho phép số nguyên dương", integerPlan === 12, 12, integerPlan);
+    test.assert("Chặn số thập phân", decimalError.length > 0, "Có lỗi", decimalError);
+    test.assert("Chặn số âm", negativeError.length > 0, "Có lỗi", negativeError);
+    test.assert("Chặn tháng sai", invalidMonthError.length > 0, "Có lỗi", invalidMonthError);
+    test.assert("Chặn khoảng ngày > 31", invalidRangeError.length > 0, "Có lỗi", invalidRangeError);
+    test.assert("Chặn Size không active/không tồn tại", inactiveSizeError.length > 0, "Có lỗi", inactiveSizeError);
+    test.assert("Chặn ghi chú quá dài", longNoteError.length > 0, "Có lỗi", longNoteError);
+
+    return {
+      details: {
+        readOnly: true,
+        writeBoundaryCalled: false,
+        dashboardRefreshCalled: false
+      }
+    };
+  });
+}
+
+function testSprint13BPlanningDuplicateDryRun() {
+  return sprint12RegressionRunCase_("testSprint13BPlanningDuplicateDryRun", function(test) {
+    var records = [
+      { id: "plan-1", period: "2026-07", size: "Ø60" },
+      { id: "plan-2", period: "2026-07", size: "Ø73" }
+    ];
+    var monthlyConflict = planServiceFindDuplicatePeriods_(
+      records,
+      ["2026-07"],
+      "Ø60",
+      "thang",
+      ""
+    );
+    var excludedConflict = planServiceFindDuplicatePeriods_(
+      records,
+      ["2026-07"],
+      "Ø60",
+      "thang",
+      "plan-1"
+    );
+    var caseInsensitiveConflict = planServiceFindDuplicatePeriods_(
+      records,
+      ["2026-07"],
+      "ø73",
+      "thang",
+      ""
+    );
+
+    test.assert("Phát hiện trùng period + Size", monthlyConflict.length === 1, 1, monthlyConflict.length);
+    test.assert("Không tự trùng khi update cùng ID", excludedConflict.length === 0, 0, excludedConflict.length);
+    test.assert(
+      "So khớp Size không phân biệt hoa thường",
+      caseInsensitiveConflict.length === 1,
+      1,
+      caseInsensitiveConflict.length
+    );
+
+    return {
+      details: {
+        fixturesOnly: true,
+        writeBoundaryCalled: false,
+        dashboardRefreshCalled: false
+      }
+    };
+  });
+}
+
+function testSprint13BPlanningReadOnlyData() {
+  return sprint12RegressionRunCase_("testSprint13BPlanningReadOnlyData", function(test) {
+    var response = getPlanModuleData();
+    var monthly = response && response.data && Array.isArray(response.data.monthly)
+      ? response.data.monthly
+      : [];
+    var daily = response && response.data && Array.isArray(response.data.daily)
+      ? response.data.daily
+      : [];
+    var sizes = response && response.data && Array.isArray(response.data.sizes)
+      ? response.data.sizes
+      : [];
+
+    test.assert("PlanModuleData success", response && response.success === true, true, response && response.success);
+    test.assert("Monthly trả về array", Array.isArray(monthly), true, monthly);
+    test.assert("Daily trả về array", Array.isArray(daily), true, daily);
+    test.assert("Sizes trả về active catalog", sizes.length > 0, "Có Size active", sizes);
+    test.assert(
+      "Meta readOnly",
+      response.meta && response.meta.readOnly === true,
+      true,
+      response.meta && response.meta.readOnly
+    );
+
+    return {
+      details: {
+        readOnly: true,
+        monthlyCount: monthly.length,
+        dailyCount: daily.length,
+        sizeCount: sizes.length,
+        writeBoundaryCalled: false,
+        dashboardRefreshCalled: false
+      }
+    };
+  });
+}
+
 function sprint12RegressionMockExportPipe_(pipeNo, bundleCode, businessStatus) {
   var entries = {};
   entries[1] = [{
@@ -530,6 +722,42 @@ function sprint12RegressionAccumulateSideEffects_(target, source) {
   Object.keys(target).forEach(function(key) {
     target[key] += Number(source && source[key] || 0);
   });
+}
+
+function runSprint13BPlanningRegression() {
+  var startedAtMs = Date.now();
+  var startedAt = new Date(startedAtMs).toISOString();
+  var tests = [
+    testSprint13BPlanningCanonicalSources(),
+    testSprint13BPlanningValidationDryRun(),
+    testSprint13BPlanningDuplicateDryRun(),
+    testSprint13BPlanningReadOnlyData()
+  ];
+  var passed = tests.filter(function(test) { return test.success === true; }).length;
+  var sideEffects = sprint12RegressionSideEffects_();
+  tests.forEach(function(test) {
+    sprint12RegressionAccumulateSideEffects_(sideEffects, test.sideEffects);
+  });
+
+  var result = {
+    suite: "Sprint 13B Planning Regression",
+    success: passed === tests.length,
+    status: passed === tests.length ? "PASS" : "FAIL",
+    dryRun: true,
+    startedAt: startedAt,
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAtMs,
+    summary: {
+      total: tests.length,
+      passed: passed,
+      failed: tests.length - passed
+    },
+    sideEffects: sideEffects,
+    tests: tests
+  };
+
+  Logger.log("SPRINT13B_PLANNING_REGRESSION_RESULT " + JSON.stringify(result));
+  return result;
 }
 
 /**
