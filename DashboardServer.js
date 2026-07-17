@@ -558,23 +558,269 @@ function debugLatest10Pipes() {
   return samples;
 }
 
-/**
- * 6. Hàm lấy dữ liệu cho Dashboard (Tạm thời dùng Pipe Engine)
- */
-function getDashboardData() {
-  const cachedSnapshot = readDashboardSnapshotCache_();
-  if (cachedSnapshot) return applyDashboardCurrentPlans_(cachedSnapshot);
+const DASHBOARD_OVERVIEW_DATE_EMPTY_MESSAGE = "Ngày này chưa có kế hoạch hoặc dữ liệu sản xuất.";
+const DASHBOARD_OVERVIEW_DATE_FALLBACK_NOTE = "Đang hiển thị ngày sản xuất gần nhất.";
+const DASHBOARD_OVERVIEW_DATE_CACHE_PREFIX = "dashboard:overview-date:v2:";
+const DASHBOARD_OVERVIEW_DATE_CACHE_TTL_SECONDS = 300;
+const DASHBOARD_OVERVIEW_DATE_CACHE_MAX_BYTES = 90 * 1024;
 
-  const durableSnapshot = readDashboardSnapshot_();
-  if (durableSnapshot) return applyDashboardCurrentPlans_(durableSnapshot);
+/**
+ * 6. Hàm lấy dữ liệu cho Dashboard theo ngày báo cáo.
+ */
+function getDashboardData(reportDateText) {
+  try {
+    const requestedText = (reportDateText || "").toString().trim();
+    if (requestedText) {
+      const requestedDate = parseDashboardOverviewDate_(requestedText);
+      if (!requestedDate) return { success: false, error: "Ngày báo cáo không hợp lệ." };
+      return getDashboardOverviewDateData_(requestedDate.dateKey, {
+        userSelected: true,
+        usedNearestDate: false
+      });
+    }
+
+    const source = getDashboardOverviewSource_();
+    const defaultDate = resolveDefaultDashboardOverviewDate_(source);
+    return getDashboardOverviewDateData_(defaultDate.dateKey, {
+      userSelected: false,
+      usedNearestDate: defaultDate.usedNearestDate
+    }, source);
+  } catch (error) {
+    return {
+      success: false,
+      error: error && error.message ? error.message : error.toString()
+    };
+  }
+}
+
+function parseDashboardOverviewDate_(dateText) {
+  const date = parseDailyReportDate_(dateText);
+  if (!date) return null;
+  return {
+    date: date,
+    dateKey: dashboardPlanFormatDayKey_(date)
+  };
+}
+
+function getDashboardOverviewDateKey_(value) {
+  const date = parseDashboardDate(value);
+  return date ? dashboardPlanFormatDayKey_(date) : "";
+}
+
+function getDashboardOverviewSource_() {
+  return {
+    transactions: getRawTransactions(),
+    plans: getDashboardCanonicalPlans_()
+  };
+}
+
+function hasDashboardOverviewDailyPlan_(plans, dateKey) {
+  const dailyPlan = plans && plans.dailyByDate ? plans.dailyByDate[dateKey] : null;
+  return !!(dailyPlan && Object.keys(dailyPlan).length > 0);
+}
+
+function resolveDefaultDashboardOverviewDate_(source) {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = dashboardPlanFormatDayKey_(yesterday);
+  const availableDates = {};
+  const transactions = source && Array.isArray(source.transactions) ? source.transactions : [];
+  const plans = source && source.plans ? source.plans : { dailyByDate: {} };
+
+  transactions.forEach(function(transaction) {
+    const dateKey = getDashboardOverviewDateKey_(transaction && transaction.date);
+    if (dateKey && dateKey <= yesterdayKey) availableDates[dateKey] = true;
+  });
+
+  Object.keys(plans.dailyByDate || {}).forEach(function(dateKey) {
+    if (dateKey && dateKey <= yesterdayKey) availableDates[dateKey] = true;
+  });
+
+  if (availableDates[yesterdayKey]) {
+    return { dateKey: yesterdayKey, usedNearestDate: false };
+  }
+
+  const fallbackKey = Object.keys(availableDates)
+    .filter(function(dateKey) { return dateKey < yesterdayKey; })
+    .sort()
+    .reverse()[0];
 
   return {
-    success: false,
-    error: "Dashboard snapshot chưa sẵn sàng. Vui lòng chạy refreshDashboardSnapshot_().",
-    snapshotMeta: {
-      status: "missing"
-    }
+    dateKey: fallbackKey || yesterdayKey,
+    usedNearestDate: !!fallbackKey
   };
+}
+
+function getDashboardOverviewDateCacheKey_(dateKey) {
+  return DASHBOARD_OVERVIEW_DATE_CACHE_PREFIX + dateKey +
+    ":data=" + getDashboardDataCacheVersion_() +
+    ":plan=" + getDashboardPlanCacheVersion_();
+}
+
+function readDashboardOverviewDateCache_(dateKey) {
+  try {
+    const payload = CacheService.getScriptCache().get(getDashboardOverviewDateCacheKey_(dateKey));
+    if (payload === null) return null;
+    return deserializeDashboardSnapshot_(payload);
+  } catch (error) {
+    Logger.log("DASH_OVERVIEW_DATE cache read error: " + error);
+    return null;
+  }
+}
+
+function writeDashboardOverviewDateCache_(dateKey, response) {
+  try {
+    const payload = serializeDashboardSnapshot_(response);
+    const payloadBytes = Utilities.newBlob(payload, "text/plain").getBytes().length;
+    if (payloadBytes > DASHBOARD_OVERVIEW_DATE_CACHE_MAX_BYTES) {
+      Logger.log("DASH_OVERVIEW_DATE cache write skipped payload too large | payloadBytes=" + payloadBytes);
+      return false;
+    }
+
+    CacheService.getScriptCache().put(
+      getDashboardOverviewDateCacheKey_(dateKey),
+      payload,
+      DASHBOARD_OVERVIEW_DATE_CACHE_TTL_SECONDS
+    );
+    return true;
+  } catch (error) {
+    Logger.log("DASH_OVERVIEW_DATE cache write error: " + error);
+    return false;
+  }
+}
+
+function cloneDashboardOverviewResponse_(response) {
+  return JSON.parse(JSON.stringify(response || {}));
+}
+
+function applyDashboardOverviewDateContext_(response, context) {
+  const result = cloneDashboardOverviewResponse_(response);
+  result.reportDate = result.reportDate || {};
+  result.reportDate.userSelected = !!(context && context.userSelected);
+  result.reportDate.usedNearestDate = !!(context && context.usedNearestDate);
+  result.reportDate.note = result.reportDate.usedNearestDate
+    ? DASHBOARD_OVERVIEW_DATE_FALLBACK_NOTE
+    : "";
+  result.reportDate.emptyMessage = result.reportDate.noData
+    ? DASHBOARD_OVERVIEW_DATE_EMPTY_MESSAGE
+    : "";
+  return result;
+}
+
+function buildDashboardEmptyPlanStats_(asOf) {
+  const dayKey = dashboardPlanFormatDayKey_(asOf);
+  const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+  const dayLabel = dayKey.slice(8, 10) + "/" + dayKey.slice(5, 7) + "/" + dayKey.slice(0, 4);
+  const trend7Days = [];
+
+  for (let offset = 6; offset >= 0; offset--) {
+    const date = new Date(asOf.getTime());
+    date.setDate(date.getDate() - offset);
+    const trendKey = dashboardPlanFormatDayKey_(date);
+    trend7Days.push({
+      date: trendKey,
+      label: trendKey.slice(8, 10) + "/" + trendKey.slice(5, 7),
+      checkedPlan: 0,
+      checkedActual: 0,
+      finishedPlan: 0,
+      finishedActual: 0
+    });
+  }
+
+  return {
+    total: { plan: null, actual: 0, percent: null },
+    byDate: [
+      buildDashboardPlanComparisonRow_(dayLabel + " · Kiểm tra", "", "checked", null, 0, false, dayKey),
+      buildDashboardPlanComparisonRow_(dayLabel + " · Thành phẩm", "", "finished", null, 0, false, dayKey)
+    ],
+    byMonth: [],
+    bySize: [],
+    sizeComparison: [],
+    trend7Days: trend7Days,
+    monthlyComparison: {
+      checked: { plan: null, actual: 0, completionPercent: null },
+      finished: { plan: null, actual: 0, completionPercent: null }
+    },
+    day: dayKey,
+    month: monthKey,
+    source: "PlanService"
+  };
+}
+
+function buildDashboardOverviewDateCore_(dateKey, source) {
+  const reportDate = parseDailyReportDate_(dateKey);
+  if (!reportDate) return { success: false, error: "Ngày báo cáo không hợp lệ." };
+
+  const overviewSource = source || getDashboardOverviewSource_();
+  const transactions = Array.isArray(overviewSource.transactions) ? overviewSource.transactions : [];
+  const plans = overviewSource.plans || getDashboardCanonicalPlans_();
+  const dailyTransactions = transactions.filter(function(transaction) {
+    return getDashboardOverviewDateKey_(transaction && transaction.date) === dateKey;
+  });
+  const hasDailyPlan = hasDashboardOverviewDailyPlan_(plans, dateKey);
+  const hasDailyProduction = dailyTransactions.length > 0;
+  const noData = !hasDailyPlan && !hasDailyProduction;
+  const historyTransactions = noData ? [] : transactions.filter(function(transaction) {
+    const transactionDateKey = getDashboardOverviewDateKey_(transaction && transaction.date);
+    return transactionDateKey && transactionDateKey <= dateKey;
+  });
+
+  const response = buildDashboardDataFresh_(reportDate, historyTransactions, {
+    allowEmpty: true,
+    plans: plans
+  });
+  if (!response || response.success !== true) {
+    return {
+      success: false,
+      error: response && response.error ? response.error : "Không tạo được dữ liệu Dashboard theo ngày."
+    };
+  }
+
+  if (noData) response.planStats = buildDashboardEmptyPlanStats_(reportDate);
+  const dailyQualityAnalysis = buildErrorAnalysis(dailyTransactions);
+  response.qualityAnalysis = dailyQualityAnalysis;
+  response.errorStats = (dailyQualityAnalysis.byError || []).map(function(row) {
+    return {
+      name: row.label,
+      code: row.code,
+      count: row.count,
+      rate: row.rate,
+      category: row.category,
+      severity: row.severity,
+      color: row.color
+    };
+  });
+  response.alerts = (response.alerts || []).filter(function(alert) {
+    return alert.toString().indexOf("Lỗi nhiều nhất:") !== 0;
+  });
+  if (response.errorStats.length > 0) {
+    response.alerts.push("Lỗi nhiều nhất: " + response.errorStats[0].name + " (" + response.errorStats[0].count + ").");
+  }
+  response.reportDate = {
+    date: dateKey,
+    displayDate: formatDashboardDate_(reportDate),
+    hasDailyPlan: hasDailyPlan,
+    hasDailyProduction: hasDailyProduction,
+    productionRows: dailyTransactions.length,
+    noData: noData
+  };
+  response.snapshotMeta = {
+    success: true,
+    state: "ready",
+    version: "overview-date-" + dateKey,
+    builtAt: new Date().toISOString(),
+    reportDate: dateKey
+  };
+  return response;
+}
+
+function getDashboardOverviewDateData_(dateKey, context, source) {
+  let core = readDashboardOverviewDateCache_(dateKey);
+  if (!core) {
+    core = buildDashboardOverviewDateCore_(dateKey, source);
+    if (core && core.success === true) writeDashboardOverviewDateCache_(dateKey, core);
+  }
+  return applyDashboardOverviewDateContext_(core, context);
 }
 
 function applyDashboardCurrentPlans_(snapshot) {
@@ -711,10 +957,10 @@ function dashboardPlanTotal_(plansBySize, metric) {
   return total;
 }
 
-function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
+function buildDashboardMonthlyPlanStats_(pipeObjects, asOf, plansOverride) {
   const dayKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM-dd");
   const monthKey = Utilities.formatDate(asOf, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
-  const plans = getDashboardCanonicalPlans_();
+  const plans = plansOverride || getDashboardCanonicalPlans_();
   const dailyPlansBySize = plans.dailyByDate[dayKey] || {};
   const monthlyPlansBySize = plans.monthlyByMonth[monthKey] || {};
   const actuals = dashboardPlanBuildActuals_(pipeObjects, dayKey, monthKey);
@@ -732,6 +978,12 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
   const sizeSet = {};
   Object.keys(monthlyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
   Object.keys(dailyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
+  Object.keys(actuals.bySize || {}).forEach(function(size) {
+    const dailyActual = actuals.bySize[size] && actuals.bySize[size].today ? actuals.bySize[size].today : {};
+    if (Number(dailyActual.checked || 0) > 0 || Number(dailyActual.finished || 0) > 0) {
+      sizeSet[size] = true;
+    }
+  });
   const sizes = Object.keys(sizeSet).sort(function(left, right) {
     return left.localeCompare(right, "vi");
   });
@@ -742,8 +994,9 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
     const monthlyPlan = monthlyPlansBySize[size] || {};
     const dailyPlan = dailyPlansBySize[size] || null;
     const hasMonthlySizePlan = Object.prototype.hasOwnProperty.call(monthlyPlansBySize, size);
-    const comparisonPlan = dailyPlan || monthlyPlan;
-    const comparisonActual = dailyPlan ? dailyActual : monthlyActual;
+    const hasDailySizePlan = Object.prototype.hasOwnProperty.call(dailyPlansBySize, size);
+    const hasDailySizeActual = Number(dailyActual.checked || 0) > 0 || Number(dailyActual.finished || 0) > 0;
+    const comparisonPlan = dailyPlan || {};
     const checkedActual = Number(monthlyActual.checked || 0);
     const finishedActual = Number(monthlyActual.finished || 0);
 
@@ -760,29 +1013,31 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
       bySize.push(checkedRow, finishedRow);
     }
 
-    const checkedComparison = buildDashboardPlanComparisonRow_(
-      size + " · Kiểm tra", size, "checked", comparisonPlan.checked, Number(comparisonActual.checked || 0), true, dailyPlan ? dayKey : monthKey
-    );
-    const finishedComparison = buildDashboardPlanComparisonRow_(
-      size + " · Thành phẩm", size, "finished", comparisonPlan.finished, Number(comparisonActual.finished || 0), true, dailyPlan ? dayKey : monthKey
-    );
-    sizeComparison.push({
-      size: size,
-      checked: {
-        plan: checkedComparison.plan,
-        actual: checkedComparison.actual,
-        completionPercent: checkedComparison.percent
-      },
-      finished: {
-        plan: finishedComparison.plan,
-        actual: finishedComparison.actual,
-        completionPercent: finishedComparison.percent
-      },
-      difference: {
-        checked: checkedComparison.actual - Number(comparisonPlan.checked || 0),
-        finished: finishedComparison.actual - Number(comparisonPlan.finished || 0)
-      }
-    });
+    if (hasDailySizePlan || hasDailySizeActual) {
+      const checkedComparison = buildDashboardPlanComparisonRow_(
+        size + " · Kiểm tra", size, "checked", comparisonPlan.checked, Number(dailyActual.checked || 0), hasDailySizePlan, dayKey
+      );
+      const finishedComparison = buildDashboardPlanComparisonRow_(
+        size + " · Thành phẩm", size, "finished", comparisonPlan.finished, Number(dailyActual.finished || 0), hasDailySizePlan, dayKey
+      );
+      sizeComparison.push({
+        size: size,
+        checked: {
+          plan: checkedComparison.plan,
+          actual: checkedComparison.actual,
+          completionPercent: checkedComparison.percent
+        },
+        finished: {
+          plan: finishedComparison.plan,
+          actual: finishedComparison.actual,
+          completionPercent: finishedComparison.percent
+        },
+        difference: {
+          checked: checkedComparison.actual - Number(comparisonPlan.checked || 0),
+          finished: finishedComparison.actual - Number(comparisonPlan.finished || 0)
+        }
+      });
+    }
   });
 
   Object.keys(dailyPlansBySize).forEach(function(size) {
@@ -857,10 +1112,12 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf) {
     source: plans.source
   };
 }
-function buildDashboardDataFresh_() {
+function buildDashboardDataFresh_(asOf, sourceTransactions, options) {
   try {
-    const pipeObjects = buildPipeEngine();
-    if (pipeObjects.length === 0) return { success: false, error: "Không có dữ liệu pipe." };
+    const pipeObjects = buildPipeEngine(sourceTransactions);
+    if (pipeObjects.length === 0 && !(options && options.allowEmpty)) {
+      return { success: false, error: "Không có dữ liệu pipe." };
+    }
 
     let totalPipes = pipeObjects.length;
     let tpCount = 0;
@@ -996,7 +1253,11 @@ function buildDashboardDataFresh_() {
         };
     });
 
-    const finalPlanStats = buildDashboardMonthlyPlanStats_(pipeObjects, new Date());
+    const finalPlanStats = buildDashboardMonthlyPlanStats_(
+      pipeObjects,
+      asOf instanceof Date && !isNaN(asOf.getTime()) ? asOf : new Date(),
+      options && options.plans
+    );
     const qualityAnalysis = buildErrorAnalysis(pipeObjects);
     errorStats = (qualityAnalysis.byError || []).map(function(row) {
       return {
@@ -1028,10 +1289,10 @@ function buildDashboardDataFresh_() {
 
     let alerts = [];
     if (dailyCheckedKpi && dailyCheckedKpi.percent !== null && dailyCheckedKpi.percent < 100) {
-      alerts.push("KPI kiểm tra hôm nay đạt " + dailyCheckedKpi.percent + "%.");
+      alerts.push("KPI kiểm tra ngày báo cáo đạt " + dailyCheckedKpi.percent + "%.");
     }
     if (dailyFinishedKpi && dailyFinishedKpi.percent !== null && dailyFinishedKpi.percent < 100) {
-      alerts.push("KPI thành phẩm hôm nay đạt " + dailyFinishedKpi.percent + "%.");
+      alerts.push("KPI thành phẩm ngày báo cáo đạt " + dailyFinishedKpi.percent + "%.");
     }
     if (csCount > 0) alerts.push("Có " + csCount + " ống đang chờ sửa.");
     if (hongCount > 0) alerts.push("Có " + hongCount + " ống hỏng.");

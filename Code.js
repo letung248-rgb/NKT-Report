@@ -7,44 +7,33 @@ const DATA_COLUMN_COUNT = 23;
 function doGet(e) {
   const view = e && e.parameter ? String(e.parameter.view || e.parameter.page || '').toLowerCase() : '';
   if (view === 'ke-hoach' || view === 'plan') {
-    return HtmlService
-      .createHtmlOutputFromFile('PlanModule')
-      .setTitle('Kế hoạch sản xuất')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+    return renderWebAppHtml_('PlanModule', 'Kế hoạch sản xuất', 'width=device-width, initial-scale=1.0');
   }
 
   if (view === 'xuat-bao-cao' || view === 'export') {
-    return HtmlService
-      .createHtmlOutputFromFile('Export')
-      .setTitle('Xuất biên bản theo Mã bó')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+    return renderWebAppHtml_('Export', 'Xuất biên bản theo Mã bó', 'width=device-width, initial-scale=1.0');
   }
 
   if (view === 'dashboard-v2') {
-    return HtmlService
-      .createHtmlOutputFromFile('DashboardV2')
-      .setTitle('NMS Dashboard v2')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+    return renderWebAppHtml_('DashboardV2', 'NMS Dashboard v2', 'width=device-width, initial-scale=1.0');
   }
 
-  if (view === 'dashboard' || view === 'admin') {
-    return HtmlService
-      .createHtmlOutputFromFile('Dashboard')
-      .setTitle('NMS Dashboard')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no');
+  if (view === '' || view === 'dashboard' || view === 'admin') {
+    return renderWebAppHtml_('Dashboard', 'NMS Dashboard', 'width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no');
   }
 
-  return HtmlService
-    .createHtmlOutputFromFile('Index')
-    .setTitle('XCO Report 2026')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+  return renderWebAppHtml_('Index', 'XCO Report 2026', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
 }
 
+function renderWebAppHtml_(fileName, title, viewport) {
+  const template = HtmlService.createTemplateFromFile(fileName);
+  template.appUrl = ScriptApp.getService().getUrl();
+  return template
+    .evaluate()
+    .setTitle(title)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', viewport);
+}
 function getPayloadValue(payload, keys, fallback) {
   for (const key of keys) {
     const value = payload[key];

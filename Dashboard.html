@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <base target="_top">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hệ thống Quản lý NKT</title>
@@ -240,11 +241,17 @@
         .production-kpi-view .production-kpi-table-cell { padding: 0.65rem 0.55rem; border-bottom: 1px solid var(--border-color); text-align: center; white-space: nowrap; }
         .production-kpi-view .production-kpi-table-heading { background: rgba(0,0,0,0.03); color: var(--text-primary); font-weight: 600; white-space: normal; }
         .production-kpi-view .production-kpi-table-first { text-align: left; }
-        .production-kpi-view #production-kpi-size-table,
+        .production-kpi-view .production-kpi-size-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+        .production-kpi-view .production-kpi-size-panel { min-width: 0; }
+        .production-kpi-view .production-kpi-size-panel-title { margin: 0 0 0.65rem; color: #344054; font-size: 0.9rem; line-height: 1.2; font-weight: 800; }
+        .production-kpi-view .production-kpi-size-table-wrap { max-height: 430px; overflow: auto; border: 1px solid #d7deea; border-radius: 12px; }
+        .production-kpi-view .production-kpi-size-table { min-width: 520px; border-collapse: separate; border-spacing: 0; font-size: 0.95rem; line-height: 1.35; }
+        .production-kpi-view .production-kpi-size-table thead .production-kpi-table-cell { height: 48px; background: #eef3fb; color: #344054; font-size: 0.76rem; letter-spacing: 0; text-transform: uppercase; }
+        .production-kpi-view .production-kpi-size-table tbody tr:nth-child(even) .production-kpi-table-cell { background: #f9fbff; }
+        .production-kpi-view .production-kpi-size-table tbody .production-kpi-table-cell { height: 54px; padding: 0.75rem 0.65rem; color: #263244; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .production-kpi-view .production-kpi-size-table tbody .production-kpi-table-first { font-size: 0.9rem; font-weight: 800; }
         .production-kpi-view #production-kpi-wip-table { font-size: 0.95rem; line-height: 1.35; }
-        .production-kpi-view #production-kpi-size-table tbody .production-kpi-table-cell,
         .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell { padding: 0.75rem 0.65rem; }
-        .production-kpi-view #production-kpi-size-table tbody .production-kpi-table-cell:not(:first-child),
         .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell:last-child { font-size: 1.08rem; font-weight: 700; font-variant-numeric: tabular-nums; }
         .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell:last-child { font-size: 1.2rem; }
         .production-kpi-view .production-kpi-health-row { display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem; margin-bottom: 0.85rem; color: var(--text-secondary); }
@@ -269,6 +276,7 @@
             .daily-summary-grid { grid-template-columns: 1fr; }
             .daily-toolbar { align-items: stretch; }
             .production-kpi-view .production-kpi-header { flex-direction: column; }
+            .production-kpi-view .production-kpi-size-grid { grid-template-columns: minmax(0, 1fr); }
             .plan-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .plan-kpi-item:nth-child(2) { border-right: 0; }
             .plan-kpi-item:nth-child(-n+2) { border-bottom: 1px solid var(--border-color); }
@@ -310,6 +318,12 @@
         .header-meta-item { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
         .header-meta-item i { color: #475467; font-size: 0.9rem; }
         .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.625rem; flex-wrap: wrap; }
+        .report-date-picker { min-height: 38px; padding: 0.35rem 0.45rem 0.35rem 0.65rem; display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--radius-control); background: #f8fafc; }
+        .report-date-picker label { color: var(--text-secondary); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+        .report-date-picker input { width: 136px; height: 28px; border: 1px solid #d0d5dd; border-radius: 6px; background: white; color: var(--text-primary); font-size: 0.78rem; outline: none; }
+        .report-date-picker input:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgb(37 99 235 / 0.12); }
+        .report-date-note { color: #b45309; font-weight: 650; }
+        .report-date-message { display: none; padding: 0.85rem 1rem; border: 1px solid rgb(217 119 6 / 0.28); border-radius: var(--radius-card); background: #fffbeb; color: #92400e; font-size: 0.88rem; font-weight: 650; }
         .header-plan-link { height: 38px; padding: 0 0.8rem; display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--radius-control); background: var(--bg-surface); color: var(--text-primary); text-decoration: none; font-size: 0.82rem; font-weight: 600; }
         .header-plan-link:hover { border-color: rgb(37 99 235 / 0.45); color: var(--accent-primary); background: #f8fbff; }
         .header-search { position: relative; width: 220px; }
@@ -388,10 +402,11 @@
         .planning-target { color: var(--text-secondary); font-size: 0.9rem; font-weight: 600; }
         .planning-status-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
         .planning-completion { color: var(--text-primary); font-size: 1.25rem; line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; }
-        .planning-status { padding: 0.32rem 0.62rem; border-radius: 999px; background: rgb(37 99 235 / 0.1); color: var(--accent-primary); font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
-        .planning-status.is-success { background: rgb(5 150 105 / 0.1); color: var(--accent-success); }
-        .planning-status.is-warning { background: rgb(217 119 6 / 0.1); color: var(--accent-warning); }
-        .planning-status.is-danger { background: rgb(220 38 38 / 0.1); color: var(--accent-danger); }
+        .planning-status { display: inline-flex; align-items: center; gap: 0.36rem; min-height: 26px; padding: 0.26rem 0.64rem; border: 1px solid rgb(37 99 235 / 0.18); border-radius: 999px; background: rgb(37 99 235 / 0.09); color: var(--accent-primary); font-size: 0.68rem; line-height: 1; font-weight: 800; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.02em; }
+        .planning-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .planning-status.is-success { border-color: rgb(5 150 105 / 0.22); background: rgb(5 150 105 / 0.1); color: var(--accent-success); }
+        .planning-status.is-warning { border-color: rgb(217 119 6 / 0.24); background: rgb(217 119 6 / 0.1); color: var(--accent-warning); }
+        .planning-status.is-danger { border-color: rgb(220 38 38 / 0.22); background: rgb(220 38 38 / 0.1); color: var(--accent-danger); }
         .planning-progress { height: 9px; overflow: hidden; margin: 1rem 0 0.8rem; border-radius: 999px; background: #e4e7ec; }
         .planning-progress-bar { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent-primary); transition: width 0.45s ease-out; }
         .planning-progress-bar.is-success { background: var(--accent-success); }
@@ -464,18 +479,18 @@
         .command-metric-value { font-size: 1.05rem; line-height: 1.22; }
         .command-metric-note { font-size: 0.72rem; }
         .production-kpi-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.35rem; }
-        .production-kpi-panel { position: relative; min-width: 0; min-height: 230px; padding: 1.65rem 1.85rem; border: 1px solid #cbd5e1; border-radius: 16px; background: #ffffff; box-shadow: 0 10px 28px rgb(16 24 40 / 0.09); transition: none !important; }
+        .production-kpi-panel { position: relative; min-width: 0; min-height: 226px; padding: 1.45rem 1.65rem 1.55rem; display: flex; flex-direction: column; border: 1px solid #cbd5e1; border-radius: 16px; background: #ffffff; box-shadow: 0 10px 28px rgb(16 24 40 / 0.09); transition: none !important; }
         .production-kpi-panel::before { content: ''; position: absolute; inset: 0 0 auto; height: 4px; border-radius: 16px 16px 0 0; background: #2563eb; }
         #finishedKpiPanel::before { background: #059669; }
-        .production-kpi-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
+        .production-kpi-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.72rem; }
         .production-kpi-panel .section-kicker { font-size: 0.8rem; letter-spacing: 0; }
-        .production-kpi-main { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.05rem; }
-        .production-kpi-percent { color: var(--text-primary); font-size: clamp(5.3rem, 6.8vw, 8rem); line-height: 0.82; font-weight: 850; font-variant-numeric: tabular-nums; letter-spacing: 0; }
-        .production-kpi-period { color: var(--text-secondary); font-size: 0.92rem; font-weight: 750; white-space: nowrap; }
+        .production-kpi-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0.78rem; }
+        .production-kpi-percent { color: var(--text-primary); font-size: clamp(3.9rem, 5.1vw, 6rem); line-height: 0.9; font-weight: 850; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+        .production-kpi-period { padding-bottom: 0.32rem; color: var(--text-secondary); font-size: 0.88rem; font-weight: 750; white-space: nowrap; }
         .production-kpi-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid #d7deea; border-radius: 12px; background: #d7deea; }
-        .production-kpi-metrics span { min-width: 0; padding: 0.82rem 0.95rem; background: #f8fafc; color: #667085; font-size: 0.72rem; font-weight: 750; text-transform: uppercase; }
-        .production-kpi-metrics strong { display: block; margin-top: 0.28rem; color: #172033; font-size: 1.34rem; line-height: 1; font-weight: 850; font-variant-numeric: tabular-nums; text-transform: none; }
-        .planning-progress { height: 9px; margin-top: 0.9rem; background: #e8edf5; }
+        .production-kpi-metrics span { min-width: 0; padding: 0.78rem 0.9rem; background: #f8fafc; color: #667085; font-size: 0.72rem; font-weight: 750; text-transform: uppercase; }
+        .production-kpi-metrics strong { display: block; margin-top: 0.28rem; color: #172033; font-size: 1.24rem; line-height: 1; font-weight: 850; font-variant-numeric: tabular-nums; text-transform: none; }
+        .production-kpi-panel .planning-progress { height: 12px; margin: 0 0 1rem; border-radius: 999px; background: #e8edf5; box-shadow: inset 0 1px 2px rgb(16 24 40 / 0.08); }
         .planning-progress-bar { transition: none !important; }
         .dashboard-grid-main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(420px, 0.72fr); gap: 1.35rem; align-items: stretch; }
         .production-chart { height: 350px; }
@@ -487,8 +502,11 @@
         .insight-tile em { display: block; margin-top: 0.4rem; color: #667085; font-style: normal; font-size: 0.88rem; line-height: 1.35; }
         .plan-size-card { padding: 1.55rem; }
         .plan-size-chart { height: 400px; margin-bottom: 1rem; }
-        .plan-size-table-shell { margin-top: 1.1rem; max-height: 430px; border-color: #d7deea; border-radius: 12px; }
-        .plan-size-table-shell table { min-width: 980px; border-collapse: separate; border-spacing: 0; }
+        .plan-size-tables-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.1rem; }
+        .plan-size-table-panel { min-width: 0; }
+        .plan-size-table-panel h3 { margin: 0 0 0.65rem; color: #344054; font-size: 0.9rem; line-height: 1.2; font-weight: 800; }
+        .plan-size-table-shell { max-height: 430px; border-color: #d7deea; border-radius: 12px; }
+        .plan-size-table-shell table { min-width: 520px; border-collapse: separate; border-spacing: 0; }
         .plan-size-table-shell thead th { top: 0; z-index: 2; height: 48px; background: #eef3fb; color: #344054; font-size: 0.76rem; letter-spacing: 0; text-transform: uppercase; }
         .plan-size-table-shell tbody tr:nth-child(even) td { background: #f9fbff; }
         .plan-size-table-shell tbody tr:hover td { background: #eef6ff; }
@@ -529,6 +547,7 @@
         @media (max-width: 980px) {
             .header-identity { min-width: 220px; }
             .header-actions { width: 100%; justify-content: flex-start; }
+            .report-date-picker { flex: 1; justify-content: flex-start; }
             .header-search { flex: 1; width: auto; min-width: 180px; }
             .command-center-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 0; }
             .command-metric { padding: 0 1rem; }
@@ -536,6 +555,7 @@
             .command-metric:last-child { grid-column: 1 / -1; padding-left: 0; border-left: 0; }
             .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .planning-periods, .support-grid, .process-layout, .production-kpi-panels, .dashboard-grid-main { grid-template-columns: minmax(0, 1fr); }
+            .plan-size-tables-grid { grid-template-columns: minmax(0, 1fr); }
             .planning-periods { gap: 1px; }
             .plan-size-chart { height: 360px; }
         }
@@ -546,6 +566,7 @@
             .header-page-title { font-size: 1.25rem; }
             .header-plan-link span, .sync-btn span { display: none; }
             .header-plan-link, .sync-btn { width: 38px; padding: 0; justify-content: center; }
+            .report-date-picker { width: 100%; flex-wrap: wrap; }
             .command-center { padding: 1.25rem; }
             .command-center-grid { grid-template-columns: minmax(0, 1fr); }
             .command-metric, .command-metric:nth-child(odd), .command-metric:last-child { grid-column: auto; padding: 0.65rem 0; border-left: 0; border-top: 1px solid #cbdcf3; }
@@ -576,13 +597,13 @@
         </div>
         <nav class="sidebar-menu">
             <a class="menu-item active" id="menu-dashboard" title="Tổng quan" onclick="backToDashboard()"><i class="ph ph-squares-four"></i><span class="menu-label">Tổng quan</span></a>
-            <a class="menu-item" id="menu-planning" title="Kế hoạch" href="?view=ke-hoach" target="_top"><i class="ph ph-calendar-check"></i><span class="menu-label">Kế hoạch</span></a>
+            <a class="menu-item" id="menu-planning" title="Kế hoạch" href="<?= appUrl ?>?view=ke-hoach" target="_top"><i class="ph ph-calendar-check"></i><span class="menu-label">Kế hoạch</span></a>
             <a class="menu-item" id="menu-production-kpi" title="KPI sản xuất" onclick="showProductionKpi()"><i class="ph ph-chart-line-up"></i><span class="menu-label">KPI sản xuất</span></a>
             <a class="menu-item" id="menu-daily-report" title="Báo cáo ngày" onclick="showDailyReport()"><i class="ph ph-calendar-blank"></i><span class="menu-label">Báo cáo ngày</span></a>
             <a class="menu-item" id="menu-monthly-report" title="Báo cáo tháng" onclick="showMonthlyReport()"><i class="ph ph-calendar"></i><span class="menu-label">Báo cáo tháng</span></a>
             <a class="menu-item" id="menu-error-analysis" title="Phân tích lỗi" onclick="showErrorAnalysis()"><i class="ph ph-warning-circle"></i><span class="menu-label">Phân tích lỗi</span></a>
             <a class="menu-item disabled" title="Lịch sử" aria-disabled="true"><i class="ph ph-clock-counter-clockwise"></i><span class="menu-label">Lịch sử</span></a>
-            <a class="menu-item" id="menu-export-report" title="Xuất báo cáo" href="?view=xuat-bao-cao" target="_top"><i class="ph ph-file-arrow-down"></i><span class="menu-label">Xuất báo cáo</span></a>
+            <a class="menu-item" id="menu-export-report" title="Xuất báo cáo" href="<?= appUrl ?>?view=xuat-bao-cao" target="_top"><i class="ph ph-file-arrow-down"></i><span class="menu-label">Xuất báo cáo</span></a>
             <a class="menu-item" id="menu-about" title="Giới thiệu" onclick="showAbout()"><i class="ph ph-info"></i><span class="menu-label">Giới thiệu</span></a>
         </nav>
         <div class="sidebar-footer">Xưởng Cần ống &amp; Thiết bị đầu giếng<strong>Phiên bản 1.1</strong></div>
@@ -597,13 +618,18 @@
                     <span id="factoryHealth" class="badge tp">Bình thường</span>
                 </div>
                 <div class="header-meta">
-                    <span class="header-meta-item"><i class="ph ph-calendar-blank"></i><span id="headerCurrentDate">--</span></span>
+                    <span class="header-meta-item"><i class="ph ph-calendar-check"></i>Ngày báo cáo: <strong id="dashboardReportDateLabel">--</strong></span>
+                    <span class="header-meta-item report-date-note" id="dashboardReportDateNote" style="display: none;"></span>
                     <span class="header-meta-item"><i class="ph ph-clock"></i><span id="lastUpdate">KPI cập nhật: --</span></span>
-                    <span class="header-meta-item"><i class="ph ph-list-checks"></i>Hàng đợi: <strong id="queuePendingJobs">0 tác vụ</strong><span id="queueStatusPill" class="queue-status-pill idle">Sẵn sàng</span></span>
+                    <span class="header-meta-item"><i class="ph ph-list-checks"></i>Hàng đợi: <strong id="queuePendingJobs">—</strong><span id="queueStatusPill" class="queue-status-pill idle">Sẵn sàng</span></span>
                 </div>
             </div>
             <div class="header-actions">
-                <a class="header-plan-link" href="?view=ke-hoach" target="_top"><i class="ph ph-calendar-check"></i><span>Kế hoạch</span></a>
+                <div class="report-date-picker">
+                    <label for="dashboardReportDate">Ngày báo cáo</label>
+                    <input type="date" id="dashboardReportDate" onchange="onDashboardReportDateChange()">
+                </div>
+                <a class="header-plan-link" href="<?= appUrl ?>?view=ke-hoach" target="_top"><i class="ph ph-calendar-check"></i><span>Kế hoạch</span></a>
                 <div class="header-search">
                     <i class="ph ph-magnifying-glass"></i>
                     <input type="text" id="pipeSearch" placeholder="Tìm mã bó, Size hoặc số ống..." onkeypress="handleSearch(event)">
@@ -625,6 +651,7 @@
             <div id="errorAlert" class="alert"></div>
 
             <section id="view-dashboard" style="display: none;">
+                <div class="report-date-message" id="dashboardReportDateMessage" role="status" aria-live="polite"></div>
                 <section class="command-center" aria-labelledby="commandCenterTitle">
                     <div class="command-center-header">
                         <div>
@@ -633,14 +660,14 @@
                         </div>
                         <div class="command-center-actions">
                             <span class="command-center-status">Ảnh chụp dữ liệu: <span id="dashboardHealthSnapshot" class="health-error">Chưa cập nhật</span></span>
-                            <a class="command-plan-cta" href="?view=ke-hoach" target="_top"><i class="ph ph-calendar-plus"></i><span>Lập kế hoạch hôm nay</span></a>
+                            <a class="command-plan-cta" href="<?= appUrl ?>?view=ke-hoach" target="_top"><i class="ph ph-calendar-plus"></i><span>Mở kế hoạch</span></a>
                         </div>
                     </div>
                     <div class="command-center-grid production-command-grid">
                         <div class="command-metric factory-state-metric">
                             <span class="command-metric-label">Trạng thái xưởng</span>
                             <strong class="command-metric-value primary" id="factoryStateText">--</strong>
-                            <span class="command-metric-note" id="factoryStateNote">Theo KPI hôm nay</span>
+                            <span class="command-metric-note" id="factoryStateNote">Theo KPI ngày báo cáo</span>
                         </div>
                         <div class="command-metric">
                             <span class="command-metric-label">KPI thấp nhất</span>
@@ -661,7 +688,7 @@
                             <span class="command-metric-label">Last update</span>
                             <strong class="command-metric-value" id="queueLastSync">--</strong>
                             <span class="command-metric-note" id="dashboardHealthUpdated">KPI cập nhật: --</span>
-                            <span class="command-metric-note">Tổng: <strong id="dashboardHealthTotal">0</strong> ống</span>
+                            <span class="command-metric-note">Tổng: <strong id="dashboardHealthTotal">—</strong> ống</span>
                         </div>
                     </div>
                 </section>
@@ -677,12 +704,12 @@
                             <strong id="plan-day-percent" class="production-kpi-percent">--</strong>
                             <span id="plan-day-label" class="production-kpi-period">--</span>
                         </div>
+                        <div class="planning-progress"><span id="plan-day-progress" class="planning-progress-bar"></span></div>
                         <div class="production-kpi-metrics">
                             <span>KH kiểm tra<strong id="plan-day-plan">--</strong></span>
                             <span>TH kiểm tra<strong id="plan-day-actual">--</strong></span>
                             <span>Thiếu/Dư<strong id="plan-day-difference">--</strong></span>
                         </div>
-                        <div class="planning-progress"><span id="plan-day-progress" class="planning-progress-bar"></span></div>
                     </article>
 
                     <article class="production-kpi-panel" id="finishedKpiPanel">
@@ -694,12 +721,12 @@
                             <strong id="plan-month-percent" class="production-kpi-percent">--</strong>
                             <span id="plan-month-label" class="production-kpi-period">--</span>
                         </div>
+                        <div class="planning-progress"><span id="plan-month-progress" class="planning-progress-bar"></span></div>
                         <div class="production-kpi-metrics">
                             <span>KH thành phẩm<strong id="plan-month-plan">--</strong></span>
                             <span>TH thành phẩm<strong id="plan-month-actual">--</strong></span>
                             <span>Thiếu/Dư<strong id="plan-month-difference">--</strong></span>
                         </div>
-                        <div class="planning-progress"><span id="plan-month-progress" class="planning-progress-bar"></span></div>
                     </article>
                 </section>
 
@@ -716,7 +743,7 @@
                 <section class="dashboard-grid-main">
                     <section class="card" aria-labelledby="planOverviewTitle">
                         <div class="section-heading">
-                            <div class="section-heading-copy"><span class="section-kicker">Tiến độ hôm nay</span><h2 class="section-title" id="planOverviewTitle">KH vs TH</h2></div>
+                            <div class="section-heading-copy"><span class="section-kicker">Tiến độ ngày báo cáo</span><h2 class="section-title" id="planOverviewTitle">KH vs TH</h2></div>
                         </div>
                         <div class="chart-container production-chart"><canvas id="planOverviewChart"></canvas></div>
                     </section>
@@ -725,8 +752,8 @@
                             <div class="section-heading-copy"><span class="section-kicker">Insight</span><h2 class="section-title" id="insightTitle">Điểm cần chú ý</h2></div>
                         </div>
                         <div class="insight-stack">
-                            <div class="insight-tile"><span>Lỗi nhiều nhất hôm nay</span><strong id="insightTopError">--</strong></div>
-                            <div class="insight-tile"><span>Tổng số ống chờ sửa</span><strong id="insightRepairCount">0</strong></div>
+                            <div class="insight-tile"><span>Lỗi nhiều nhất ngày báo cáo</span><strong id="insightTopError">--</strong></div>
+                            <div class="insight-tile"><span>Tổng số ống chờ sửa</span><strong id="insightRepairCount">—</strong></div>
                             <div class="insight-tile"><span>Ưu tiên điều hành</span><strong id="planPriorityText">--</strong><em id="planPriorityFocus">--</em></div>
                         </div>
                     </section>
@@ -734,7 +761,7 @@
 
                 <section class="card plan-size-card" id="planSizeCard" aria-labelledby="planSizeTitle">
                     <div class="section-heading">
-                        <div class="section-heading-copy"><span class="section-kicker">Theo Size</span><h2 class="section-title" id="planSizeTitle">Kế hoạch và thực hiện theo Size</h2><p class="section-description">Chỉ hiển thị Size có kế hoạch.</p></div>
+                        <div class="section-heading-copy"><span class="section-kicker">Theo Size</span><h2 class="section-title" id="planSizeTitle">Kế hoạch và thực hiện theo Size</h2><p class="section-description">Tách riêng KPI kiểm tra và thành phẩm theo ngày báo cáo.</p></div>
                     </div>
                     <div class="insight-bar" aria-label="Tóm tắt kế hoạch theo Size">
                         <div class="insight-item"><span class="insight-label">Còn thiếu / Vượt</span><strong class="insight-value" id="planChartGap">--</strong></div>
@@ -742,11 +769,25 @@
                         <div class="insight-item"><span class="insight-label">Ảnh hưởng lớn nhất</span><strong class="insight-value" id="planChartInfluence">--</strong></div>
                     </div>
                     <div id="planSizeChart" class="plan-size-chart"><canvas id="planSizeComparisonChart"></canvas></div>
-                    <div class="table-shell plan-size-table-shell">
-                        <table>
-                            <thead><tr><th>Size</th><th>KH KT</th><th>TH KT</th><th>% KT</th><th>KH TP</th><th>TH TP</th><th>% TP</th><th>Thiếu/Dư</th></tr></thead>
-                            <tbody id="planTable"></tbody>
-                        </table>
+                    <div class="plan-size-tables-grid">
+                        <section class="plan-size-table-panel" aria-labelledby="planCheckedTableTitle">
+                            <h3 id="planCheckedTableTitle">KPI Kiểm tra</h3>
+                            <div class="table-shell plan-size-table-shell">
+                                <table>
+                                    <thead><tr><th>Size</th><th>KH</th><th>TH</th><th>%</th><th>Thiếu/Dư</th></tr></thead>
+                                    <tbody id="planCheckedTable"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                        <section class="plan-size-table-panel" aria-labelledby="planFinishedTableTitle">
+                            <h3 id="planFinishedTableTitle">KPI Thành phẩm</h3>
+                            <div class="table-shell plan-size-table-shell">
+                                <table>
+                                    <thead><tr><th>Size</th><th>KH</th><th>TH</th><th>%</th><th>Thiếu/Dư</th></tr></thead>
+                                    <tbody id="planFinishedTable"></tbody>
+                                </table>
+                            </div>
+                        </section>
                     </div>
                 </section>
 
@@ -772,7 +813,7 @@
                 </footer>
 
                 <div class="dashboard-hidden-cache" aria-hidden="true">
-                    <span id="kpi-tong">0</span><span id="kpi-tp">0</span><span id="kpi-cs">0</span><span id="kpi-hong">0</span><span id="kpi-dxl">0</span><span id="kpi-percent">0%</span>
+                    <span id="kpi-tong">—</span><span id="kpi-tp">—</span><span id="kpi-cs">—</span><span id="kpi-hong">—</span><span id="kpi-dxl">—</span><span id="kpi-percent">—</span>
                     <span id="commandPrimaryAlert"></span><span id="qualityCenterValue"></span>
                     <table><tbody id="recentTable"></tbody><tbody id="queueTable"></tbody></table>
                     <canvas id="processChart"></canvas>
@@ -804,32 +845,48 @@
                     </div>
 
                     <div class="production-kpi-section">
-                        <h3 class="production-kpi-section-title">Theo Size ống</h3>
-                        <div class="production-kpi-table-wrap">
-                            <table id="production-kpi-size-table" class="production-kpi-table">
-                                <thead>
-                                    <tr>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong ngày</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong ngày</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Loại<br>trong ngày</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong tháng</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong tháng</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Loại<br>trong tháng</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>ngày công</th>
-                                        <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>ngày công</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="production-kpi-size-body"></tbody>
-                            </table>
+                        <h3 class="production-kpi-section-title visually-hidden">KPI theo Size</h3>
+                        <div class="production-kpi-size-grid">
+                            <section class="production-kpi-size-panel" aria-labelledby="productionKpiCheckedSizeTitle">
+                                <h4 class="production-kpi-size-panel-title" id="productionKpiCheckedSizeTitle">KPI Kiểm tra</h4>
+                                <div class="production-kpi-table-wrap production-kpi-size-table-wrap">
+                                    <table class="production-kpi-table production-kpi-size-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong ngày</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong tháng</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra/<br>ngày công</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="production-kpi-checked-size-body"></tbody>
+                                    </table>
+                                </div>
+                            </section>
+                            <section class="production-kpi-size-panel" aria-labelledby="productionKpiFinishedSizeTitle">
+                                <h4 class="production-kpi-size-panel-title" id="productionKpiFinishedSizeTitle">KPI Thành phẩm</h4>
+                                <div class="production-kpi-table-wrap production-kpi-size-table-wrap">
+                                    <table class="production-kpi-table production-kpi-size-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong ngày</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong tháng</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm/<br>ngày công</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="production-kpi-finished-size-body"></tbody>
+                                    </table>
+                                </div>
+                            </section>
                         </div>
                     </div>
 
                     <div class="production-kpi-section">
                         <h3 class="production-kpi-section-title">Ống đang xử lý theo nguyên công</h3>
                         <div class="production-kpi-health-row">
-                            <span>Tổng đang xử lý: <strong id="production-kpi-wip-total">0</strong></span>
-                            <span>Tổng theo công đoạn: <strong id="production-kpi-wip-bucket-total">0</strong></span>
+                            <span>Tổng đang xử lý: <strong id="production-kpi-wip-total">—</strong></span>
+                            <span>Tổng theo công đoạn: <strong id="production-kpi-wip-bucket-total">—</strong></span>
                             <span>Đối soát: <strong id="production-kpi-wip-match">—</strong></span>
                         </div>
                         <div class="production-kpi-table-wrap">
@@ -846,7 +903,7 @@
                             <span>Trạng thái: <strong id="production-kpi-health-status">—</strong></span>
                             <span>Thành phẩm: <strong id="production-kpi-finished-match">—</strong></span>
                             <span>Ống loại: <strong id="production-kpi-rejected-match">—</strong></span>
-                            <span>Size chưa xác định: <strong id="production-kpi-unknown-size">0</strong></span>
+                            <span>Size chưa xác định: <strong id="production-kpi-unknown-size">—</strong></span>
                         </div>
                         <div><strong>Lỗi</strong><div id="production-kpi-health-errors"></div></div>
                         <div style="margin-top: 0.75rem;"><strong>Cảnh báo</strong><div id="production-kpi-health-warnings"></div></div>
@@ -937,19 +994,19 @@
                     <div class="kpi-grid">
                         <div class="kpi-card">
                             <div class="kpi-title">Giao dịch trong ngày</div>
-                            <div class="kpi-value" id="dailyKpiTransactions">0</div>
+                            <div class="kpi-value" id="dailyKpiTransactions">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Số ống phát sinh</div>
-                            <div class="kpi-value text-primary" id="dailyKpiPipes">0</div>
+                            <div class="kpi-value text-primary" id="dailyKpiPipes">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Tổng số lượng</div>
-                            <div class="kpi-value text-purple" id="dailyKpiQty">0</div>
+                            <div class="kpi-value text-purple" id="dailyKpiQty">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Đạt / cần xử lý</div>
-                            <div class="kpi-value"><span class="text-success" id="dailyKpiOk">0</span> / <span class="text-warning" id="dailyKpiIssue">0</span></div>
+                            <div class="kpi-value"><span class="text-success" id="dailyKpiOk">—</span> / <span class="text-warning" id="dailyKpiIssue">—</span></div>
                         </div>
                     </div>
 
@@ -1017,19 +1074,19 @@
                     <div class="kpi-grid">
                         <div class="kpi-card">
                             <div class="kpi-title">Giao dịch trong tháng</div>
-                            <div class="kpi-value" id="monthlyKpiTransactions">0</div>
+                            <div class="kpi-value" id="monthlyKpiTransactions">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Số ống phát sinh</div>
-                            <div class="kpi-value text-primary" id="monthlyKpiPipes">0</div>
+                            <div class="kpi-value text-primary" id="monthlyKpiPipes">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Tổng số lượng</div>
-                            <div class="kpi-value text-purple" id="monthlyKpiQty">0</div>
+                            <div class="kpi-value text-purple" id="monthlyKpiQty">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Kế hoạch / số ống phát sinh</div>
-                            <div class="kpi-value"><span id="monthlyKpiPlan">0</span> / <span class="text-success" id="monthlyKpiGenerated">0</span></div>
+                            <div class="kpi-value"><span id="monthlyKpiPlan">—</span> / <span class="text-success" id="monthlyKpiGenerated">—</span></div>
                         </div>
                     </div>
 
@@ -1088,11 +1145,11 @@
                     <div class="kpi-grid">
                         <div class="kpi-card">
                             <div class="kpi-title">Tổng số ống</div>
-                            <div class="kpi-value" id="errorAnalysisKpiTotal">0</div>
+                            <div class="kpi-value" id="errorAnalysisKpiTotal">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Số ống lỗi</div>
-                            <div class="kpi-value text-danger" id="errorAnalysisKpiErrorCount">0</div>
+                            <div class="kpi-value text-danger" id="errorAnalysisKpiErrorCount">—</div>
                         </div>
                         <div class="kpi-card">
                             <div class="kpi-title">Tỷ lệ lỗi (%)</div>
@@ -1165,6 +1222,7 @@
         let currentPipeList = [];
         let currentListTitle = "";
         let currentQueueStatus = null;
+        let dashboardReportLoadedDate = "";
         let dailyReportLoadedDate = "";
         let monthlyReportLoadedMonth = "";
         let charts = {};
@@ -1239,6 +1297,24 @@
             const el = document.getElementById('errorAlert');
             el.innerText = msg;
             el.style.display = msg ? 'block' : 'none';
+        }
+
+        function isDashboardDebugMode() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                return window.location.href.indexOf('/dev') >= 0 || params.get('debug') === '1';
+            } catch (error) {
+                return window.location.href.indexOf('/dev') >= 0;
+            }
+        }
+
+        function getUserSafeDashboardError(message, fallbackMessage) {
+            const text = message ? String(message) : '';
+            if (isDashboardDebugMode()) return text || fallbackMessage;
+            if (/Dashboard drilldown snapshot|Drilldown manifest/i.test(text)) {
+                return fallbackMessage || '';
+            }
+            return text || fallbackMessage;
         }
 
         function showSyncStatus(msg, type) {
@@ -1345,25 +1421,15 @@
             return value ? formatDashboardDisplayDate(value, true) : '--';
         }
 
-        function getDashboardCurrentDateLabel() {
-            try {
-                return new Intl.DateTimeFormat('vi-VN', {
-                    weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'
-                }).format(new Date());
-            } catch (error) {
-                return formatDashboardDisplayDate(new Date(), false);
-            }
-        }
-
         function showSyncSuccessToast(data) {
             const toast = document.getElementById('syncSuccessToast');
             const updatedAt = formatSnapshotTime(data.snapshotMeta && data.snapshotMeta.builtAt);
             toast.innerHTML = `
                 <div class="sync-toast-title">✅ Đồng bộ KPI thành công</div>
-                <div class="sync-toast-line"><span>Tổng số ống:</span><strong>${data.kpi.total}</strong></div>
-                <div class="sync-toast-line"><span>Thành phẩm:</span><strong>${data.kpi.tp}</strong></div>
-                <div class="sync-toast-line"><span>Đang xử lý:</span><strong>${data.kpi.dxl}</strong></div>
-                <div class="sync-toast-line"><span>Hỏng/Loại:</span><strong>${data.kpi.hong}</strong></div>
+                <div class="sync-toast-line"><span>Tổng số ống:</span><strong>${getPlanValue(data.kpi.total)}</strong></div>
+                <div class="sync-toast-line"><span>Thành phẩm:</span><strong>${getPlanValue(data.kpi.tp)}</strong></div>
+                <div class="sync-toast-line"><span>Đang xử lý:</span><strong>${getPlanValue(data.kpi.dxl)}</strong></div>
+                <div class="sync-toast-line"><span>Hỏng/Loại:</span><strong>${getPlanValue(data.kpi.hong)}</strong></div>
                 <div class="sync-toast-line" style="display:block; margin-top:0.45rem;"><span>KPI cập nhật:</span><br><strong>${updatedAt}</strong></div>`;
             toast.classList.add('show');
             window.setTimeout(() => toast.classList.remove('show'), 7000);
@@ -1395,7 +1461,7 @@
                 error: 'Có lỗi'
             };
 
-            document.getElementById('queuePendingJobs').innerText = pendingJobs + ' tác vụ';
+            document.getElementById('queuePendingJobs').innerText = pendingJobs > 0 ? getPlanValue(pendingJobs) + ' tác vụ' : '—';
             const pill = document.getElementById('queueStatusPill');
             pill.innerText = statusLabels[statusClass] || 'Không xác định';
             pill.className = 'queue-status-pill ' + statusClass;
@@ -1494,6 +1560,63 @@
 
         function getCurrentMonthInputValue() {
             return getTodayInputValue().slice(0, 7);
+        }
+
+        function getDashboardReportDateFromUrl() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const dateText = (params.get('date') || '').trim();
+                return /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : '';
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function getDashboardReportDateInputValue() {
+            const input = document.getElementById('dashboardReportDate');
+            if (input && input.value) return input.value;
+            return getDashboardReportDateFromUrl();
+        }
+
+        function updateDashboardReportUrl(dateText) {
+            if (!dateText || !window.history || !window.history.replaceState) return;
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('date', dateText);
+                window.history.replaceState(null, '', url.toString());
+            } catch (error) {
+                // URL reflection is optional; rendering must not depend on it.
+            }
+        }
+
+        function onDashboardReportDateChange() {
+            const input = document.getElementById('dashboardReportDate');
+            loadDashboard(input ? input.value : '');
+        }
+
+        function renderDashboardReportDateState(data) {
+            const reportDate = data && data.reportDate ? data.reportDate : {};
+            const dateText = reportDate.date || '';
+            const displayDate = reportDate.displayDate || (dateText ? formatDashboardDisplayDate(dateText, false) : '--');
+            const input = document.getElementById('dashboardReportDate');
+            const label = document.getElementById('dashboardReportDateLabel');
+            const note = document.getElementById('dashboardReportDateNote');
+            const message = document.getElementById('dashboardReportDateMessage');
+
+            if (input) input.value = dateText || '';
+            if (label) label.innerText = displayDate;
+
+            if (note) {
+                note.innerText = reportDate.note || '';
+                note.style.display = reportDate.note ? 'inline-flex' : 'none';
+            }
+
+            if (message) {
+                message.innerText = reportDate.emptyMessage || '';
+                message.style.display = reportDate.emptyMessage ? 'block' : 'none';
+            }
+
+            if (dateText) updateDashboardReportUrl(dateText);
         }
 
         function setDailyLoading(isLoading) {
@@ -1632,11 +1755,15 @@
             }
         }
 
-        function loadDashboard() {
+        function loadDashboard(dateText) {
+            const requestedDate = dateText !== undefined ? dateText : getDashboardReportDateInputValue();
+            const requestToken = requestedDate || '__default__';
             if (typeof google !== 'undefined' && google.script) {
                 toggleLoader(true);
+                dashboardReportLoadedDate = requestToken;
                 google.script.run
                     .withSuccessHandler(res => {
+                        if (requestToken !== dashboardReportLoadedDate) return;
                         try {
                             if (!res) {
                                 showError("Server trả về dữ liệu rỗng. Kiểm tra getDashboardData().");
@@ -1660,10 +1787,11 @@
                         }
                     })
                     .withFailureHandler(err => {
+                        if (requestToken !== dashboardReportLoadedDate) return;
                         toggleLoader(false);
                         showError("Lỗi kết nối Server: " + err);
                     })
-                    .getDashboardData();
+                    .getDashboardData(requestedDate);
             } else {
                 toggleLoader(false);
                 showError("Ứng dụng cần chạy trên Google Apps Script môi trường thật.");
@@ -1683,6 +1811,7 @@
             data.recent = data.recent || [];
             data.planStats = data.planStats || {};
             data.kpi = data.kpi || { total: 0, tp: 0, cs: 0, hong: 0, dxl: 0, tpPercent: 0 };
+            renderDashboardReportDateState(data);
 
             const snapshotOk = !!(data.snapshotMeta && data.snapshotMeta.success);
             const snapshotUpdatedAt = formatSnapshotTime(data.snapshotMeta && data.snapshotMeta.builtAt);
@@ -1690,14 +1819,13 @@
             snapshotStatus.innerText = snapshotOk ? 'Đã đồng bộ' : 'Chưa cập nhật';
             snapshotStatus.className = snapshotOk ? 'health-ok' : 'health-error';
             document.getElementById('dashboardHealthUpdated').innerText = 'KPI cập nhật: ' + snapshotUpdatedAt;
-            document.getElementById('dashboardHealthTotal').innerText = data.kpi.total;
+            document.getElementById('dashboardHealthTotal').innerText = getPlanValue(data.kpi.total);
             document.getElementById('queueLastSync').innerText = snapshotUpdatedAt;
             document.getElementById('lastUpdate').innerText = 'KPI cập nhật: ' + snapshotUpdatedAt;
             const footerUpdate = document.getElementById('dashboardFooterUpdate');
             if (footerUpdate) footerUpdate.innerText = snapshotUpdatedAt;
             const footerEnv = document.getElementById('dashboardFooterEnv');
             if (footerEnv) footerEnv.innerText = window.location.href.indexOf('/dev') >= 0 ? 'DEV' : 'Production';
-            document.getElementById('headerCurrentDate').innerText = getDashboardCurrentDateLabel();
 
             // Health
             let healthText = data.factoryHealth || "NORMAL";
@@ -1740,7 +1868,7 @@
             animateKpiValue('kpi-hong', data.kpi.hong);
             animateKpiValue('kpi-dxl', data.kpi.dxl);
             animateKpiValue('kpi-percent', data.kpi.tpPercent, '%');
-            document.getElementById('qualityCenterValue').innerText = getPlanValue(data.kpi.tpPercent) + '%';
+            document.getElementById('qualityCenterValue').innerText = getPlanPercentLabel(data.kpi.tpPercent);
 
             // Recent Table
             let tbody = document.getElementById('recentTable');
@@ -1777,7 +1905,7 @@
                         datasets: { bar: { borderRadius: 10, borderSkipped: false, barPercentage: 0.78, categoryPercentage: 0.78, maxBarThickness: 34 } },
                         plugins: {
                             legend: { display: false },
-                            tooltip: { callbacks: { label: context => datasetLabel + ': ' + Number(context.raw || 0).toLocaleString('vi-VN') } }
+                            tooltip: { callbacks: { label: context => datasetLabel + ': ' + getPlanValue(context.raw) } }
                         },
                         scales: {
                             x: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)', drawTicks: false }, border: { display: false }, ticks: { padding: 8, precision: 0 } },
@@ -1823,9 +1951,10 @@
 
         function getPlanBadge(percent) {
             if (percent === null || percent === undefined || percent === '' || !Number.isFinite(Number(percent))) {
-                return '--';
+                return '—';
             }
             const value = Number(percent);
+            if (value === 0) return '—';
             if (value >= 100) return `<span class="badge tp">${value}%</span>`;
             if (value >= 80) return `<span class="badge cs">${value}%</span>`;
             return `<span class="badge hong">${value}%</span>`;
@@ -1833,7 +1962,13 @@
 
         function getPlanValue(value) {
             if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '--';
+            if (Number(value) === 0) return '—';
             return Number(value).toLocaleString('vi-VN');
+        }
+
+        function getPlanPercentLabel(value) {
+            const text = getPlanValue(value);
+            return text === '--' || text === '—' ? text : text + '%';
         }
 
         function getPlanMetric(rows, metric) {
@@ -1859,7 +1994,10 @@
             const monthlyChecked = getPlanMetric(planStats.byMonth, 'checked');
             const monthlyFinished = getPlanMetric(planStats.byMonth, 'finished');
             const comparisonRows = (planStats.sizeComparison || []).filter(row => row && (
-                Number(row.checked && row.checked.plan || 0) > 0 || Number(row.finished && row.finished.plan || 0) > 0
+                Number(row.checked && row.checked.plan || 0) > 0 ||
+                Number(row.checked && row.checked.actual || 0) > 0 ||
+                Number(row.finished && row.finished.plan || 0) > 0 ||
+                Number(row.finished && row.finished.actual || 0) > 0
             ));
             const slowest = comparisonRows.map(row => {
                 const checkedPercent = row.checked && Number.isFinite(Number(row.checked.completionPercent)) ? Number(row.checked.completionPercent) : null;
@@ -1901,7 +2039,7 @@
         }
 
         function getFactoryStateText(percent) {
-            if (percent === null || percent === undefined || !Number.isFinite(Number(percent))) return 'Hôm nay chưa lập kế hoạch';
+            if (percent === null || percent === undefined || !Number.isFinite(Number(percent))) return 'Ngày báo cáo chưa lập kế hoạch';
             const value = Number(percent);
             if (value >= 100) return 'TỐT';
             if (value >= 80) return 'CẦN THEO DÕI';
@@ -1937,7 +2075,7 @@
             document.getElementById('plan-' + prefix + '-label').innerText = getPlanPeriodLabel(row);
             setPlanKpiValue('plan-' + prefix + '-plan', row ? getPlanValue(row.plan) : '--', 'text-primary');
             setPlanKpiValue('plan-' + prefix + '-actual', row ? getPlanValue(row.actual) : '--', '');
-            setPlanKpiValue('plan-' + prefix + '-percent', percent !== null ? getPlanValue(percent) + '%' : '--', percentTone);
+            setPlanKpiValue('plan-' + prefix + '-percent', percent !== null ? getPlanPercentLabel(percent) : '--', percentTone);
             setPlanKpiValue('plan-' + prefix + '-difference', differenceText, differenceTone);
 
             const status = document.getElementById('plan-' + prefix + '-status');
@@ -1970,7 +2108,10 @@
                     resizeDelay: 120,
                     interaction: { mode: 'index', intersect: false },
                     datasets: { bar: { borderRadius: 10, borderSkipped: false, barPercentage: 0.74, categoryPercentage: 0.66, maxBarThickness: 64 } },
-                    plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 18, color: '#344054', font: { size: 12, weight: '650' } } } },
+                    plugins: {
+                        legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 18, color: '#344054', font: { size: 12, weight: '650' } } },
+                        tooltip: { callbacks: { label: context => context.dataset.label + ': ' + getPlanValue(context.raw) } }
+                    },
                     scales: {
                         x: { grid: { display: false }, border: { display: false }, ticks: { color: '#475467', font: { size: 12, weight: '600' } } },
                         y: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)' }, border: { display: false }, ticks: { precision: 0 } }
@@ -1981,47 +2122,11 @@
 
         function renderPlanSizeChart(planStats) {
             const chartWrap = document.getElementById('planSizeChart');
-            const chartCard = document.getElementById('planSizeCard');
-            const comparisons = (planStats.sizeComparison || []).filter(row => row && row.finished && Number(row.finished.plan || 0) > 0);
-            const shouldShow = comparisons.length > 0;
-
-            if (!shouldShow) {
-                if (chartWrap) chartWrap.style.display = 'none';
-                if (charts.planSizeComparisonChart) {
-                    charts.planSizeComparisonChart.destroy();
-                    delete charts.planSizeComparisonChart;
-                }
-                return;
+            if (chartWrap) chartWrap.style.display = 'none';
+            if (charts.planSizeComparisonChart) {
+                charts.planSizeComparisonChart.destroy();
+                delete charts.planSizeComparisonChart;
             }
-
-            if (chartCard) chartCard.style.display = 'block';
-            if (chartWrap) chartWrap.style.display = 'block';
-            if (charts.planSizeComparisonChart) charts.planSizeComparisonChart.destroy();
-            charts.planSizeComparisonChart = new Chart(document.getElementById('planSizeComparisonChart'), {
-                type: 'bar',
-                data: {
-                    labels: comparisons.map(row => row.size),
-                    datasets: [
-                        { label: 'KH TP', data: comparisons.map(row => row.finished.plan), backgroundColor: createBarGradient('planSizeComparisonChart', '#94a3b8', 'horizontal'), borderWidth: 0 },
-                        { label: 'TH TP', data: comparisons.map(row => row.finished.actual), backgroundColor: createBarGradient('planSizeComparisonChart', '#2563eb', 'horizontal'), borderWidth: 0 }
-                    ]
-                },
-                options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        animation: false,
-                        resizeDelay: 120,
-                        indexAxis: 'y',
-                    interaction: { mode: 'index', intersect: false },
-                    layout: { padding: { top: 6, right: 12, bottom: 4, left: 4 } },
-                    datasets: { bar: { borderRadius: 10, borderSkipped: false, barPercentage: 0.82, categoryPercentage: 0.78, maxBarThickness: 38 } },
-                    plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 20, color: '#344054', font: { size: 12, weight: '650' } } } },
-                    scales: {
-                        x: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)', drawTicks: false }, border: { display: false }, ticks: { padding: 8, precision: 0 } },
-                        y: { grid: { display: false }, border: { display: false }, ticks: { padding: 8, color: '#475467', font: { size: 11, weight: '600' } } }
-                    }
-                }
-            });
         }
 
         function renderTrend7Chart(planStats) {
@@ -2044,7 +2149,10 @@
                     animation: false,
                     resizeDelay: 120,
                     interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 18, color: '#344054', font: { size: 12, weight: '650' } } } },
+                    plugins: {
+                        legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 18, color: '#344054', font: { size: 12, weight: '650' } } },
+                        tooltip: { callbacks: { label: context => context.dataset.label + ': ' + getPlanValue(context.raw) } }
+                    },
                     scales: {
                         x: { grid: { display: false }, border: { display: false }, ticks: { color: '#475467' } },
                         y: { beginAtZero: true, grid: { color: 'rgb(152 162 179 / 0.14)' }, border: { display: false }, ticks: { precision: 0 } }
@@ -2060,10 +2168,39 @@
             const insights = getPlanPresentationInsights(planStats);
             const dailyChecked = insights.dailyChecked;
             const dailyFinished = insights.dailyFinished;
-            const tbody = document.getElementById('planTable');
             const rows = (planStats.sizeComparison || []).filter(row => row && (
-                Number(row.checked && row.checked.plan || 0) > 0 || Number(row.finished && row.finished.plan || 0) > 0
+                Number(row.checked && row.checked.plan || 0) > 0 ||
+                Number(row.checked && row.checked.actual || 0) > 0 ||
+                Number(row.finished && row.finished.plan || 0) > 0 ||
+                Number(row.finished && row.finished.actual || 0) > 0
             ));
+
+            function renderMetricTable(tbodyId, metricKey, emptyMessage) {
+                const metricBody = document.getElementById(tbodyId);
+                if (!metricBody) return;
+
+                const metricRows = rows.filter(row => {
+                    const metric = row[metricKey] || {};
+                    return Number(metric.plan || 0) > 0 || Number(metric.actual || 0) > 0;
+                });
+
+                metricBody.innerHTML = metricRows.map(row => {
+                    const metric = row[metricKey] || {};
+                    const difference = Number(metric.actual || 0) - Number(metric.plan || 0);
+                    return `
+                    <tr>
+                        <td><strong>${escapeHtml(row.size)}</strong></td>
+                        <td>${getPlanValue(metric.plan)}</td>
+                        <td>${getPlanValue(metric.actual)}</td>
+                        <td>${getPlanBadge(metric.completionPercent)}</td>
+                        <td>${getPlanDifferenceLabel(difference)}</td>
+                    </tr>`;
+                }).join('');
+
+                if (metricRows.length === 0) {
+                    metricBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">${emptyMessage}</td></tr>`;
+                }
+            }
 
             renderPlanPeriod('day', dailyChecked);
             renderPlanPeriod('month', dailyFinished);
@@ -2076,14 +2213,14 @@
                 .map(Number);
             const commandPercentValue = kpiPercents.length ? Math.min.apply(null, kpiPercents) : null;
             const commandPercent = document.getElementById('commandTodayPercent');
-            commandPercent.innerText = commandPercentValue === null ? '--' : getPlanValue(commandPercentValue) + '%';
+            commandPercent.innerText = commandPercentValue === null ? '--' : getPlanPercentLabel(commandPercentValue);
             setPresentationTone(commandPercent, getPlanTone(commandPercentValue));
 
             const stateText = document.getElementById('factoryStateText');
             stateText.innerText = getFactoryStateText(commandPercentValue);
             setPresentationTone(stateText, getPlanTone(commandPercentValue));
-            document.getElementById('factoryStateNote').innerText = commandPercentValue === null ? 'Bấm Kế hoạch để bắt đầu' : 'Theo KPI thấp nhất hôm nay';
-            document.getElementById('commandTodayPlan').innerText = 'KT ' + (dailyChecked && dailyChecked.percent !== null ? getPlanValue(dailyChecked.percent) + '%' : '--') + ' · TP ' + (dailyFinished && dailyFinished.percent !== null ? getPlanValue(dailyFinished.percent) + '%' : '--');
+            document.getElementById('factoryStateNote').innerText = commandPercentValue === null ? 'Bấm Kế hoạch để bắt đầu' : 'Theo KPI thấp nhất ngày báo cáo';
+            document.getElementById('commandTodayPlan').innerText = 'KT ' + (dailyChecked && dailyChecked.percent !== null ? getPlanPercentLabel(dailyChecked.percent) : '--') + ' · TP ' + (dailyFinished && dailyFinished.percent !== null ? getPlanPercentLabel(dailyFinished.percent) : '--');
 
             const worstDifference = [insights.dailyCheckedDifference, insights.dailyFinishedDifference]
                 .filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
@@ -2095,7 +2232,9 @@
             const slowestSize = insights.slowest;
             document.getElementById('commandSlowestSize').innerText = slowestSize ? slowestSize.size : '--';
             document.getElementById('commandSlowestSizeNote').innerText = slowestSize
-                ? (slowestSize.percent === null ? 'Thiếu ' + getPlanValue(slowestSize.shortage) : getPlanValue(slowestSize.percent) + '% · thiếu ' + getPlanValue(slowestSize.shortage))
+                ? (slowestSize.percent === null
+                    ? (slowestSize.shortage > 0 ? 'Thiếu ' + getPlanValue(slowestSize.shortage) : 'Không thiếu')
+                    : getPlanPercentLabel(slowestSize.percent) + (slowestSize.shortage > 0 ? ' · thiếu ' + getPlanValue(slowestSize.shortage) : ' · không thiếu'))
                 : 'Chưa đủ dữ liệu';
 
             const chartGap = document.getElementById('planChartGap');
@@ -2104,9 +2243,11 @@
 
             const chartPercent = document.getElementById('planChartPercent');
             const finishedPercent = dailyFinished && dailyFinished.percent !== null && dailyFinished.percent !== undefined ? Number(dailyFinished.percent) : null;
-            chartPercent.innerText = finishedPercent === null ? '--' : getPlanValue(finishedPercent) + '%';
+            chartPercent.innerText = finishedPercent === null ? '--' : getPlanPercentLabel(finishedPercent);
             setPresentationTone(chartPercent, getPlanTone(finishedPercent));
-            document.getElementById('planChartInfluence').innerText = slowestSize ? slowestSize.size + ' · thiếu ' + getPlanValue(slowestSize.shortage) : 'Không có Size thiếu KH';
+            document.getElementById('planChartInfluence').innerText = slowestSize
+                ? slowestSize.size + (slowestSize.shortage > 0 ? ' · thiếu ' + getPlanValue(slowestSize.shortage) : ' · không thiếu')
+                : 'Không có Size thiếu KH';
 
             const topError = (globalDashboardData.errorStats || []).filter(item => Number(item && item.count || 0) > 0)[0] || null;
             document.getElementById('insightTopError').innerText = topError ? topError.name : 'Không ghi nhận lỗi';
@@ -2122,28 +2263,8 @@
                 priorityText.innerText = 'Chưa có đủ dữ liệu kế hoạch ngày để xác định ưu tiên.';
             }
             priorityFocus.innerText = slowestSize ? 'Size cần chú ý: ' + slowestSize.size : 'Chưa xác định Size cần chú ý';
-
-            tbody.innerHTML = rows.map(row => {
-                const checked = row.checked || {};
-                const finished = row.finished || {};
-                const checkedDiff = Number(checked.actual || 0) - Number(checked.plan || 0);
-                const finishedDiff = Number(finished.actual || 0) - Number(finished.plan || 0);
-                return `
-                <tr>
-                    <td><strong>${escapeHtml(row.size)}</strong></td>
-                    <td>${getPlanValue(checked.plan)}</td>
-                    <td>${getPlanValue(checked.actual)}</td>
-                    <td>${getPlanBadge(checked.completionPercent)}</td>
-                    <td>${getPlanValue(finished.plan)}</td>
-                    <td>${getPlanValue(finished.actual)}</td>
-                    <td>${getPlanBadge(finished.completionPercent)}</td>
-                    <td>${getPlanDifferenceLabel(checkedDiff)} / ${getPlanDifferenceLabel(finishedDiff)}</td>
-                </tr>`;
-            }).join('');
-
-            if (rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu kế hoạch</td></tr>`;
-            }
+            renderMetricTable('planCheckedTable', 'checked', 'Chưa có dữ liệu kiểm tra theo Size');
+            renderMetricTable('planFinishedTable', 'finished', 'Chưa có dữ liệu thành phẩm theo Size');
         }
         // Drilldown Logic
         function getDashboardStatusTitle(statusKey) {
@@ -2170,7 +2291,7 @@
             google.script.run
                 .withSuccessHandler(res => {
                     if (!res || !res.success) {
-                        showError((res && res.error) || 'Không tải được danh sách ống.');
+                        showError(getUserSafeDashboardError(res && res.error, 'Không tải được danh sách ống.'));
                         backToDashboard();
                         return;
                     }
@@ -2191,7 +2312,7 @@
             google.script.run
                 .withSuccessHandler(res => {
                     if (!res || !res.success) {
-                        showError((res && res.error) || 'Không tải được danh sách queue.');
+                        showError(getUserSafeDashboardError(res && res.error, 'Không tải được danh sách queue.'));
                         backToDashboard();
                         return;
                     }
@@ -2215,7 +2336,8 @@
             }
 
             function valueOrDash(value) {
-                return value === null || value === undefined || value === '' ? '—' : String(value);
+                if (value === null || value === undefined || value === '') return '—';
+                return Number.isFinite(Number(value)) && Number(value) === 0 ? '—' : String(value);
             }
 
             function numberOrZero(value) {
@@ -2223,9 +2345,10 @@
             }
 
             function percent(value) {
-                return value === null || value === undefined || !Number.isFinite(Number(value))
-                    ? '—'
-                    : Number(value) + '%';
+                if (value === null || value === undefined || !Number.isFinite(Number(value)) || Number(value) === 0) {
+                    return '—';
+                }
+                return Number(value) + '%';
             }
 
             function setText(suffix, value) {
@@ -2275,25 +2398,63 @@
             }
 
             function renderSizeBreakdown(rows) {
-                const body = element('size-body');
-                body.replaceChildren();
+                const checkedBody = element('checked-size-body');
+                const finishedBody = element('finished-size-body');
+                if (!checkedBody || !finishedBody) return;
+
+                checkedBody.replaceChildren();
+                finishedBody.replaceChildren();
                 if (!Array.isArray(rows) || rows.length === 0) {
-                    renderEmptyRow(body, 9, 'Không có dữ liệu Size ống.');
+                    renderEmptyRow(checkedBody, 4, 'Không có dữ liệu kiểm tra theo Size.');
+                    renderEmptyRow(finishedBody, 4, 'Không có dữ liệu thành phẩm theo Size.');
                     return;
                 }
-                rows.forEach(function(row) {
+
+                function hasVisibleMetricValue(value) {
+                    if (value === null || value === undefined || value === '') return false;
+                    const numeric = Number(value);
+                    return Number.isFinite(numeric) ? numeric > 0 : true;
+                }
+
+                function hasMetric(row, metricKey, averageKey) {
                     const today = row && row.today || {};
                     const monthly = row && row.monthly || {};
                     const averages = row && row.averages || {};
+                    return hasVisibleMetricValue(today[metricKey])
+                        || hasVisibleMetricValue(monthly[metricKey])
+                        || hasVisibleMetricValue(averages[averageKey]);
+                }
+
+                function appendSizeRow(body, row, metricKey, averageKey) {
+                    const today = row && row.today || {};
+                    const monthly = row && row.monthly || {};
+                    const averages = row && row.averages || {};
+                    const tableRow = body.insertRow();
                     const values = [
                         row && row.size,
-                        numberOrZero(today.checked), numberOrZero(today.finished), numberOrZero(today.rejected),
-                        numberOrZero(monthly.checked), numberOrZero(monthly.finished), numberOrZero(monthly.rejected),
-                        valueOrDash(averages.checkedPerWorkingDay), valueOrDash(averages.finishedPerWorkingDay)
+                        numberOrZero(today[metricKey]),
+                        numberOrZero(monthly[metricKey]),
+                        valueOrDash(averages[averageKey])
                     ];
-                    const tableRow = body.insertRow();
                     values.forEach(function(value, index) { appendCell(tableRow, value, index === 0); });
+                }
+
+                const checkedRows = rows.filter(function(row) {
+                    return hasMetric(row, 'checked', 'checkedPerWorkingDay');
                 });
+                const finishedRows = rows.filter(function(row) {
+                    return hasMetric(row, 'finished', 'finishedPerWorkingDay');
+                });
+
+                checkedRows.forEach(function(row) {
+                    appendSizeRow(checkedBody, row, 'checked', 'checkedPerWorkingDay');
+                });
+                finishedRows.forEach(function(row) {
+                    appendSizeRow(finishedBody, row, 'finished', 'finishedPerWorkingDay');
+                });
+
+                if (checkedRows.length === 0) renderEmptyRow(checkedBody, 4, 'Không có dữ liệu kiểm tra theo Size.');
+                if (finishedRows.length === 0) renderEmptyRow(finishedBody, 4, 'Không có dữ liệu thành phẩm theo Size.');
             }
 
             function renderWip(wip, reconciliation) {
@@ -2554,7 +2715,7 @@
             el.innerHTML = items.map(item => `
                 <div class="daily-mini-row">
                     <span>${escapeHtml(item.name)}</span>
-                    <strong>${escapeHtml(item.count)}</strong>
+                    <strong>${escapeHtml(getPlanValue(item.count))}</strong>
                 </div>
             `).join('');
         }
@@ -2565,11 +2726,11 @@
             const kpi = data.kpi || {};
 
             document.getElementById('dailyReportTitleDate').innerText = formatDashboardDisplayDate(data.date, false);
-            document.getElementById('dailyKpiTransactions').innerText = kpi.transactions || 0;
-            document.getElementById('dailyKpiPipes').innerText = kpi.pipes || 0;
-            document.getElementById('dailyKpiQty').innerText = kpi.qty || 0;
-            document.getElementById('dailyKpiOk').innerText = kpi.ok || 0;
-            document.getElementById('dailyKpiIssue').innerText = kpi.repairOrReject || 0;
+            document.getElementById('dailyKpiTransactions').innerText = getPlanValue(kpi.transactions);
+            document.getElementById('dailyKpiPipes').innerText = getPlanValue(kpi.pipes);
+            document.getElementById('dailyKpiQty').innerText = getPlanValue(kpi.qty);
+            document.getElementById('dailyKpiOk').innerText = getPlanValue(kpi.ok);
+            document.getElementById('dailyKpiIssue').innerText = getPlanValue(kpi.repairOrReject);
 
             renderDailyMiniList('dailyProcessList', data.processStats || []);
             renderDailyMiniList('dailyShiftList', data.shiftStats || []);
@@ -2581,7 +2742,7 @@
                     <td>${escapeHtml(r.shift)}</td>
                     <td>${escapeHtml(r.process)}</td>
                     <td><strong>${escapeHtml(r.pipeNo)}</strong></td>
-                    <td>${escapeHtml(r.qty)}</td>
+                    <td>${escapeHtml(getPlanValue(r.qty))}</td>
                     <td>${escapeHtml(r.size)}</td>
                     <td><span class="badge ${escapeHtml(r.statusGroup || 'dxl')}">${escapeHtml(r.status || '')}</span></td>
                     <td class="text-danger">${escapeHtml(r.defectReason)}</td>
@@ -2687,11 +2848,11 @@
             const planRows = data.planRows || [];
 
             document.getElementById('monthlyReportTitleMonth').innerText = formatDashboardDisplayMonth(data.month || data.monthText);
-            document.getElementById('monthlyKpiTransactions').innerText = kpi.transactions || 0;
-            document.getElementById('monthlyKpiPipes').innerText = kpi.pipes || 0;
-            document.getElementById('monthlyKpiQty').innerText = kpi.qty || 0;
-            document.getElementById('monthlyKpiPlan').innerText = kpi.plan || 0;
-            document.getElementById('monthlyKpiGenerated').innerText = kpi.generatedPipes || 0;
+            document.getElementById('monthlyKpiTransactions').innerText = getPlanValue(kpi.transactions);
+            document.getElementById('monthlyKpiPipes').innerText = getPlanValue(kpi.pipes);
+            document.getElementById('monthlyKpiQty').innerText = getPlanValue(kpi.qty);
+            document.getElementById('monthlyKpiPlan').innerText = getPlanValue(kpi.plan);
+            document.getElementById('monthlyKpiGenerated').innerText = getPlanValue(kpi.generatedPipes);
 
             renderDailyMiniList('monthlyProcessList', data.processStats || []);
             renderDailyMiniList('monthlySizeList', data.sizeStats || []);
@@ -2701,7 +2862,7 @@
                 <tr>
                     <td>${escapeHtml(formatDashboardDisplayDate(r.date, false))}</td>
                     <td>${escapeHtml(r.size)}</td>
-                    <td>${escapeHtml(r.qty)}</td>
+                    <td>${escapeHtml(getPlanValue(r.qty))}</td>
                 </tr>
             `).join('');
 
@@ -2791,16 +2952,16 @@
             const summary = data.summary || {};
             const byError = data.byError || [];
 
-            document.getElementById('errorAnalysisKpiTotal').innerText = summary.total || 0;
-            document.getElementById('errorAnalysisKpiErrorCount').innerText = summary.errorCount || 0;
-            document.getElementById('errorAnalysisKpiErrorRate').innerText = (summary.errorRate || 0) + '%';
+            document.getElementById('errorAnalysisKpiTotal').innerText = getPlanValue(summary.total);
+            document.getElementById('errorAnalysisKpiErrorCount').innerText = getPlanValue(summary.errorCount);
+            document.getElementById('errorAnalysisKpiErrorRate').innerText = getPlanPercentLabel(summary.errorRate || 0);
 
             const tbody = document.getElementById('errorAnalysisTopTable');
             tbody.innerHTML = byError.map(r => `
                 <tr>
                     <td><strong>${escapeHtml(r.label)}</strong></td>
-                    <td>${escapeHtml(r.count)}</td>
-                    <td>${escapeHtml(r.rate)}%</td>
+                    <td>${getPlanValue(r.count)}</td>
+                    <td>${getPlanPercentLabel(r.rate)}</td>
                     <td>${escapeHtml(r.severity || '')}</td>
                     <td>${escapeHtml(r.process || '')}</td>
                 </tr>
@@ -2949,7 +3110,7 @@
                 .withSuccessHandler(res => {
                     if (onDone) onDone();
                     if (!res || !res.success) {
-                        showError((res && res.error) || 'Không tải được hồ sơ ống.');
+                        showError(getUserSafeDashboardError(res && res.error, 'Không tải được hồ sơ ống.'));
                         if (fromSearch) backToDashboard();
                         else backToList();
                         return;
@@ -2984,9 +3145,9 @@
             document.getElementById('pp-size').innerText = p.size || '';
             document.getElementById('pp-rig').innerText = p.rig || '';
             document.getElementById('pp-well').innerText = p.well || '';
-            document.getElementById('pp-pressure').innerText = p.pressureTestCount || 0;
-            document.getElementById('pp-thread').innerText = p.threadRepairCount || 0;
-            document.getElementById('pp-coupling').innerText = p.couplingChangeCount || 0;
+            document.getElementById('pp-pressure').innerText = getPlanValue(p.pressureTestCount);
+            document.getElementById('pp-thread').innerText = getPlanValue(p.threadRepairCount);
+            document.getElementById('pp-coupling').innerText = getPlanValue(p.couplingChangeCount);
             document.getElementById('pp-status').innerText = p.currentBusinessStatus || '';
             document.getElementById('pp-process').innerText = p.currentProcess || '';
             document.getElementById('pp-reason').innerText = p.currentReason || '';
