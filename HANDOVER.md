@@ -1,51 +1,65 @@
-# Handover
+# NKT Report 2026 - Project Handover
 
-## Trang thai hien tai
+## Trạng thái hiện tại
 
-- NKT Management System v1.0.0: **Release Candidate PASS va duoc PM phe duyet Production release**.
-- `runSprint12RegressionSmokeTest`: **PASS 6/6**, `failed: 0`, side effects `0`.
-- `runSprint13BPlanningRegression`: **PASS 4/4**, `failed: 0`, side effects `0`.
-- Release flow v1.0.0: commit/push GitHub main, tao Apps Script Version `NKT Management System v1.0.0`, deploy Production dung version moi.
-- Sprint 11A Patch Rescue: **CLOSED**. DEV review dung `/dev`; Production dung `/exec`.
-- Sprint 12 Regression Smoke Test: **CLOSED**; PM da xac nhan PASS.
-- Production truoc release v1.0.0 dang chay Apps Script version `49`.
-- Sprint 12 khong deploy va khong tao Apps Script version moi; Production van la Apps Script version `49`.
-- Production navigation: **PASS**.
-- Sprint 10A Dashboard: **PASS va da khoa**.
-- Sprint 11A Export bien ban theo Ma bo: **PASS**.
-- Regression smoke test: `runSprint12RegressionSmokeTest` da xac nhan **PASS 6/6**, `failed: 0`, side effects `0`.
-- Module export: `?view=xuat-bao-cao`.
-- Git source da bao gom dieu chinh preflight cuoi: metadata thieu la canh bao, khong phai loi chan xuat.
-- Planning Size source la `DANH_MUC_SIZE`; khong fallback am tham sang `pipe.size`.
-- Neu doi Drive scope/API, chay `authorizeDriveForExport` trong Apps Script Editor.
-- Export XLSX dung spreadsheet export endpoint, khong dung `getAs(XLSX)`.
+- Branch: `main`.
+- Source baseline trước commit cập nhật tài liệu này: `1a3c7897c959dca66f96141459c3062088d13e8e`.
+- Sprint 16 - Executive Dashboard Polish: **CLOSED**.
+- Executive Dashboard: **READY FOR PRODUCTION**, chưa deploy.
+- Production Readiness Review: **COMPLETED**.
+- Không có thay đổi Business Logic trong lần cập nhật tài liệu này.
 
-## Route chinh Production
+## Trạng thái các Sprint liên quan
 
-- `/exec`
-- `/exec?view=ke-hoach`
-- `/exec?view=xuat-bao-cao`
+- Sprint 10A - Dashboard: **CLOSED**.
+- Sprint 11A - Export biên bản theo Mã bó: **CLOSED**.
+- Sprint 12 - Regression Smoke Test: **CLOSED**, `runSprint12RegressionSmokeTest` PASS 6/6, failed 0, side effects 0.
+- Sprint 13B - Planning Regression: **CLOSED**, `runSprint13BPlanningRegression` PASS 4/4, failed 0, side effects 0.
+- Sprint 15A - Business Rules standardization: **CLOSED**; Business Rules đã khóa.
+- Sprint 16 - Executive Dashboard Polish: **CLOSED**; Production Readiness Review đã hoàn thành.
 
-## Kien truc da khoa
+## Business Rules - LOCKED
 
-- Ma bo la Business Key, dong thoi la so bien ban.
-- Ma bo duoc sinh tai nguyen cong Dong goi; khong dung `reportNo` va khong tu sinh quy tac danh so.
-- Export la module rieng, khong nam trong Dashboard.
-- Output giai doan 1 la mot file XLSX nhieu sheet; moi sheet ung voi mot Ma bo va copy nguyen Sheet mau.
-- Form thanh pham dung Sheet `177`; form ong hong dung Sheet `71H`.
-- Toi da 40 dong ong. Neu it hon 40 thi an dong du; neu vuot 40 thi chan export.
-- `buildPipeEngine()` va `currentBusinessStatus` la nguon su that cho du lieu/trang thai export.
+- `BusinessRules.gs` là **Single Source of Truth**.
+- Không thay đổi Business Logic nếu chưa có PM approval.
+- Không thay đổi Business State, PipeID, KPI hoặc API contract.
+- Không thay đổi Google Sheet schema hay Apps Script data flow.
+- `buildPipeEngine()` và `currentBusinessStatus` tiếp tục là nguồn sự thật cho dữ liệu/trạng thái nghiệp vụ tương ứng.
+- Mã bó là Business Key, đồng thời là số biên bản; không thay bằng `reportNo` và không tự sinh quy tắc đánh số.
+- Planning Size lấy từ `DANH_MUC_SIZE`; không fallback âm thầm sang `pipe.size`.
+- Quy tắc export tối đa 40 dòng ống, mapping chính và output XLSX nhiều sheet được giữ nguyên.
 
-## Preflight
+## Kiến trúc và route đã khóa
 
-- Chan export khi thieu Ma bo, khong co danh sach ong, vuot 40 ong, khong xac dinh duoc loai bien ban, khong tim thay template, hoac loi tao workbook/sheet.
-- Metadata thieu (LSX, khach hang, lo, nguon goc, do day, phieu nhan, ngay nhan) chi hien canh bao `Thieu thong tin`; checkbox va export van hoat dong.
-- Cac o mapping thieu du lieu de trong theo form mau; khong tu suy dien du lieu.
+- Production route:
+  - `/exec`
+  - `/exec?view=ke-hoach`
+  - `/exec?view=xuat-bao-cao`
+- Export là module riêng, không nằm trong Dashboard.
+- Output export là một file XLSX nhiều sheet; mỗi sheet ứng với một Mã bó và copy nguyên sheet mẫu.
+- Form thành phẩm dùng sheet `177`; form ống hỏng dùng sheet `71H`.
+- Export XLSX dùng spreadsheet export endpoint, không dùng `getAs(XLSX)`.
 
-## Khong duoc thay doi
+## Production Readiness
 
-- Dashboard va Dashboard Design, tru khi co bug duoc phe duyet.
-- Route hien co, Planning CRUD, Export Sprint 9, Business Key Ma bo.
-- `buildPipeEngine`, `currentBusinessStatus`, Apps Script data flow va Google Sheet schema.
-- Quy tac 40 dong, mapping chinh, output XLSX nhieu sheet.
-- Sprint 12 da dong o Regression Smoke Test Layer; khong mo Sprint moi, khong them PDF/ZIP hay mo rong chuc nang trong handover nay.
+- Production Readiness Review cho Sprint 16: **COMPLETED**.
+- Kết luận: **READY FOR PRODUCTION**.
+- Source Sprint 16 chưa được push/deploy lên Apps Script Production trong phạm vi handover này.
+- Trước khi deploy phải xác minh lại Apps Script version/deployment hiện hành và thực hiện theo quy trình PM approval.
+- Không commit, push, `clasp push`, tạo version hoặc deploy nếu chưa có yêu cầu/phê duyệt riêng của PM.
+
+## Backlog Sprint 17
+
+- Trạng thái: **NOT OPENED / AWAITING PM PRIORITIZATION**.
+- Chưa có hạng mục Sprint 17 nào được PM phê duyệt trong repository.
+- Không tự động đưa future-refactor backlog, PDF/ZIP hoặc mở rộng chức năng vào Sprint 17.
+- Khi PM chốt backlog: phân tích root cause, xác định phạm vi nhỏ nhất, review ảnh hưởng tới Business Rules/API contract và chờ approval trước khi sửa code.
+
+## Nguyên tắc thay đổi
+
+- Root Cause First.
+- Stability First.
+- Smallest possible diff; không refactor ngoài phạm vi.
+- Giữ backward compatibility.
+- Dashboard và Dashboard Design chỉ thay đổi khi có yêu cầu/bug được PM phê duyệt.
+- Mọi thay đổi phải theo luồng: Analyze -> Review -> Smallest Fix -> PM Approval -> Commit -> GitHub -> `clasp push` -> Deploy.
