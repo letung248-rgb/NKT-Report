@@ -760,6 +760,167 @@ function runSprint13BPlanningRegression() {
   return result;
 }
 
+function sprint15AMockTxn_(pipeNo, index, process, status, defectReason, notes) {
+  return {
+    id: "S15A-" + pipeNo + "-" + index,
+    date: "2026-07-19",
+    receiveTime: "08:" + String(index).padStart(2, "0"),
+    shift: "1",
+    process: process || "",
+    pipeNo: pipeNo,
+    qty: 1,
+    size: "Ø60",
+    status: status || "",
+    defectReason: defectReason || "",
+    entryNo: "1",
+    notes: notes || "",
+    rowIdx: index
+  };
+}
+
+function sprint15ABuildSinglePipe_(transactions) {
+  var pipes = buildPipeEngine(transactions);
+  if (pipes.length !== 1) {
+    throw new Error("Expected one PipeID, got " + pipes.length);
+  }
+  return pipes[0];
+}
+
+function testSprint15ARepairableCurrentState() {
+  return sprint12RegressionRunCase_("testSprint15ARepairableCurrentState", function(test) {
+    var pipe = sprint15ABuildSinglePipe_([
+      sprint15AMockTxn_("S15A-01", 1, "Tiện ren", "Loại", "Hỏng ren")
+    ]);
+
+    test.assert("Hỏng ren -> CHO_SUA", isBusinessRepairState_(pipe.currentBusinessStatus), "CHO_SUA", pipe.currentBusinessStatus);
+    test.assert("Dashboard group là cs", getPipeDashboardStatusKey_(pipe) === "cs", "cs", getPipeDashboardStatusKey_(pipe));
+
+    return { details: { pipeNo: pipe.pipeNo, currentBusinessStatus: pipe.currentBusinessStatus, statusGroup: getPipeDashboardStatusKey_(pipe) } };
+  });
+}
+
+function testSprint15ARepairToFinishedTransition() {
+  return sprint12RegressionRunCase_("testSprint15ARepairToFinishedTransition", function(test) {
+    var before = sprint15ABuildSinglePipe_([
+      sprint15AMockTxn_("S15A-02", 1, "Tiện ren", "Loại", "Hỏng ren")
+    ]);
+    var after = sprint15ABuildSinglePipe_([
+      sprint15AMockTxn_("S15A-02", 1, "Tiện ren", "Loại", "Hỏng ren"),
+      sprint15AMockTxn_("S15A-02", 2, "Tiện ren", "Đạt", ""),
+      sprint15AMockTxn_("S15A-02", 3, "Ép thủy lực", "Đạt", "")
+    ]);
+
+    test.assert("Before transition là CHO_SUA", getPipeDashboardStatusKey_(before) === "cs", "cs", getPipeDashboardStatusKey_(before));
+    test.assert("After transition là THANH_PHAM", isBusinessFinishedState_(after.currentBusinessStatus), "THANH_PHAM", after.currentBusinessStatus);
+    test.assert("After không còn CHO_SUA", getPipeDashboardStatusKey_(after) === "tp", "tp", getPipeDashboardStatusKey_(after));
+    test.assert("KPI helper dùng BusinessRules", isThanhPhamKpiPipe(after) === true, true, isThanhPhamKpiPipe(after));
+
+    return { details: { before: before.currentBusinessStatus, after: after.currentBusinessStatus, afterGroup: getPipeDashboardStatusKey_(after) } };
+  });
+}
+
+function testSprint15AUniquePipeKpi() {
+  return sprint12RegressionRunCase_("testSprint15AUniquePipeKpi", function(test) {
+    var pipes = buildPipeEngine([
+      sprint15AMockTxn_("S15A-03", 1, "Ép thủy lực", "Loại", "Xì pin"),
+      sprint15AMockTxn_("S15A-03", 2, "Ép thủy lực", "Loại", "Xì box")
+    ]);
+    var pipe = pipes[0];
+
+    test.assert("Hai lỗi vẫn chỉ một PipeID", pipes.length === 1, 1, pipes.length);
+    test.assert("History giữ đủ hai giao dịch", pipe.history.length === 2, 2, pipe.history.length);
+    test.assert("Current state là CHO_SUA", isBusinessRepairState_(pipe.currentBusinessStatus), "CHO_SUA", pipe.currentBusinessStatus);
+
+    return { details: { pipeCount: pipes.length, transactionCount: pipe.history.length, currentBusinessStatus: pipe.currentBusinessStatus } };
+  });
+}
+
+function testSprint15AScrapTerminal() {
+  return sprint12RegressionRunCase_("testSprint15AScrapTerminal", function(test) {
+    var pipe = sprint15ABuildSinglePipe_([
+      sprint15AMockTxn_("S15A-04", 1, "NDT", "Loại", "Khuyết tật ngang"),
+      sprint15AMockTxn_("S15A-04", 2, "Ép thủy lực", "Đạt", "")
+    ]);
+
+    test.assert("LOAI là trạng thái cuối", isBusinessScrapState_(pipe.currentBusinessStatus), "LOAI", pipe.currentBusinessStatus);
+    test.assert("Không quay lại THANH_PHAM", isThanhPhamKpiPipe(pipe) === false, false, isThanhPhamKpiPipe(pipe));
+    test.assert("Dashboard group là hong", getPipeDashboardStatusKey_(pipe) === "hong", "hong", getPipeDashboardStatusKey_(pipe));
+
+    return { details: { currentBusinessStatus: pipe.currentBusinessStatus, statusGroup: getPipeDashboardStatusKey_(pipe) } };
+  });
+}
+
+function testSprint15ALegacyDefectsMapped() {
+  return sprint12RegressionRunCase_("testSprint15ALegacyDefectsMapped", function(test) {
+    var loaiNdt = classifyBusinessStatus(sprint15AMockTxn_("S15A-05", 1, "NDT", "Loại", "Loại NDT"), "", {});
+    var tienLaiKhongDat = classifyBusinessStatus(sprint15AMockTxn_("S15A-06", 1, "Tiện ren", "Loại", "Tiện lại không đạt"), "", {});
+    var khongLapDuocCoupling = classifyBusinessStatus(sprint15AMockTxn_("S15A-07", 1, "Thay coupling", "Loại", "Không lắp được CL"), "", {});
+
+    test.assert("Loại NDT -> LOAI", isBusinessScrapState_(loaiNdt), "LOAI", loaiNdt);
+    test.assert("Tiện lại không đạt -> LOAI", isBusinessScrapState_(tienLaiKhongDat), "LOAI", tienLaiKhongDat);
+    test.assert("Không lắp được coupling -> CHO_SUA", isBusinessRepairState_(khongLapDuocCoupling), "CHO_SUA", khongLapDuocCoupling);
+
+    return { details: { loaiNdt: loaiNdt, tienLaiKhongDat: tienLaiKhongDat, khongLapDuocCoupling: khongLapDuocCoupling } };
+  });
+}
+
+function testSprint15AProcessStateBoundary() {
+  return sprint12RegressionRunCase_("testSprint15AProcessStateBoundary", function(test) {
+    var pipe = sprint15ABuildSinglePipe_([
+      sprint15AMockTxn_("S15A-08", 1, "NDT", "Đạt", "")
+    ]);
+    var notPassedHydraulic = sprint15ABuildSinglePipe_([
+      sprint15AMockTxn_("S15A-09", 1, "Ép thủy lực", "Không đạt", "")
+    ]);
+    var processStates = getBusinessProcessStates_();
+
+    test.assert("Không tạo DANG_XU_LY như Business State", pipe.currentBusinessStatus === "", "", pipe.currentBusinessStatus);
+    test.assert("DANG_XU_LY là Process State", pipe.currentProcessState === processStates.DANG_XU_LY, processStates.DANG_XU_LY, pipe.currentProcessState);
+    test.assert("Dashboard group là dxl", getPipeDashboardStatusKey_(pipe) === "dxl", "dxl", getPipeDashboardStatusKey_(pipe));
+    test.assert("Không đạt không bị tính là Đạt", isThanhPhamKpiPipe(notPassedHydraulic) === false, false, isThanhPhamKpiPipe(notPassedHydraulic));
+
+    return { details: { currentBusinessStatus: pipe.currentBusinessStatus, currentProcessState: pipe.currentProcessState, notPassedHydraulic: notPassedHydraulic.currentBusinessStatus } };
+  });
+}
+
+function runSprint15ABusinessRulesRegression() {
+  var startedAtMs = Date.now();
+  var startedAt = new Date(startedAtMs).toISOString();
+  var tests = [
+    testSprint15ARepairableCurrentState(),
+    testSprint15ARepairToFinishedTransition(),
+    testSprint15AUniquePipeKpi(),
+    testSprint15AScrapTerminal(),
+    testSprint15ALegacyDefectsMapped(),
+    testSprint15AProcessStateBoundary()
+  ];
+  var passed = tests.filter(function(test) { return test.success === true; }).length;
+  var sideEffects = sprint12RegressionSideEffects_();
+  tests.forEach(function(test) {
+    sprint12RegressionAccumulateSideEffects_(sideEffects, test.sideEffects);
+  });
+
+  var result = {
+    suite: "Sprint 15A Business Rules Regression",
+    success: passed === tests.length,
+    status: passed === tests.length ? "PASS" : "FAIL",
+    dryRun: true,
+    startedAt: startedAt,
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAtMs,
+    summary: {
+      total: tests.length,
+      passed: passed,
+      failed: tests.length - passed
+    },
+    sideEffects: sideEffects,
+    tests: tests
+  };
+
+  Logger.log("SPRINT15A_BUSINESS_RULES_REGRESSION_RESULT " + JSON.stringify(result));
+  return result;
+}
+
 /**
  * Main Sprint 12 server-side smoke test. Safe by default and by construction:
  * no public test in this suite contains a Sheet/Drive write path.

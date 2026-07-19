@@ -54,7 +54,7 @@ For developers and AI assistants, read the documents in this order:
 ## Document Authority
 
 - Architecture source of truth: `01_SYSTEM_ARCHITECTURE.md` and `07_ARCHITECTURE_DECISIONS.md`.
-- Business rule source of truth: `02_BUSINESS_RULES.md`.
+- Business rule implementation source of truth: `BusinessRules.gs`; documented in `02_BUSINESS_RULES.md`.
 - Flow source of truth: `03_DATA_FLOW.md`.
 - AI/development workflow source of truth: `04_AI_GUIDELINES.md` and `08_CHANGE_POLICY.md`.
 - Coding convention source of truth: `06_CODING_STANDARD.md`.

@@ -2,113 +2,12 @@
  * Ghi kết quả debug ra Sheet "DEBUG"
  */
 function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
-  let p = normalizeString(transaction.process);
-  let s = normalizeString(transaction.status);
-  let r = normalizeString(transaction.defectReason);
-
-  transaction.nextProcess = "";
-
-  const loaiList = [
-    "khong du chieu day", "thieu chieu day", "khuyet tat ngang", "khuyet tat doc",
-    "ro than", "ro than, an mon", "tac paraffin", "tac ong", "loai ndt", "tien lai khong dat"
-  ];
-
-  const choSuaList = [
-    "hong ren", "hong coupling", "hong ren va coupling", "khong lap duoc coupling", "khac"
-  ];
-
-  // Logic 1: Kiểm tra nhóm Lỗi Loại hẳn (Scrap)
-  for (let kw of loaiList) {
-    if (r.includes(kw)) return "LOAI";
-  }
-  if (s.includes("loai")) return "LOAI";
-
-  let threadRepairs = currentPipeState ? currentPipeState.threadRepairCount : 0;
-  let couplingRepairs = currentPipeState ? currentPipeState.couplingChangeCount : 0;
-
-  // RULE 5: Đã từng sửa cả 2 đầu và ép lại vẫn xì -> LOẠI
-  if (threadRepairs >= 1 && couplingRepairs >= 1) {
-    if (p.includes("ep thuy luc") && r.includes("xi")) {
-      return "LOAI";
-    }
-  }
-
-  // RULE 1 & 2: Process = Ép thủy lực, Reason = Xì pin
-  if (p.includes("ep thuy luc") && r.includes("xi pin")) {
-    if (threadRepairs >= 1) {
-      return "LOAI"; // Rule 2
-    } else {
-      transaction.nextProcess = "Tiện ren";
-      return "CHO_SUA"; // Rule 1
-    }
-  }
-
-  // RULE 3: Reason = Xì box
-  if (r.includes("xi box")) {
-    transaction.nextProcess = "Thay coupling";
-    return "CHO_SUA";
-  }
-
-  // RULE 4: Reason = Xì cả 2 đầu
-  if (r.includes("xi ca 2 dau")) {
-    transaction.nextProcess = "Tiện ren + Thay coupling";
-    return "CHO_SUA";
-  }
-
-  // Logic 2: Kiểm tra nhóm Lỗi Chờ sửa (Repair)
-  for (let kw of choSuaList) {
-    if (r.includes(kw)) return "CHO_SUA";
-  }
-  if (s.includes("cho sua") || s.includes("hong") || s.includes("loi")) return "CHO_SUA";
-
-  // Logic 3: Đóng gói phát hiện lỗi -> CHỜ SỬA
-  if (p.includes("dong goi") && !s.includes("dat") && !s.includes("thanh pham") && s !== "ok" && s !== "") {
-    return "CHO_SUA";
-  }
-
-  // Logic 4: Các nguyên công + Đạt
-  if (s.includes("dat") || s.includes("thanh pham") || (p.includes("dong goi") && s === "ok")) {
-    if (p.includes("ep thuy luc")) {
-      return "THANH_PHAM";
-    }
-    if (p.includes("dong goi")) {
-      return "THANH_PHAM";
-    }
-    // Các nguyên công còn lại
-    return "DANG_XU_LY";
-  }
-
-  // Mặc định các nguyên công còn lại
-  return "DANG_XU_LY";
+  return getBusinessCurrentState_(transaction, previousStatus, currentPipeState);
 }
 
 /**
  * Sprint Error Analysis - dictionary/classifier only, no KPI rule changes.
  */
-const ERROR_DICTIONARY = [
-  { code: "XI_CA_2_DAU", label: "Xì cả 2 đầu", category: "Chờ sửa", process: "Ép thủy lực", severity: "High", color: "#f97316", keywords: ["xi ca 2 dau"] },
-  { code: "XI_PIN", label: "Xì pin", category: "Chờ sửa", process: "Ép thủy lực", severity: "High", color: "#f97316", keywords: ["xi pin"] },
-  { code: "XI_BOX", label: "Xì box", category: "Chờ sửa", process: "Ép thủy lực", severity: "High", color: "#f97316", keywords: ["xi box"] },
-  { code: "KHONG_DU_CHIEU_DAY", label: "Không đủ chiều dày", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["khong du chieu day"] },
-  { code: "THIEU_CHIEU_DAY", label: "Thiếu chiều dày", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["thieu chieu day"] },
-  { code: "KHUYET_TAT_NGANG", label: "Khuyết tật ngang", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["khuyet tat ngang"] },
-  { code: "KHUYET_TAT_DOC", label: "Khuyết tật dọc", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["khuyet tat doc"] },
-  { code: "RO_THAN_AN_MON", label: "Rỗ thân, ăn mòn", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["ro than an mon", "ro than, an mon"] },
-  { code: "RO_THAN", label: "Rỗ thân", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["ro than"] },
-  { code: "TAC_PARAFFIN", label: "Tắc paraffin", category: "Loại", process: "Thông nòng", severity: "Medium", color: "#ef4444", keywords: ["tac paraffin"] },
-  { code: "TAC_ONG", label: "Tắc ống", category: "Loại", process: "Thông nòng", severity: "Medium", color: "#ef4444", keywords: ["tac ong"] },
-  { code: "LOAI_NDT", label: "Loại NDT", category: "Loại", process: "NDT", severity: "High", color: "#ef4444", keywords: ["loai ndt"] },
-  { code: "TIEN_LAI_KHONG_DAT", label: "Tiện lại không đạt", category: "Loại", process: "Tiện ren", severity: "High", color: "#ef4444", keywords: ["tien lai khong dat"] },
-  { code: "HONG_REN_VA_COUPLING", label: "Hỏng ren và coupling", category: "Chờ sửa", process: "Tiện ren + Thay coupling", severity: "High", color: "#f97316", keywords: ["hong ren va coupling"] },
-  { code: "HONG_REN", label: "Hỏng ren", category: "Chờ sửa", process: "Tiện ren", severity: "Medium", color: "#f59e0b", keywords: ["hong ren"] },
-  { code: "HONG_COUPLING", label: "Hỏng coupling", category: "Chờ sửa", process: "Thay coupling", severity: "Medium", color: "#f59e0b", keywords: ["hong coupling"] },
-  { code: "KHONG_LAP_DUOC_COUPLING", label: "Không lắp được coupling", category: "Chờ sửa", process: "Thay coupling", severity: "Medium", color: "#f59e0b", keywords: ["khong lap duoc coupling"] },
-  { code: "KHAC", label: "Khác", category: "Khác", process: "", severity: "Medium", color: "#6b7280", keywords: ["khac"] },
-  { code: "LOAI", label: "Loại", category: "Loại", process: "", severity: "High", color: "#ef4444", keywords: ["loai"] },
-  { code: "CHO_SUA", label: "Chờ sửa", category: "Chờ sửa", process: "", severity: "Medium", color: "#f59e0b", keywords: ["cho sua"] },
-  { code: "HONG", label: "Hỏng", category: "Chờ sửa", process: "", severity: "Medium", color: "#f59e0b", keywords: ["hong", "loi"] }
-];
-
 const ERROR_MASTER_DEFAULT = {
   category: "Khác",
   process: "",
@@ -126,13 +25,14 @@ function noErrorClassification_() {
 }
 
 function getErrorMasterMeta_(code) {
-  for (let i = 0; i < ERROR_DICTIONARY.length; i++) {
-    if (ERROR_DICTIONARY[i].code === code) {
+  const dictionary = getBusinessRuleErrorDictionary_();
+  for (let i = 0; i < dictionary.length; i++) {
+    if (dictionary[i].code === code) {
       return {
-        category: ERROR_DICTIONARY[i].category || ERROR_MASTER_DEFAULT.category,
-        process: ERROR_DICTIONARY[i].process || ERROR_MASTER_DEFAULT.process,
-        severity: ERROR_DICTIONARY[i].severity || ERROR_MASTER_DEFAULT.severity,
-        color: ERROR_DICTIONARY[i].color || ERROR_MASTER_DEFAULT.color
+        category: dictionary[i].category || ERROR_MASTER_DEFAULT.category,
+        process: dictionary[i].process || ERROR_MASTER_DEFAULT.process,
+        severity: dictionary[i].severity || ERROR_MASTER_DEFAULT.severity,
+        color: dictionary[i].color || ERROR_MASTER_DEFAULT.color
       };
     }
   }
@@ -159,8 +59,10 @@ function getErrorCandidates_(pipe) {
   addErrorCandidate_(candidates, "importStatus", pipe.importStatus);
   addErrorCandidate_(candidates, "notes", pipe.notes);
 
-  if (pipe.currentBusinessStatus === "LOAI" || pipe.currentBusinessStatus === "CHO_SUA") {
+  if (isBusinessScrapState_(pipe.currentBusinessStatus) || isBusinessRepairState_(pipe.currentBusinessStatus)) {
     addErrorCandidate_(candidates, "currentBusinessStatus", pipe.currentBusinessStatus);
+  } else {
+    return candidates;
   }
 
   const history = pipe.history || [];
@@ -196,8 +98,9 @@ function matchErrorDictionary_(source, raw) {
   if (!text) return null;
 
   const candidates = [];
-  for (let i = 0; i < ERROR_DICTIONARY.length; i++) {
-    const entry = ERROR_DICTIONARY[i];
+  const dictionary = getBusinessRuleErrorDictionary_();
+  for (let i = 0; i < dictionary.length; i++) {
+    const entry = dictionary[i];
     for (let j = 0; j < entry.keywords.length; j++) {
       const keyword = normalizeErrorText_(entry.keywords[j]);
       const compactKeyword = compactErrorText_(entry.keywords[j]);
@@ -345,7 +248,7 @@ function getCurrentPipeState(pipe) {
     return idA.localeCompare(idB);
   });
 
-  let finalBusinessStatus = "DANG_XU_LY";
+  let finalBusinessStatus = "";
 
   for (let txn of entryTransactions) {
     let p = normalizeString(txn.process);
@@ -369,6 +272,7 @@ function getCurrentPipeState(pipe) {
   pipe.currentStatus = latestTxn.status;
   pipe.currentReason = latestTxn.defectReason;
   pipe.currentBusinessStatus = finalBusinessStatus;
+  pipe.currentProcessState = getBusinessProcessState_(finalBusinessStatus);
   pipe.currentNextProcess = latestTxn.nextProcess || "";
   pipe.currentWorker1 = latestTxn.worker1;
   pipe.currentWorker2 = latestTxn.worker2;
@@ -380,12 +284,7 @@ function getCurrentPipeState(pipe) {
 
 // KPI Thành phẩm dùng business rule riêng, không phụ thuộc currentBusinessStatus.
 function isThanhPhamKpiPipe(pipe) {
-  return pipe.history.some(t => {
-    let pName = normalizeString(t.process);
-    let sName = normalizeString(t.status);
-    let note = normalizeString(t.notes);
-    return (pName.includes("ep thuy luc") && (sName === "ok" || sName === "dat")) || note.includes("ong rua lai khong ep");
-  });
+  return isBusinessFinishedKpiPipe_(pipe);
 }
 
 /**
@@ -414,6 +313,7 @@ function buildPipeEngine(sourceTransactions) {
         currentStatus: "",
         currentReason: "",
         currentBusinessStatus: "",
+        currentProcessState: "",
         currentWorker1: "",
         currentWorker2: "",
         currentShift: "",
@@ -498,7 +398,14 @@ function debugPipeEngine() {
   try {
     const pipeObjects = buildPipeEngine();
     let totalTransactions = 0;
-    let statusSummary = { "THANH_PHAM": 0, "CHO_SUA": 0, "LOAI": 0, "DANG_XU_LY": 0 };
+    let states = getBusinessStates_();
+    let processStates = getBusinessProcessStates_();
+    let statusSummary = {};
+    statusSummary[states.THANH_PHAM] = 0;
+    statusSummary[states.CHO_SUA] = 0;
+    statusSummary[states.LOAI] = 0;
+    let processStateSummary = {};
+    processStateSummary[processStates.DANG_XU_LY] = 0;
     let processQueueSummary = {};
 
     for (let pipe of pipeObjects) {
@@ -507,6 +414,9 @@ function debugPipeEngine() {
       let bStatus = pipe.currentBusinessStatus;
       if (statusSummary[bStatus] !== undefined) {
         statusSummary[bStatus]++;
+      }
+      if (pipe.currentProcessState && processStateSummary[pipe.currentProcessState] !== undefined) {
+        processStateSummary[pipe.currentProcessState]++;
       }
 
       let cp = pipe.currentProcess || "Chưa có";
@@ -518,6 +428,7 @@ function debugPipeEngine() {
       totalTransactions: totalTransactions,
       totalPipes: pipeObjects.length,
       statusSummary: statusSummary,
+      processStateSummary: processStateSummary,
       processQueueSummary: processQueueSummary,
       samplePipes: pipeObjects.slice(0, 5)
     };
@@ -900,7 +811,7 @@ function dashboardPlanFormatDayKey_(date) {
 function dashboardPlanStatusEvent_(pipe, finishedEvent) {
   if (!pipe) return null;
   if (isThanhPhamKpiPipe(pipe)) return finishedEvent || null;
-  if (pipe.currentBusinessStatus !== "CHO_SUA" && pipe.currentBusinessStatus !== "LOAI") return null;
+  if (!isBusinessRepairState_(pipe.currentBusinessStatus) && !isBusinessScrapState_(pipe.currentBusinessStatus)) return null;
   return productionDashboardV2Event_({
     date: pipe.currentDate,
     process: pipe.currentProcess,
@@ -1138,28 +1049,24 @@ function buildDashboardDataFresh_(asOf, sourceTransactions, options) {
     let shiftSummary = {};
     let allTxns = [];
 
-    let xiPinCount = 0;
-    let xiBoxCount = 0;
-
     let processPipeLists = {};
     let queueSummary = {};
 
     // Đếm theo Pipe Objects thay vì Transactions
     for (let pipe of pipeObjects) {
       let bStatus = pipe.currentBusinessStatus;
-      let isThanhPhamByPressureTest = isThanhPhamKpiPipe(pipe);
+      let statusKey = getPipeDashboardStatusKey_(pipe);
 
-      if (isThanhPhamByPressureTest) { tpCount++; tpPipes.push(pipe); }
-
-      if (bStatus === "LOAI") { hongCount++; hongPipes.push(pipe); }
-      else if (bStatus === "CHO_SUA") { csCount++; csPipes.push(pipe); }
-      else if (bStatus === "DANG_XU_LY") { dxlCount++; dxlPipes.push(pipe); }
+      if (statusKey === "tp") { tpCount++; tpPipes.push(pipe); }
+      else if (statusKey === "hong") { hongCount++; hongPipes.push(pipe); }
+      else if (statusKey === "cs") { csCount++; csPipes.push(pipe); }
+      else if (statusKey === "dxl") { dxlCount++; dxlPipes.push(pipe); }
 
       let cp = pipe.currentProcess || "Khác";
       if (!processQueueSummary[cp]) processQueueSummary[cp] = 0;
       processQueueSummary[cp]++;
 
-      if (bStatus === "DANG_XU_LY" || bStatus === "CHO_SUA") {
+      if (statusKey === "dxl" || statusKey === "cs") {
           if (!queueSummary[cp]) queueSummary[cp] = 0;
           queueSummary[cp]++;
 
@@ -1181,18 +1088,14 @@ function buildDashboardDataFresh_(asOf, sourceTransactions, options) {
       if (!sizeStats[size]) {
           sizeStats[size] = { tp: 0, cs: 0, hong: 0, dxl: 0 };
       }
-      if (bStatus === "THANH_PHAM") { sizeStats[size].tp++; }
-      else if (bStatus === "LOAI") { sizeStats[size].hong++; }
-      else if (bStatus === "CHO_SUA") { sizeStats[size].cs++; }
-      else if (bStatus === "DANG_XU_LY") { sizeStats[size].dxl++; }
+      if (statusKey === "tp") { sizeStats[size].tp++; }
+      else if (statusKey === "hong") { sizeStats[size].hong++; }
+      else if (statusKey === "cs") { sizeStats[size].cs++; }
+      else if (statusKey === "dxl") { sizeStats[size].dxl++; }
 
       let shift = pipe.currentShift || "Khác";
       if (!shiftSummary[shift]) shiftSummary[shift] = 0;
       shiftSummary[shift]++;
-
-      let r = (pipe.currentReason || "").toLowerCase();
-      if (r.includes("xi pin")) xiPinCount++;
-      if (r.includes("xi box")) xiBoxCount++;
 
       allTxns.push(...pipe.history);
     }
@@ -1235,8 +1138,7 @@ function buildDashboardDataFresh_(asOf, sourceTransactions, options) {
     });
 
     let recent = allTxns.slice(0, 10).map(r => {
-        let bStatus = classifyBusinessStatus(r, "", null);
-        let sGroup = bStatus === "THANH_PHAM" ? "tp" : bStatus === "LOAI" ? "hong" : bStatus === "CHO_SUA" ? "cs" : "dxl";
+        let sGroup = getTransactionDashboardStatusKey_(Object.assign({}, r), "", null);
         return {
             date: r.date,
             shift: r.shift,
@@ -1374,6 +1276,8 @@ function compactDashboardPipeItem_(pipe) {
     well: pipe.well || "",
     wellProfile: pipe.wellProfile || "",
     currentBusinessStatus: pipe.currentBusinessStatus || "",
+    currentProcessState: pipe.currentProcessState || getBusinessProcessState_(pipe.currentBusinessStatus),
+    statusGroup: getPipeDashboardStatusKey_(pipe),
     currentProcess: pipe.currentProcess || "",
     currentStatus: pipe.currentStatus || "",
     currentReason: pipe.currentReason || "",
@@ -3018,11 +2922,7 @@ function writeMonthlyReportFinalCaches_(monthKey, response) {
 }
 
 function getDailyStatusGroup_(transaction) {
-  const businessStatus = classifyBusinessStatus(transaction, "", null);
-  if (businessStatus === "THANH_PHAM") return "tp";
-  if (businessStatus === "LOAI") return "hong";
-  if (businessStatus === "CHO_SUA") return "cs";
-  return "dxl";
+  return getTransactionDashboardStatusKey_(Object.assign({}, transaction), "", null);
 }
 
 function summarizeDailyList_(items, field) {
@@ -3259,15 +3159,15 @@ function getErrorAnalysisData() {
       const pipe = item.pipe;
       const error = item.error;
 
-      if (pipe.currentBusinessStatus === "LOAI") loaiCount++;
-      if (pipe.currentBusinessStatus === "CHO_SUA") choSuaCount++;
+      if (isBusinessScrapState_(pipe.currentBusinessStatus)) loaiCount++;
+      if (isBusinessRepairState_(pipe.currentBusinessStatus)) choSuaCount++;
 
       return {
         pipeNo: pipe.pipeNo,
         size: pipe.size || "Khác",
         rig: pipe.rig || "Khác",
         businessStatus: pipe.currentBusinessStatus,
-        statusGroup: pipe.currentBusinessStatus === "LOAI" ? "hong" : "cs",
+        statusGroup: getPipeDashboardStatusKey_(pipe),
         process: pipe.currentProcess || "Khác",
         reason: error.label,
         error: error,
@@ -3374,11 +3274,11 @@ function validateDashboardData() {
   const dashboardMap = {};
   for (let p of dashboardPipes) {
     dashboardMap[p.pipeNo] = p;
-    let bStatus = p.currentBusinessStatus;
-    if (bStatus === "THANH_PHAM") dbTp++;
-    else if (bStatus === "LOAI") dbLoai++;
-    else if (bStatus === "CHO_SUA") dbCs++;
-    else if (bStatus === "DANG_XU_LY") dbDxl++;
+    let statusKey = getPipeDashboardStatusKey_(p);
+    if (statusKey === "tp") dbTp++;
+    else if (statusKey === "hong") dbLoai++;
+    else if (statusKey === "cs") dbCs++;
+    else if (statusKey === "dxl") dbDxl++;
   }
 
   // 2. Lấy dữ liệu Google Sheet (Naive)
@@ -3425,10 +3325,11 @@ function validateDashboardData() {
       sheetStatus: sheetStatus
     };
 
-    if (sheetStatus === "THANH_PHAM") shTp++;
-    else if (sheetStatus === "LOAI") shLoai++;
-    else if (sheetStatus === "CHO_SUA") shCs++;
-    else if (sheetStatus === "DANG_XU_LY") shDxl++;
+    let sheetStatusKey = getBusinessStatusGroupKey_(sheetStatus, getBusinessProcessState_(sheetStatus));
+    if (sheetStatusKey === "tp") shTp++;
+    else if (sheetStatusKey === "hong") shLoai++;
+    else if (sheetStatusKey === "cs") shCs++;
+    else if (sheetStatusKey === "dxl") shDxl++;
   }
 
   Logger.log("So sánh:");

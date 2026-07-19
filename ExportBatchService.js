@@ -151,9 +151,10 @@ function exportBatchNormalizeFilters_(filters) {
   const businessStatus = String(source.businessStatus || 'ALL').trim().toUpperCase();
   const date = String(source.date || '').trim();
   const month = String(source.month || '').trim();
+  const states = getBusinessStates_();
 
   return {
-    businessStatus: businessStatus === 'THANH_PHAM' || businessStatus === 'LOAI' ? businessStatus : 'ALL',
+    businessStatus: businessStatus === states.THANH_PHAM || businessStatus === states.LOAI ? businessStatus : 'ALL',
     date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '',
     month: /^\d{4}-\d{2}$/.test(month) ? month : '',
     query: String(source.query || '').trim()
@@ -173,7 +174,7 @@ function exportBatchNormalizeSelections_(selections) {
     if (!bundleCode) throw new Error('Thiếu mã bó, không thể xuất biên bản.');
 
     const businessStatus = String(selection && selection.businessStatus || '').trim().toUpperCase();
-    if (businessStatus !== 'THANH_PHAM' && businessStatus !== 'LOAI') {
+    if (!isBusinessFinishedState_(businessStatus) && !isBusinessScrapState_(businessStatus)) {
       throw new Error('Loại biên bản không hợp lệ cho Mã bó ' + bundleCode + '.');
     }
 
@@ -245,7 +246,7 @@ function exportBatchBuildReports_(pipes, metadataIndex) {
     const group = groups[bundleKey];
     group.bundleVariants[bundleCode] = true;
     group.pipes.push(pipe);
-    group.statuses[pipe.currentBusinessStatus || ''] = true;
+    group.statuses[getPipeExportBusinessState_(pipe) || ''] = true;
 
     const packingDate = exportBatchDateKey_(packing.date);
     if (packingDate) {
@@ -257,7 +258,7 @@ function exportBatchBuildReports_(pipes, metadataIndex) {
   return Object.keys(groups).map(groupKey => {
     const group = groups[groupKey];
     const statuses = Object.keys(group.statuses).filter(Boolean);
-    const finalStatuses = statuses.filter(status => status === 'THANH_PHAM' || status === 'LOAI');
+    const finalStatuses = statuses.filter(status => isBusinessFinishedState_(status) || isBusinessScrapState_(status));
     const issues = [];
     const blockingIssues = [];
 
@@ -377,8 +378,8 @@ function exportBatchComparePipes_(left, right) {
 }
 
 function exportBatchToListItem_(report) {
-  const isFinished = report.businessStatus === 'THANH_PHAM';
-  const isRejected = report.businessStatus === 'LOAI';
+  const isFinished = isBusinessFinishedState_(report.businessStatus);
+  const isRejected = isBusinessScrapState_(report.businessStatus);
   const metadataIssues = report.metadataIssues || [];
   const blockingIssues = report.blockingIssues || [];
   const hasDataError = !report.ready;
@@ -386,6 +387,9 @@ function exportBatchToListItem_(report) {
   return {
     bundleCode: report.bundleCode,
     businessStatus: report.businessStatus,
+    businessStatusGroup: isFinished ? 'tp' : isRejected ? 'hong' : 'invalid',
+    isFinished: isFinished,
+    isRejected: isRejected,
     businessStatusLabel: isFinished ? 'Thành phẩm' : isRejected ? 'Ống hỏng' : 'Không xác định',
     packingDate: report.packingDate,
     pipeCount: report.pipes.length,
@@ -487,7 +491,7 @@ function exportBatchWriteReport_(sheet, report, config) {
       exportStatusMark_(couplingRepair),
       exportStatusMark_(pressureTest),
       exportStatusMark_(packing),
-      report.businessStatus === 'LOAI'
+      isBusinessScrapState_(report.businessStatus)
         ? exportLatestNonEmpty_(transactions, 'defectReason') || pipe.currentReason || ''
         : exportLatestNonEmpty_(transactions, 'notes')
     ]);
@@ -507,7 +511,7 @@ function exportBatchWriteHeader_(sheet, report, config) {
   const headerCells = [
     reportNoCell, 'D4', 'N4', 'D5', 'I5', 'D6', 'I6', 'D7', 'I7', 'N7', 'D8', 'I8', 'D9', 'F9'
   ];
-  if (report.businessStatus === 'THANH_PHAM') headerCells.push('I3');
+  if (isBusinessFinishedState_(report.businessStatus)) headerCells.push('I3');
 
   headerCells.forEach(a1 => sheet.getRange(a1).clearContent());
 
@@ -528,7 +532,7 @@ function exportBatchWriteHeader_(sheet, report, config) {
 }
 
 function exportBatchReportNumberCell_(businessStatus) {
-  return businessStatus === 'LOAI' ? 'G3' : 'H3';
+  return isBusinessScrapState_(businessStatus) ? 'G3' : 'H3';
 }
 
 function exportBatchWriteDate_(sheet, a1, value) {
@@ -539,7 +543,7 @@ function exportBatchWriteDate_(sheet, a1, value) {
 }
 
 function exportBatchCreateSheetName_(bundleCode, businessStatus, usedSheetNames) {
-  const typeSuffix = businessStatus === 'THANH_PHAM' ? '_TP' : '_H';
+  const typeSuffix = isBusinessFinishedState_(businessStatus) ? '_TP' : '_H';
   const cleaned = exportBatchText_(bundleCode)
     .replace(/[\\/:*?\[\]]+/g, '_')
     .replace(/\s+/g, ' ')

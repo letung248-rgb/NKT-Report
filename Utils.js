@@ -799,12 +799,7 @@ function validateData() {
   // Danh mục chuẩn (Master Data)
   const MASTER_PROCESSES = ["đầu vào", "rửa ống", "thông nòng", "ndt", "làm sạch", "calip ren", "ép thủy lực", "tiện ren", "thay coupling", "đóng gói"];
   const MASTER_STATUSES = ["ok", "dat", "loai", "cho sua", "thanh pham", "hong"];
-  const MASTER_ERRORS = [
-    "khong du chieu day", "thieu chieu day", "khuyet tat ngang", "khuyet tat doc", 
-    "ro than", "ro than, an mon", "tac paraffin", "tac ong", "loai ndt", "tien lai khong dat",
-    "hong ren", "hong coupling", "hong ren va coupling", "xi pin", "xi box", 
-    "xi ca 2 dau", "khong lap duoc coupling", "khac"
-  ];
+  const MASTER_ERRORS = getBusinessRuleDefectReasonKeywords_();
   const MASTER_SIZES = ["Ø60", "Ø73", "Ø89", "Ø89 NVTL", "Ø114", "Ø114 NVTL"];
   
   let seenTransactions = new Set();

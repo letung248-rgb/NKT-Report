@@ -317,9 +317,9 @@
         const key = bundleKey(item);
         const ready = item.ready === true;
         const exported = state.exported.has(key);
-        const typeBadge = item.businessStatus === 'THANH_PHAM'
+        const typeBadge = item.businessStatusGroup === 'tp'
           ? '<span class="badge badge-tp">Thành phẩm</span>'
-          : item.businessStatus === 'LOAI'
+          : item.businessStatusGroup === 'hong'
             ? '<span class="badge badge-hong">Ống hỏng</span>'
             : '<span class="badge badge-error">Không xác định</span>';
         const statusBadge = exported
@@ -367,8 +367,8 @@
         const item = state.items.find(entry => bundleKey(entry) === key);
         if (!item || !item.ready) return;
         total++;
-        if (item.businessStatus === 'THANH_PHAM') finished++;
-        if (item.businessStatus === 'LOAI') rejected++;
+        if (item.isFinished) finished++;
+        if (item.isRejected) rejected++;
       });
 
       document.getElementById('selectedTotal').textContent = total;

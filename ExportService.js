@@ -35,19 +35,20 @@ function exportBundleReports(bundleCode) {
       throw new Error("Không tìm thấy Mã bó: " + rawBundleCode + ".");
     }
 
-    if (groups.THANH_PHAM.length > 0) {
-      const report = exportCreateReport_(rawBundleCode, "THANH_PHAM", groups.THANH_PHAM);
+    const states = getBusinessStates_();
+    if (groups[states.THANH_PHAM].length > 0) {
+      const report = exportCreateReport_(rawBundleCode, states.THANH_PHAM, groups[states.THANH_PHAM]);
       files.push(report);
       createdFileIds.push(report.spreadsheetId);
     }
-    if (groups.LOAI.length > 0) {
-      const report = exportCreateReport_(rawBundleCode, "LOAI", groups.LOAI);
+    if (groups[states.LOAI].length > 0) {
+      const report = exportCreateReport_(rawBundleCode, states.LOAI, groups[states.LOAI]);
       files.push(report);
       createdFileIds.push(report.spreadsheetId);
     }
 
     if (files.length === 0) {
-      throw new Error("Mã bó chỉ có CHO_SUA hoặc DANG_XU_LY, không có biên bản để Export.");
+      throw new Error("Mã bó không có trạng thái Thành phẩm hoặc Loại để Export.");
     }
 
     return {
@@ -70,20 +71,23 @@ function exportBundleReports(bundleCode) {
 }
 
 function exportGroupPipesByBundle_(pipes, bundleKey) {
-  const groups = { THANH_PHAM: [], LOAI: [], matchedCount: 0 };
+  const states = getBusinessStates_();
+  const groups = { matchedCount: 0 };
+  groups[states.THANH_PHAM] = [];
+  groups[states.LOAI] = [];
 
   (pipes || []).forEach(pipe => {
     if (!exportPipeMatchesBundle_(pipe, bundleKey)) return;
     groups.matchedCount++;
 
     // Single Source of Truth: không tính lại trạng thái tại ExportService.
-    const businessStatus = pipe.currentBusinessStatus;
-    if (businessStatus === "THANH_PHAM" || businessStatus === "LOAI") {
+    const businessStatus = getPipeExportBusinessState_(pipe);
+    if (businessStatus) {
       groups[businessStatus].push(pipe);
     }
   });
 
-  ["THANH_PHAM", "LOAI"].forEach(status => {
+  [states.THANH_PHAM, states.LOAI].forEach(status => {
     groups[status].sort((a, b) => String(a.pipeNo || "").localeCompare(
       String(b.pipeNo || ""),
       "vi",
@@ -206,7 +210,7 @@ function exportWriteReport_(sheet, bundleCode, businessStatus, config, pipes) {
       exportStatusMark_(couplingRepair),
       exportStatusMark_(pressureTest),
       exportStatusMark_(packing),
-      businessStatus === "LOAI"
+      isBusinessScrapState_(businessStatus)
         ? exportLatestNonEmpty_(transactions, "defectReason") || pipe.currentReason || ""
         : exportLatestNonEmpty_(transactions, "notes")
     ]);

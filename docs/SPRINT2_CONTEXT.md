@@ -40,13 +40,15 @@
 
 ## Business rules quan trong
 
+Superseded by Sprint 15A. Current rule source: `BusinessRules.gs` and `docs/02_BUSINESS_RULES.md`.
+
 - Pipe Engine doc lich su transaction theo tung `pipeNo`, gom theo lan nhap xuong/entry, sap xep theo ngay, thoi gian nhan, ID.
 - Business status chinh:
   - `THANH_PHAM`
   - `LOAI`
   - `CHO_SUA`
-  - `DANG_XU_LY`
-- KPI Thanh pham khong chi dua vao `currentBusinessStatus`; hien dang dung helper `isThanhPhamKpiPipe(pipe)`.
+- `DANG_XU_LY` la Process State, khong phai Business State.
+- KPI Thanh pham dung helper `isThanhPhamKpiPipe(pipe)` va helper nay goi BusinessRules chung.
 - Thanh pham KPI tinh khi:
   - Co giao dich `ep thuy luc` voi status normalized la `ok`; hoac
   - Note co cum `ong rua lai khong ep`.

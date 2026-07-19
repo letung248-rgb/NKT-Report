@@ -1,89 +1,83 @@
 # NKT Management System - Business Rules
 
-## Scope
+## Source Of Truth
 
-This document records business rules already present in source code and rules that have been explicitly finalized for the current architecture.
+Business rules are centralized in `BusinessRules.gs`.
 
-Do not add new business rules here unless they have been confirmed.
-
-## Dashboard Business Rule Location
-
-Dashboard business rules are located in `DashboardServer.js`.
-
-Important functions:
+Other modules must call BusinessRules helpers or compatibility wrappers such as:
 
 - `classifyBusinessStatus(transaction, previousStatus, currentPipeState)`
 - `isThanhPhamKpiPipe(pipe)`
-- `buildPipeEngine()`
-- `getDashboardData()`
+- `getPipeDashboardStatusKey_(pipe)`
+- `getPipeExportBusinessState_(pipe)`
 
-## Current Pipe Status
+Do not copy defect lists or state-transition rules into Dashboard, Export, Planning, or validation modules.
 
-`classifyBusinessStatus()` determines the current business status of a pipe transaction flow.
+## Business Object
 
-It classifies status values such as:
+The business object is one `PipeID` / `pipeNo`.
 
-- `LOAI`
-- `CHO_SUA`
+KPI and current-state grouping are calculated per unique pipe, not per transaction, event, defect, or sheet row.
+
+Examples:
+
+- One pipe with `Hỏng ren`, then `Xì pin`, is still one checked pipe.
+- When one pipe moves from `CHO_SUA` to `THANH_PHAM`, `CHO_SUA` decreases by 1 and `THANH_PHAM` increases by 1; the same pipe must not appear in both buckets.
+
+## Business States
+
+There are exactly three current business states:
+
 - `THANH_PHAM`
-- `DANG_XU_LY`
+- `CHO_SUA`
+- `LOAI`
 
-This function is for pipe current state classification.
+`DANG_XU_LY` is a process state only. It is exposed as `currentProcessState` / dashboard group `dxl` when a pipe has no current business state.
 
-## KPI Thanh Pham Rule
+## Defect Groups
 
-KPI "Thanh pham" does not use `currentBusinessStatus`.
+Repairable defects map to `CHO_SUA`, including:
 
-KPI Thanh pham is calculated by `isThanhPhamKpiPipe(pipe)`.
+- `Xì pin`
+- `Xì box`
+- `Xì cả 2 đầu`
+- `Hỏng ren`
+- `Hỏng coupling`
+- `Hỏng ren và coupling`
+- legacy accepted repairable reasons such as `Không lắp được coupling` and `Khác`
 
-A pipe is counted as KPI Thanh pham when either condition is true:
+Scrap defects map to `LOAI`, including:
 
-1. The pipe has a transaction where:
+- `Rỗ thân, ăn mòn`
+- `Tắc paraffin`
+- `Không đủ chiều dày`
+- `Tắc ống`
+- `Khuyết tật ngang`
+- `Khuyết tật dọc`
+- legacy accepted scrap reasons such as `Loại NDT`, `Tiện lại không đạt`, and `Thiếu chiều dày`
 
-```text
-normalizeString(Process) includes "ep thuy luc"
-AND
-normalizeString(Status) equals "ok"
-```
+## State Transition
 
-2. The pipe has notes containing:
+- New pipe + hydraulic pressure test passed -> `THANH_PHAM`
+- Pipe + repairable defect -> `CHO_SUA`
+- `CHO_SUA` + repair completed + hydraulic pressure test passed -> `THANH_PHAM`
+- Pipe + scrap defect -> `LOAI`
+- `LOAI` is terminal and cannot return to `THANH_PHAM`
 
-```text
-Ong rua lai khong ep
-```
+Non-business production steps do not create a fourth business state. They keep the previous current business state, or use `currentProcessState = DANG_XU_LY` when no business state exists.
 
-## Rule Boundary
+## KPI Helper
 
-`classifyBusinessStatus()` determines the current status of a pipe.
+`isThanhPhamKpiPipe(pipe)` remains the KPI helper for Thành phẩm, but its implementation is delegated to `BusinessRules.gs`.
 
-`isThanhPhamKpiPipe(pipe)` is a separate helper for KPI Thanh pham.
+The helper is current-state aware:
 
-Do not change `classifyBusinessStatus()` when changing only KPI Thanh pham behavior.
+- If a pipe has current business state `LOAI` or `CHO_SUA`, it is not counted as Thành phẩm.
+- If a pipe has current business state `THANH_PHAM`, it is counted as Thành phẩm.
+- The legacy note rule `Ống rửa lại không ép` remains centralized in BusinessRules for backward compatibility.
 
-Top-level Dashboard KPI `kpi.tp` and `pipeLists.tp` use `isThanhPhamKpiPipe(pipe)`.
+## Current State And History
 
-Other status-oriented summaries may still use `pipe.currentBusinessStatus`; do not treat those summaries as the KPI Thanh pham rule.
+History is preserved in `pipe.history`.
 
-## Pipe Engine
-
-`buildPipeEngine()` groups raw transactions into pipe objects.
-
-It derives current pipe state from transaction history, entry number, process order, repair count, coupling change count, and pressure test count.
-
-## KPI Calculation
-
-`getDashboardData()` calculates dashboard KPI and summaries from pipe objects built by `buildPipeEngine()`.
-
-KPI and summaries include:
-
-- total pipe count
-- Thanh pham count
-- Hong/Loai count
-- Cho sua count
-- Dang xu ly count
-- process stats
-- queue stats
-- size stats
-- rig stats
-- shift stats
-- plan vs actual stats
+Dashboard, Export, Planning, and reports must use current-state helpers instead of replaying historical defects locally.

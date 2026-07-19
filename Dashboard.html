@@ -2656,13 +2656,14 @@
             }
 
             tbody.innerHTML = currentPipeList.map((p, idx) => {
-                let badgeClass = p.currentBusinessStatus === 'THANH_PHAM' ? 'tp' : p.currentBusinessStatus === 'LOAI' ? 'hong' : p.currentBusinessStatus === 'CHO_SUA' ? 'cs' : 'dxl';
+                let badgeClass = p.statusGroup || 'dxl';
+                let statusLabel = p.currentBusinessStatus || p.currentProcessState || '';
                 return `
                     <tr class="tr-clickable" onclick="showPipePassport(${idx})">
                         <td><strong>${p.pipeNo}</strong></td>
                         <td>${p.size || ''}</td>
                         <td>${p.rig || ''}</td>
-                        <td><span class="badge ${badgeClass}">${p.currentBusinessStatus}</span></td>
+                        <td><span class="badge ${badgeClass}">${statusLabel}</span></td>
                         <td>${p.currentProcess || ''}</td>
                         <td>${p.currentStatus || ''}</td>
                         <td class="text-danger">${p.currentReason || ''}</td>

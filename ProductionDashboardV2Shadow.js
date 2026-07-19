@@ -536,7 +536,7 @@ function productionDashboardV2RejectedEvent_(pipe) {
   for (let e = 0; e < entryKeys.length; e++) {
     const transactions = (entries[entryKeys[e]] || []).slice().sort(productionDashboardV2CompareTransactions_);
     const state = { threadRepairCount: 0, couplingChangeCount: 0 };
-    let previousStatus = "DANG_XU_LY";
+    let previousStatus = "";
 
     for (let t = 0; t < transactions.length; t++) {
       const transaction = transactions[t];
@@ -556,7 +556,7 @@ function productionDashboardV2RejectedEvent_(pipe) {
       );
       previousStatus = classifiedStatus;
 
-      if (classifiedStatus === "LOAI" && productionDashboardV2IsRejectedProcess_(transaction.process)) {
+      if (isBusinessScrapState_(classifiedStatus) && productionDashboardV2IsRejectedProcess_(transaction.process)) {
         hasRejectedEvent = true;
         const candidate = productionDashboardV2Event_(transaction, "REJECTED");
         if (!candidate.at) invalidDateCount++;
@@ -598,7 +598,7 @@ function projectProductionDashboardV2Pipe_(pipe) {
 
   const rejected = productionDashboardV2RejectedEvent_(pipe);
   const hasRejectedEvent = rejected.hasRejectedEvent;
-  const isCurrentlyRejected = pipe.currentBusinessStatus === "LOAI";
+  const isCurrentlyRejected = isBusinessScrapState_(pipe.currentBusinessStatus);
   const checkedEvent = productionDashboardV2EarlierEvent_(hydraulicEvent, rejected.event);
   const isChecked = !!hydraulicEvent || hasRejectedEvent;
   const validCurrentProcess = productionDashboardV2IsValidCurrentProcess_(pipe.currentProcess);
@@ -715,7 +715,7 @@ function productionDashboardV2Reconciliation_(pipeObjects, projections, wip, pla
     return pipe.isFinished;
   }).map(function(pipe) { return pipe.pipeNo; }).sort();
   const rejectedV1 = pipeObjects.filter(function(pipe) {
-    return pipe.currentBusinessStatus === "LOAI";
+    return isBusinessScrapState_(pipe.currentBusinessStatus);
   }).map(function(pipe) { return pipe.pipeNo; }).sort();
   const rejectedV2 = projections.filter(function(pipe) {
     return pipe.isCurrentlyRejected;

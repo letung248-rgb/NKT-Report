@@ -20,15 +20,15 @@ Rationale: `Code.js` renders `Dashboard.html` for `view=dashboard` or `view=admi
 
 ## ADR-004: Dashboard Business Logic Location
 
-Decision: Dashboard business logic lives in `DashboardServer.js`.
+Decision: Dashboard assembly lives in `DashboardServer.js`; shared business rules live in `BusinessRules.gs`.
 
-Rationale: `Dashboard.html` calls `getDashboardData()`, and the server-side calculation happens in `DashboardServer.js`.
+Rationale: `Dashboard.html` calls `getDashboardData()`, the server-side calculation happens in `DashboardServer.js`, and current-state/KPI rule decisions are delegated to `BusinessRules.gs`.
 
 ## ADR-005: KPI Thanh Pham Rule
 
-Decision: KPI Thanh pham has a separate rule and does not use `currentBusinessStatus`.
+Decision: KPI Thanh pham keeps a helper, and the helper uses `BusinessRules.gs`.
 
-Rationale: `isThanhPhamKpiPipe(pipe)` is the dedicated helper for KPI Thanh pham.
+Rationale: `isThanhPhamKpiPipe(pipe)` remains the compatibility helper, while BusinessRules keeps current-state awareness and legacy note compatibility in one place.
 
 ## ADR-006: Main Database
 

@@ -42,7 +42,7 @@ Each item must be marked `PASS`, `FAIL`, or `N/A`, with notes and evidence when 
 |---|---|---|---|---|
 | KPI Thanh pham counts pipe when Process = `Ép thủy lực` and Status normalized = `ok`. | □ | □ | □ | |
 | KPI Thanh pham counts pipe when Notes contain `Ống rửa lại không ép`. | □ | □ | □ | |
-| KPI Thanh pham does not use `currentBusinessStatus` as its rule source. | □ | □ | □ | |
+| KPI Thanh pham helper uses `BusinessRules.gs` and does not overlap with current `CHO_SUA` / `LOAI`. | □ | □ | □ | |
 | Business rule behavior matches `docs/02_BUSINESS_RULES.md`. | □ | □ | □ | |
 
 ## E. Regression Checklist
