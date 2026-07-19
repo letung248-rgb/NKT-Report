@@ -490,12 +490,89 @@ function getDashboardData(reportDateText) {
       });
     }
 
-    const source = getDashboardOverviewSource_();
-    const defaultDate = resolveDefaultDashboardOverviewDate_(source);
-    return getDashboardOverviewDateData_(defaultDate.dateKey, {
-      userSelected: false,
-      usedNearestDate: defaultDate.usedNearestDate
-    }, source);
+    const isObject = function(value) {
+      return !!value && typeof value === "object" && !Array.isArray(value);
+    };
+    const hasOwn = function(value, key) {
+      return Object.prototype.hasOwnProperty.call(value, key);
+    };
+    const hasNamedCountRows = function(rows) {
+      return Array.isArray(rows) && rows.every(function(row) {
+        return isObject(row) && typeof row.name === "string" && hasOwn(row, "count");
+      });
+    };
+    const isValidSnapshot = function(snapshot) {
+      if (!isObject(snapshot) || snapshot.success !== true) return false;
+      if (!isObject(snapshot.reportDate) ||
+          typeof snapshot.reportDate.date !== "string" ||
+          !snapshot.reportDate.date ||
+          typeof snapshot.reportDate.displayDate !== "string" ||
+          typeof snapshot.reportDate.note !== "string" ||
+          typeof snapshot.reportDate.emptyMessage !== "string") return false;
+
+      const meta = snapshot.snapshotMeta;
+      if (!isObject(meta) ||
+          meta.success !== true ||
+          meta.reportDate !== snapshot.reportDate.date ||
+          typeof meta.builtAt !== "string" ||
+          !meta.builtAt ||
+          typeof meta.version !== "string" ||
+          !meta.version ||
+          !Number.isFinite(Number(meta.durationMs)) ||
+          Number(meta.durationMs) < 0) return false;
+
+      const kpi = snapshot.kpi;
+      const requiredKpiFields = ["total", "tp", "cs", "hong", "dxl", "tpPercent"];
+      if (!isObject(kpi) || requiredKpiFields.some(function(field) { return !hasOwn(kpi, field); })) return false;
+      if (typeof snapshot.factoryHealth !== "string" ||
+          !Array.isArray(snapshot.alerts) ||
+          !snapshot.alerts.every(function(alert) { return typeof alert === "string"; }) ||
+          !isObject(snapshot.planStats) ||
+          !Array.isArray(snapshot.planStats.byDate) ||
+          !Array.isArray(snapshot.planStats.byMonth) ||
+          !Array.isArray(snapshot.planStats.sizeComparison) ||
+          !Array.isArray(snapshot.planStats.trend7Days) ||
+          !hasNamedCountRows(snapshot.processStats) ||
+          !hasNamedCountRows(snapshot.queueStats) ||
+          !isObject(snapshot.processQueueSummary) ||
+          !isObject(snapshot.sizeStats) ||
+          !hasNamedCountRows(snapshot.errorStats) ||
+          !isObject(snapshot.qualityAnalysis) ||
+          !hasNamedCountRows(snapshot.rigStats) ||
+          !hasNamedCountRows(snapshot.shiftStats) ||
+          !Array.isArray(snapshot.recent)) return false;
+
+      const recentFields = [
+        "date", "shift", "process", "pipeNo", "qty", "size",
+        "status", "statusGroup", "errorCode", "rig", "worker1", "worker2"
+      ];
+      return snapshot.recent.every(function(row) {
+        return isObject(row) && recentFields.every(function(field) { return hasOwn(row, field); });
+      });
+    };
+
+    try {
+      const cachedSnapshot = readDashboardSnapshotCache_();
+      if (isValidSnapshot(cachedSnapshot)) return cachedSnapshot;
+
+      const durableSnapshot = readDashboardSnapshot_();
+      if (isValidSnapshot(durableSnapshot)) {
+        try {
+          writeDashboardSnapshotCache_(durableSnapshot);
+        } catch (cacheError) {
+          Logger.log("DASH_SNAPSHOT L1 repopulate error: " + cacheError);
+        }
+        return durableSnapshot;
+      }
+    } catch (snapshotError) {
+      Logger.log("DASH_SNAPSHOT default read error: " + snapshotError);
+    }
+
+    return {
+      success: false,
+      error: "Dashboard snapshot chưa sẵn sàng.",
+      snapshotMeta: { state: "missing" }
+    };
   } catch (error) {
     return {
       success: false,
@@ -1436,6 +1513,7 @@ function extractDashboardSnapshot_(fullResponse) {
   fullResponse = fullResponse || {};
   return {
     success: fullResponse.success,
+    reportDate: fullResponse.reportDate || {},
     factoryHealth: fullResponse.factoryHealth,
     alerts: fullResponse.alerts || [],
     planStats: fullResponse.planStats || {},
@@ -2648,7 +2726,13 @@ function refreshDashboardSnapshot_() {
   }
 
   try {
-    const fullResponse = buildDashboardDataFresh_();
+    const source = getDashboardOverviewSource_();
+    const defaultDate = resolveDefaultDashboardOverviewDate_(source);
+    const coreResponse = buildDashboardOverviewDateCore_(defaultDate.dateKey, source);
+    const fullResponse = applyDashboardOverviewDateContext_(coreResponse, {
+      userSelected: false,
+      usedNearestDate: defaultDate.usedNearestDate
+    });
     if (!fullResponse || fullResponse.success !== true) {
       throw new Error(fullResponse && fullResponse.error ? fullResponse.error : "Dashboard fresh build failed");
     }
@@ -2659,14 +2743,74 @@ function refreshDashboardSnapshot_() {
       durationMs: Date.now() - startedAt,
       version: version,
       success: true,
+      state: "ready",
+      reportDate: snapshot.reportDate && snapshot.reportDate.date,
       error: ""
     };
 
-    const cacheResult = writeDashboardSnapshotCache_(snapshot);
+    const isObject = function(value) {
+      return !!value && typeof value === "object" && !Array.isArray(value);
+    };
+    const hasOwn = function(value, key) {
+      return Object.prototype.hasOwnProperty.call(value, key);
+    };
+    const hasNamedCountRows = function(rows) {
+      return Array.isArray(rows) && rows.every(function(row) {
+        return isObject(row) && typeof row.name === "string" && hasOwn(row, "count");
+      });
+    };
+    const requiredKpiFields = ["total", "tp", "cs", "hong", "dxl", "tpPercent"];
+    const recentFields = [
+      "date", "shift", "process", "pipeNo", "qty", "size",
+      "status", "statusGroup", "errorCode", "rig", "worker1", "worker2"
+    ];
+    const validSnapshot =
+      isObject(snapshot) &&
+      snapshot.success === true &&
+      isObject(snapshot.reportDate) &&
+      typeof snapshot.reportDate.date === "string" &&
+      !!snapshot.reportDate.date &&
+      typeof snapshot.reportDate.displayDate === "string" &&
+      typeof snapshot.reportDate.note === "string" &&
+      typeof snapshot.reportDate.emptyMessage === "string" &&
+      isObject(snapshot.snapshotMeta) &&
+      snapshot.snapshotMeta.success === true &&
+      snapshot.snapshotMeta.reportDate === snapshot.reportDate.date &&
+      typeof snapshot.snapshotMeta.builtAt === "string" &&
+      !!snapshot.snapshotMeta.builtAt &&
+      typeof snapshot.snapshotMeta.version === "string" &&
+      !!snapshot.snapshotMeta.version &&
+      Number.isFinite(Number(snapshot.snapshotMeta.durationMs)) &&
+      Number(snapshot.snapshotMeta.durationMs) >= 0 &&
+      typeof snapshot.factoryHealth === "string" &&
+      Array.isArray(snapshot.alerts) &&
+      snapshot.alerts.every(function(alert) { return typeof alert === "string"; }) &&
+      isObject(snapshot.planStats) &&
+      Array.isArray(snapshot.planStats.byDate) &&
+      Array.isArray(snapshot.planStats.byMonth) &&
+      Array.isArray(snapshot.planStats.sizeComparison) &&
+      Array.isArray(snapshot.planStats.trend7Days) &&
+      isObject(snapshot.kpi) &&
+      !requiredKpiFields.some(function(field) { return !hasOwn(snapshot.kpi, field); }) &&
+      hasNamedCountRows(snapshot.processStats) &&
+      hasNamedCountRows(snapshot.queueStats) &&
+      isObject(snapshot.processQueueSummary) &&
+      isObject(snapshot.sizeStats) &&
+      hasNamedCountRows(snapshot.errorStats) &&
+      isObject(snapshot.qualityAnalysis) &&
+      hasNamedCountRows(snapshot.rigStats) &&
+      hasNamedCountRows(snapshot.shiftStats) &&
+      Array.isArray(snapshot.recent) &&
+      snapshot.recent.every(function(row) {
+        return isObject(row) && recentFields.every(function(field) { return hasOwn(row, field); });
+      });
+    if (!validSnapshot) throw new Error("Dashboard snapshot contract validation failed");
+
     const durableResult = writeDashboardSnapshot_(snapshot);
     if (!durableResult.success) {
       throw new Error(durableResult.error || "Dashboard snapshot durable write failed");
     }
+    const cacheResult = writeDashboardSnapshotCache_(snapshot);
 
     Logger.log(
       "DASH_SNAPSHOT refresh ok | version=" + version +
