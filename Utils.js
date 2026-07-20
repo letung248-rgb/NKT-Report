@@ -773,6 +773,122 @@ function removeDashboardCacheWarmer() {
   return { success: true, removedCount: removedCount };
 }
 
+const DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME = "scheduledRefreshDashboardReadModels";
+const DASHBOARD_READ_MODEL_REFRESH_CADENCE_MINUTES = 10;
+
+function getDashboardReadModelRefreshTriggers_() {
+  return ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction &&
+      trigger.getHandlerFunction() === DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME;
+  });
+}
+
+function getDashboardReadModelRefreshTriggerInfo_(trigger) {
+  const info = {
+    handler: DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME,
+    eventType: "",
+    source: "",
+    uniqueId: ""
+  };
+  try {
+    info.eventType = trigger.getEventType ? trigger.getEventType().toString() : "";
+  } catch (error) {
+    info.eventType = "unknown";
+  }
+  try {
+    info.source = trigger.getTriggerSource ? trigger.getTriggerSource().toString() : "";
+  } catch (error) {
+    info.source = "unknown";
+  }
+  try {
+    info.uniqueId = trigger.getUniqueId ? trigger.getUniqueId() : "";
+  } catch (error) {
+    info.uniqueId = "";
+  }
+  return info;
+}
+
+function scheduledRefreshDashboardReadModels() {
+  Logger.log("DASH_READ_MODELS | scheduled refresh requested");
+  if (typeof refreshDashboardReadModels_ !== "function") {
+    return {
+      success: false,
+      error: "refreshDashboardReadModels_ is unavailable"
+    };
+  }
+  const result = refreshDashboardReadModels_();
+  Logger.log(
+    "DASH_READ_MODELS | scheduled refresh finished" +
+    " | success=" + !!(result && result.success === true) +
+    " | durationMs=" + Number(result && result.durationMs || 0)
+  );
+  return result;
+}
+
+function adminInstallDashboardReadModelRefreshTrigger() {
+  const existingTriggers = getDashboardReadModelRefreshTriggers_();
+  if (existingTriggers.length > 0) {
+    return {
+      success: true,
+      created: false,
+      handler: DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME,
+      triggerCount: existingTriggers.length,
+      cadenceMinutes: DASHBOARD_READ_MODEL_REFRESH_CADENCE_MINUTES,
+      triggers: existingTriggers.map(getDashboardReadModelRefreshTriggerInfo_)
+    };
+  }
+
+  ScriptApp.newTrigger(DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME)
+    .timeBased()
+    .everyMinutes(DASHBOARD_READ_MODEL_REFRESH_CADENCE_MINUTES)
+    .create();
+  const triggers = getDashboardReadModelRefreshTriggers_();
+  Logger.log("DASH_READ_MODELS | trigger installed | cadenceMinutes=" + DASHBOARD_READ_MODEL_REFRESH_CADENCE_MINUTES);
+  return {
+    success: true,
+    created: true,
+    handler: DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME,
+    triggerCount: triggers.length,
+    cadenceMinutes: DASHBOARD_READ_MODEL_REFRESH_CADENCE_MINUTES,
+    triggers: triggers.map(getDashboardReadModelRefreshTriggerInfo_)
+  };
+}
+
+function adminRemoveDashboardReadModelRefreshTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  let removedCount = 0;
+
+  for (let i = 0; i < triggers.length; i++) {
+    if (!triggers[i].getHandlerFunction ||
+        triggers[i].getHandlerFunction() !== DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME) {
+      continue;
+    }
+    ScriptApp.deleteTrigger(triggers[i]);
+    removedCount++;
+  }
+
+  const remainingTriggers = getDashboardReadModelRefreshTriggers_();
+  Logger.log("DASH_READ_MODELS | trigger removed | removedCount=" + removedCount);
+  return {
+    success: true,
+    handler: DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME,
+    removedCount: removedCount,
+    triggerCount: remainingTriggers.length,
+    cadenceMinutes: DASHBOARD_READ_MODEL_REFRESH_CADENCE_MINUTES
+  };
+}
+
+function adminGetDashboardReadModelRefreshTriggerStatus() {
+  const triggers = getDashboardReadModelRefreshTriggers_();
+  return {
+    success: true,
+    installed: triggers.length > 0,
+    handler: DASHBOARD_READ_MODEL_REFRESH_HANDLER_NAME,
+    triggerCount: triggers.length,
+    cadenceMinutes: DASHBOARD_READ_MODEL_REFRESH_CADENCE_MINUTES,
+    triggers: triggers.map(getDashboardReadModelRefreshTriggerInfo_)
+  };
+}
 /**
  * 3. Phân loại trạng thái nghiệp vụ (Master Error Catalog tối thiểu)
  */

@@ -250,14 +250,7 @@
         .production-kpi-view .production-kpi-size-table tbody tr:nth-child(even) .production-kpi-table-cell { background: #f9fbff; }
         .production-kpi-view .production-kpi-size-table tbody .production-kpi-table-cell { height: 54px; padding: 0.75rem 0.65rem; color: #263244; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
         .production-kpi-view .production-kpi-size-table tbody .production-kpi-table-first { font-size: 0.9rem; font-weight: 800; }
-        .production-kpi-view #production-kpi-wip-table { font-size: 0.95rem; line-height: 1.35; }
-        .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell { padding: 0.75rem 0.65rem; }
-        .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell:last-child { font-size: 1.08rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .production-kpi-view #production-kpi-wip-table tbody .production-kpi-table-cell:last-child { font-size: 1.2rem; }
-        .production-kpi-view .production-kpi-health-row { display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem; margin-bottom: 0.85rem; color: var(--text-secondary); }
-        .production-kpi-view .production-kpi-ok { color: var(--accent-success); font-weight: 700; }
-        .production-kpi-view .production-kpi-bad { color: var(--accent-danger); font-weight: 700; }
-        .production-kpi-view .production-kpi-message-list { margin: 0.4rem 0 0; padding-left: 1.25rem; }
+
         .production-kpi-view .production-kpi-empty { color: var(--text-secondary); font-style: italic; }
 
 
@@ -964,15 +957,17 @@
                         <h3 class="production-kpi-section-title visually-hidden">KPI theo Size</h3>
                         <div class="production-kpi-size-grid">
                             <section class="production-kpi-size-panel" aria-labelledby="productionKpiCheckedSizeTitle">
-                                <h4 class="production-kpi-size-panel-title" id="productionKpiCheckedSizeTitle">KPI Kiểm tra</h4>
+                                <h4 class="production-kpi-size-panel-title" id="productionKpiCheckedSizeTitle">KPI Kiểm tra theo Size</h4>
                                 <div class="production-kpi-table-wrap production-kpi-size-table-wrap">
                                     <table class="production-kpi-table production-kpi-size-table">
                                         <thead>
                                             <tr>
                                                 <th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th>
-                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong ngày</th>
-                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra<br>trong tháng</th>
-                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kiểm tra/<br>ngày công</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kỳ</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">KH</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">TH</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">%</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thiếu / Dư</th>
                                             </tr>
                                         </thead>
                                         <tbody id="production-kpi-checked-size-body"></tbody>
@@ -980,15 +975,17 @@
                                 </div>
                             </section>
                             <section class="production-kpi-size-panel" aria-labelledby="productionKpiFinishedSizeTitle">
-                                <h4 class="production-kpi-size-panel-title" id="productionKpiFinishedSizeTitle">KPI Thành phẩm</h4>
+                                <h4 class="production-kpi-size-panel-title" id="productionKpiFinishedSizeTitle">KPI Thành phẩm theo Size</h4>
                                 <div class="production-kpi-table-wrap production-kpi-size-table-wrap">
                                     <table class="production-kpi-table production-kpi-size-table">
                                         <thead>
                                             <tr>
                                                 <th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th>
-                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong ngày</th>
-                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm<br>trong tháng</th>
-                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thành phẩm/<br>ngày công</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Kỳ</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">KH</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">TH</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">%</th>
+                                                <th class="production-kpi-table-cell production-kpi-table-heading">Thiếu / Dư</th>
                                             </tr>
                                         </thead>
                                         <tbody id="production-kpi-finished-size-body"></tbody>
@@ -999,30 +996,23 @@
                     </div>
 
                     <div class="production-kpi-section">
-                        <h3 class="production-kpi-section-title">Ống đang xử lý theo nguyên công</h3>
-                        <div class="production-kpi-health-row">
-                            <span>Tổng đang xử lý: <strong id="production-kpi-wip-total">—</strong></span>
-                            <span>Tổng theo công đoạn: <strong id="production-kpi-wip-bucket-total">—</strong></span>
-                            <span>Đối soát: <strong id="production-kpi-wip-match">—</strong></span>
-                        </div>
+                        <h3 class="production-kpi-section-title">Top thiếu kế hoạch</h3>
                         <div class="production-kpi-table-wrap">
-                            <table id="production-kpi-wip-table" class="production-kpi-table">
-                                <thead><tr><th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Công đoạn hiện tại</th><th class="production-kpi-table-cell production-kpi-table-heading">Số lượng</th></tr></thead>
-                                <tbody id="production-kpi-wip-body"></tbody>
+                            <table class="production-kpi-table">
+                                <thead><tr><th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th><th class="production-kpi-table-cell production-kpi-table-heading">Kỳ</th><th class="production-kpi-table-cell production-kpi-table-heading">Chỉ tiêu</th><th class="production-kpi-table-cell production-kpi-table-heading">Thiếu</th></tr></thead>
+                                <tbody id="production-kpi-shortage-body"></tbody>
                             </table>
                         </div>
                     </div>
 
                     <div class="production-kpi-section">
-                        <h3 class="production-kpi-section-title">Trạng thái hệ thống và đối soát</h3>
-                        <div class="production-kpi-health-row">
-                            <span>Trạng thái: <strong id="production-kpi-health-status">—</strong></span>
-                            <span>Thành phẩm: <strong id="production-kpi-finished-match">—</strong></span>
-                            <span>Ống loại: <strong id="production-kpi-rejected-match">—</strong></span>
-                            <span>Size chưa xác định: <strong id="production-kpi-unknown-size">—</strong></span>
+                        <h3 class="production-kpi-section-title">Top vượt kế hoạch</h3>
+                        <div class="production-kpi-table-wrap">
+                            <table class="production-kpi-table">
+                                <thead><tr><th class="production-kpi-table-cell production-kpi-table-heading production-kpi-table-first">Size ống</th><th class="production-kpi-table-cell production-kpi-table-heading">Kỳ</th><th class="production-kpi-table-cell production-kpi-table-heading">Chỉ tiêu</th><th class="production-kpi-table-cell production-kpi-table-heading">Vượt</th></tr></thead>
+                                <tbody id="production-kpi-surplus-body"></tbody>
+                            </table>
                         </div>
-                        <div><strong>Lỗi</strong><div id="production-kpi-health-errors"></div></div>
-                        <div style="margin-top: 0.75rem;"><strong>Cảnh báo</strong><div id="production-kpi-health-warnings"></div></div>
                     </div>
                 </div>
             </section>
@@ -2155,7 +2145,6 @@
                 return '—';
             }
             const value = Number(percent);
-            if (value === 0) return '—';
             if (value >= 100) return `<span class="badge tp">${value}%</span>`;
             if (value >= 80) return `<span class="badge cs">${value}%</span>`;
             return `<span class="badge hong">${value}%</span>`;
@@ -2525,18 +2514,19 @@
 
                 const metricRows = rows.filter(row => {
                     const metric = row[metricKey] || {};
-                    return Number(metric.plan || 0) > 0 || Number(metric.actual || 0) > 0;
+                    return metric.plan !== null && metric.plan !== undefined || Number(metric.actual || 0) > 0;
                 });
 
                 metricBody.innerHTML = metricRows.map(row => {
                     const metric = row[metricKey] || {};
-                    const difference = Number(metric.actual || 0) - Number(metric.plan || 0);
+                    const hasPlan = metric.plan !== null && metric.plan !== undefined;
+                    const difference = hasPlan ? Number(metric.actual || 0) - Number(metric.plan || 0) : null;
                     return `
                     <tr>
                         <td><strong>${escapeHtml(row.size)}</strong></td>
-                        <td>${getPlanValue(metric.plan)}</td>
+                        <td>${hasPlan ? getPlanValue(metric.plan) : '--'}</td>
                         <td>${getPlanValue(metric.actual)}</td>
-                        <td>${getPlanBadge(metric.completionPercent)}</td>
+                        <td>${hasPlan ? getPlanBadge(metric.completionPercent) : '--'}</td>
                         <td>${getPlanDifferenceLabel(difference)}</td>
                     </tr>`;
                 }).join('');
@@ -2673,36 +2663,53 @@
         }
 
         const ProductionKpiView = (function() {
-            let loaded = false;
-            let loading = false;
-            let loadingTimer = null;
-
             function element(suffix) {
                 return document.getElementById('production-kpi-' + suffix);
             }
 
             function valueOrDash(value) {
-                if (value === null || value === undefined || value === '') return '—';
-                return Number.isFinite(Number(value)) && Number(value) === 0 ? '—' : String(value);
+                if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '--';
+                return Number(value).toLocaleString('vi-VN');
             }
 
-            function numberOrZero(value) {
-                return Number.isFinite(Number(value)) ? Number(value) : 0;
+            function hasPlan(metric) {
+                return metric && metric.plan !== null && metric.plan !== undefined && Number.isFinite(Number(metric.plan));
             }
 
-            function percent(value) {
-                if (value === null || value === undefined || !Number.isFinite(Number(value)) || Number(value) === 0) {
-                    return '—';
-                }
-                return Number(value) + '%';
+            function difference(metric) {
+                if (!hasPlan(metric)) return null;
+                return Number(metric.actual || 0) - Number(metric.plan || 0);
+            }
+
+            function percent(metric) {
+                if (!hasPlan(metric) || metric.percent === null || metric.percent === undefined || !Number.isFinite(Number(metric.percent))) return '--';
+                return Number(metric.percent).toLocaleString('vi-VN') + '%';
+            }
+
+            function differenceLabel(metric) {
+                const diff = difference(metric);
+                if (diff === null) return '--';
+                if (diff > 0) return 'Dư ' + valueOrDash(diff);
+                if (diff < 0) return 'Thiếu ' + valueOrDash(Math.abs(diff));
+                return 'Đúng KH';
+            }
+
+            function metricValue(metric, key) {
+                if (!hasPlan(metric)) return '--';
+                return valueOrDash(metric[key]);
+            }
+
+            function metricLabel(metric) {
+                return metric === 'checked' ? 'Kiểm tra' : 'Thành phẩm';
+            }
+
+            function periodLabel(period) {
+                return period === 'month' ? 'Tháng' : 'Ngày';
             }
 
             function setText(suffix, value) {
-                element(suffix).textContent = valueOrDash(value);
-            }
-
-            function formatDate(value, includeTime) {
-                return value ? formatDashboardDisplayDate(value, includeTime) : '—';
+                const target = element(suffix);
+                if (target) target.textContent = value || '--';
             }
 
             function setStatus(message, isError) {
@@ -2723,7 +2730,7 @@
                     label.textContent = card.label;
                     const value = document.createElement('strong');
                     value.className = 'production-kpi-card-value';
-                    value.textContent = valueOrDash(card.value);
+                    value.textContent = card.value;
                     item.append(label, value);
                     container.appendChild(item);
                 });
@@ -2732,7 +2739,7 @@
             function appendCell(row, value, isFirst) {
                 const cell = row.insertCell();
                 cell.className = 'production-kpi-table-cell' + (isFirst ? ' production-kpi-table-first' : '');
-                cell.textContent = valueOrDash(value);
+                cell.textContent = value || '--';
             }
 
             function renderEmptyRow(body, colspan, message) {
@@ -2743,213 +2750,145 @@
                 cell.textContent = message;
             }
 
-            function renderSizeBreakdown(rows) {
-                const checkedBody = element('checked-size-body');
-                const finishedBody = element('finished-size-body');
-                if (!checkedBody || !finishedBody) return;
-
-                checkedBody.replaceChildren();
-                finishedBody.replaceChildren();
-                if (!Array.isArray(rows) || rows.length === 0) {
-                    renderEmptyRow(checkedBody, 4, 'Không có dữ liệu kiểm tra theo Size.');
-                    renderEmptyRow(finishedBody, 4, 'Không có dữ liệu thành phẩm theo Size.');
-                    return;
-                }
-
-                function hasVisibleMetricValue(value) {
-                    if (value === null || value === undefined || value === '') return false;
-                    const numeric = Number(value);
-                    return Number.isFinite(numeric) ? numeric > 0 : true;
-                }
-
-                function hasMetric(row, metricKey, averageKey) {
-                    const today = row && row.today || {};
-                    const monthly = row && row.monthly || {};
-                    const averages = row && row.averages || {};
-                    return hasVisibleMetricValue(today[metricKey])
-                        || hasVisibleMetricValue(monthly[metricKey])
-                        || hasVisibleMetricValue(averages[averageKey]);
-                }
-
-                function appendSizeRow(body, row, metricKey, averageKey) {
-                    const today = row && row.today || {};
-                    const monthly = row && row.monthly || {};
-                    const averages = row && row.averages || {};
-                    const tableRow = body.insertRow();
-                    const values = [
-                        row && row.size,
-                        numberOrZero(today[metricKey]),
-                        numberOrZero(monthly[metricKey]),
-                        valueOrDash(averages[averageKey])
-                    ];
-                    values.forEach(function(value, index) { appendCell(tableRow, value, index === 0); });
-                }
-
-                const checkedRows = rows.filter(function(row) {
-                    return hasMetric(row, 'checked', 'checkedPerWorkingDay');
-                });
-                const finishedRows = rows.filter(function(row) {
-                    return hasMetric(row, 'finished', 'finishedPerWorkingDay');
-                });
-
-                checkedRows.forEach(function(row) {
-                    appendSizeRow(checkedBody, row, 'checked', 'checkedPerWorkingDay');
-                });
-                finishedRows.forEach(function(row) {
-                    appendSizeRow(finishedBody, row, 'finished', 'finishedPerWorkingDay');
-                });
-
-                if (checkedRows.length === 0) renderEmptyRow(checkedBody, 4, 'Không có dữ liệu kiểm tra theo Size.');
-                if (finishedRows.length === 0) renderEmptyRow(finishedBody, 4, 'Không có dữ liệu thành phẩm theo Size.');
+            function findMetric(rows, metric) {
+                return (rows || []).filter(function(row) { return row && row.metric === metric; })[0] || null;
             }
 
-            function renderWip(wip, reconciliation) {
-                wip = wip || {};
-                const total = numberOrZero(wip.total);
-                const bucketTotal = numberOrZero(wip.bucketTotal);
-                setText('wip-total', total);
-                setText('wip-bucket-total', bucketTotal);
-                const matches = reconciliation && reconciliation.wip && typeof reconciliation.wip.matches === 'boolean'
-                    ? reconciliation.wip.matches
-                    : total === bucketTotal;
-                const match = element('wip-match');
-                match.textContent = matches ? 'Khớp' : 'Không khớp';
-                match.className = matches ? 'production-kpi-ok' : 'production-kpi-bad';
+            function normalizeMetric(row) {
+                return {
+                    plan: row ? row.plan : null,
+                    actual: row ? row.actual : null,
+                    percent: row ? (row.percent !== undefined ? row.percent : row.completionPercent) : null
+                };
+            }
 
-                const body = element('wip-body');
+            function cardsForPeriod(rows) {
+                const checked = normalizeMetric(findMetric(rows, 'checked'));
+                const finished = normalizeMetric(findMetric(rows, 'finished'));
+                return [
+                    { label: 'KH kiểm tra', value: metricValue(checked, 'plan') },
+                    { label: 'TH kiểm tra', value: metricValue(checked, 'actual') },
+                    { label: '% kiểm tra', value: percent(checked) },
+                    { label: 'Thiếu / Dư kiểm tra', value: differenceLabel(checked) },
+                    { label: 'KH thành phẩm', value: metricValue(finished, 'plan') },
+                    { label: 'TH thành phẩm', value: metricValue(finished, 'actual') },
+                    { label: '% thành phẩm', value: percent(finished) },
+                    { label: 'Thiếu / Dư thành phẩm', value: differenceLabel(finished) }
+                ];
+            }
+
+            function buildSizeRows(planStats, metricKey) {
+                const rows = [];
+                (planStats.sizeComparison || []).forEach(function(row) {
+                    const metric = normalizeMetric(row && row[metricKey]);
+                    if (hasPlan(metric) || Number(metric.actual || 0) > 0) {
+                        rows.push({
+                            size: row.size,
+                            period: 'day',
+                            metric: metricKey,
+                            plan: metric.plan,
+                            actual: metric.actual,
+                            percent: metric.percent
+                        });
+                    }
+                });
+                (planStats.bySize || []).forEach(function(row) {
+                    if (!row || row.metric !== metricKey) return;
+                    const metric = normalizeMetric(row);
+                    if (hasPlan(metric) || Number(metric.actual || 0) > 0) {
+                        rows.push({
+                            size: row.size,
+                            period: 'month',
+                            metric: metricKey,
+                            plan: metric.plan,
+                            actual: metric.actual,
+                            percent: metric.percent
+                        });
+                    }
+                });
+                return rows;
+            }
+
+            function renderSizeTable(bodySuffix, rows, emptyMessage) {
+                const body = element(bodySuffix);
                 body.replaceChildren();
-                const rows = Array.isArray(wip.byCurrentProcess) ? wip.byCurrentProcess : [];
-                if (rows.length === 0) {
-                    renderEmptyRow(body, 2, 'Không có ống đang xử lý.');
+                if (!rows.length) {
+                    renderEmptyRow(body, 6, emptyMessage);
                     return;
                 }
-                rows.forEach(function(row) {
-                    const tableRow = body.insertRow();
-                    appendCell(tableRow, row && row.currentProcess, true);
-                    appendCell(tableRow, numberOrZero(row && row.count), false);
+                rows.forEach(function(metric) {
+                    const row = body.insertRow();
+                    appendCell(row, metric.size, true);
+                    appendCell(row, periodLabel(metric.period), false);
+                    appendCell(row, metricValue(metric, 'plan'), false);
+                    appendCell(row, metricValue(metric, 'actual'), false);
+                    appendCell(row, percent(metric), false);
+                    appendCell(row, differenceLabel(metric), false);
                 });
             }
 
-            function renderMessages(suffix, messages) {
-                const container = element(suffix);
-                container.replaceChildren();
-                if (!Array.isArray(messages) || messages.length === 0) {
-                    const empty = document.createElement('span');
-                    empty.className = 'production-kpi-empty';
-                    empty.textContent = 'Không có.';
-                    container.appendChild(empty);
+            function buildTopRows(planStats) {
+                const rows = [];
+                ['checked', 'finished'].forEach(function(metricKey) {
+                    buildSizeRows(planStats, metricKey).forEach(function(row) {
+                        const diff = difference(row);
+                        if (diff === null || diff === 0) return;
+                        rows.push(Object.assign({}, row, {
+                            metricLabel: metricLabel(metricKey),
+                            difference: diff
+                        }));
+                    });
+                });
+                return rows;
+            }
+
+            function renderTopTable(bodySuffix, rows, isShortage) {
+                const body = element(bodySuffix);
+                body.replaceChildren();
+                const filtered = rows
+                    .filter(function(row) { return isShortage ? row.difference < 0 : row.difference > 0; })
+                    .sort(function(left, right) {
+                        return isShortage
+                            ? left.difference - right.difference
+                            : right.difference - left.difference;
+                    })
+                    .slice(0, 5);
+                if (!filtered.length) {
+                    renderEmptyRow(body, 4, isShortage ? 'Không có Size thiếu kế hoạch.' : 'Không có Size vượt kế hoạch.');
                     return;
                 }
-                const list = document.createElement('ul');
-                list.className = 'production-kpi-message-list';
-                messages.forEach(function(message) {
-                    const item = document.createElement('li');
-                    item.textContent = valueOrDash(message);
-                    list.appendChild(item);
+                filtered.forEach(function(item) {
+                    const row = body.insertRow();
+                    appendCell(row, item.size, true);
+                    appendCell(row, periodLabel(item.period), false);
+                    appendCell(row, item.metricLabel, false);
+                    appendCell(row, valueOrDash(Math.abs(item.difference)), false);
                 });
-                container.appendChild(list);
             }
 
-            function renderMatch(suffix, section) {
-                const target = element(suffix);
-                const matches = section && section.matches;
-                target.textContent = matches === true ? 'Khớp' : matches === false ? 'Không khớp' : '—';
-                target.className = matches === true
-                    ? 'production-kpi-ok'
-                    : matches === false ? 'production-kpi-bad' : '';
-            }
+            function renderFromDashboardData(data) {
+                const planStats = data && data.planStats ? data.planStats : null;
+                if (!planStats) {
+                    setStatus('Chưa có dữ liệu KPI kế hoạch trong snapshot hiện tại.', true);
+                    element('content').style.display = 'none';
+                    return;
+                }
 
-            function renderHealth(health, reconciliation) {
-                health = health || {};
-                reconciliation = reconciliation || {};
-                const status = valueOrDash(health.status);
-                const statusElement = element('health-status');
-                statusElement.textContent = status === 'OK' ? 'Bình thường' : status === 'ERROR' ? 'Có lỗi' : 'Không xác định';
-                statusElement.className = status === 'OK' ? 'production-kpi-ok' : 'production-kpi-bad';
-                renderMatch('finished-match', reconciliation.finished);
-                renderMatch('rejected-match', reconciliation.rejected);
-                setText('unknown-size', numberOrZero(reconciliation.unknownSizeCount));
-                renderMessages('health-errors', health.errors);
-                renderMessages('health-warnings', health.warnings);
-            }
-
-            function render(data) {
-                const daily = data.daily || {};
-                const monthly = data.monthly || {};
-                const averages = data.monthlyAverages || {};
-                const dailyChecked = daily.checked || {};
-                const dailyFinished = daily.finished || {};
-                const monthlyChecked = monthly.checked || {};
-                const monthlyFinished = monthly.finished || {};
-
-                setText('built-at', formatDate(data.builtAt, true));
-                setText('plan-version', data.planVersion);
-                setText('daily-period', daily.period ? '(' + formatDate(daily.period, false) + ')' : '');
-                setText('monthly-period', monthly.period ? '(' + formatDashboardDisplayMonth(monthly.period) + ')' : '');
-                renderCards('daily-cards', [
-                    { label: 'Đã kiểm tra', value: numberOrZero(dailyChecked.actual) },
-                    { label: 'Thành phẩm', value: numberOrZero(dailyFinished.actual) },
-                    { label: 'Loại', value: numberOrZero(daily.rejected && daily.rejected.actual) },
-                    { label: '% hoàn thành kiểm tra', value: percent(dailyChecked.completionPercent) },
-                    { label: '% hoàn thành thành phẩm', value: percent(dailyFinished.completionPercent) }
-                ]);
-                renderCards('monthly-cards', [
-                    { label: 'Đã kiểm tra', value: numberOrZero(monthlyChecked.actual) },
-                    { label: 'Thành phẩm', value: numberOrZero(monthlyFinished.actual) },
-                    { label: 'Loại', value: numberOrZero(monthly.rejected && monthly.rejected.actual) },
-                    { label: 'Kiểm tra/ngày công', value: valueOrDash(averages.checkedPerWorkingDay) },
-                    { label: 'Thành phẩm/ngày công', value: valueOrDash(averages.finishedPerWorkingDay) }
-                ]);
-                renderSizeBreakdown(data.sizeBreakdown);
-                renderWip(data.wip, data.reconciliation);
-                renderHealth(data.health, data.reconciliation);
+                const dailyRows = planStats.byDate || [];
+                const monthlyRows = planStats.byMonth || [];
+                setText('built-at', data.reportDate && data.reportDate.label || 'Snapshot hiện tại');
+                setText('plan-version', planStats.source || 'PlanService');
+                setText('daily-period', planStats.day ? '(' + formatDashboardDisplayDate(planStats.day, false) + ')' : '');
+                setText('monthly-period', planStats.month ? '(' + formatDashboardDisplayMonth(planStats.month) + ')' : '');
+                renderCards('daily-cards', cardsForPeriod(dailyRows));
+                renderCards('monthly-cards', cardsForPeriod(monthlyRows));
+                renderSizeTable('checked-size-body', buildSizeRows(planStats, 'checked'), 'Không có dữ liệu kiểm tra theo Size.');
+                renderSizeTable('finished-size-body', buildSizeRows(planStats, 'finished'), 'Không có dữ liệu thành phẩm theo Size.');
+                const topRows = buildTopRows(planStats);
+                renderTopTable('shortage-body', topRows, true);
+                renderTopTable('surplus-body', topRows, false);
                 element('status').style.display = 'none';
                 element('content').style.display = 'block';
-            }
-
-            function finishLoading() {
-                loading = false;
-                if (loadingTimer) window.clearTimeout(loadingTimer);
-                loadingTimer = null;
-            }
-
-            function loadOnce() {
-                if (loaded || loading) return;
-                loading = true;
-                element('content').style.display = 'none';
-                setStatus('Đang tải KPI sản xuất...', false);
-
-                if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                    finishLoading();
-                    setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
-                    return;
-                }
-
-                loadingTimer = window.setTimeout(function() {
-                    if (loading) {
-                        setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
-                    }
-                }, 120000);
-
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        finishLoading();
-                        if (!result || result.success !== true) {
-                            setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
-                            return;
-                        }
-                        try {
-                            render(result);
-                            loaded = true;
-                        } catch (error) {
-                            setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
-                        }
-                    })
-                    .withFailureHandler(function() {
-                        finishLoading();
-                        setStatus('Không tải được KPI sản xuất. Vui lòng mở lại trang hoặc liên hệ quản trị.', true);
-                    })
-                    .getProductionDashboardV2Shadow();
             }
 
             function hide() {
@@ -2972,10 +2911,10 @@
                 });
                 document.getElementById('view-production-kpi').style.display = 'block';
                 document.getElementById('menu-production-kpi').classList.add('active');
-                loadOnce();
+                renderFromDashboardData(globalDashboardData);
             }
 
-            return { open: open, hide: hide };
+            return { open: open, hide: hide, renderFromDashboardData: renderFromDashboardData };
         })();
 
         function showProductionKpi() {

@@ -1423,6 +1423,7 @@ function getDashboardPipeList(statusKey) {
       statusKey: normalizedStatusKey,
       title: title,
       total: compactPipes.length,
+      snapshotMeta: snapshotResult.snapshotMeta || {},
       pipes: compactPipes
     };
   } catch (e) {
@@ -1453,6 +1454,7 @@ function getDashboardProcessPipeList(processName) {
       success: true,
       processName: normalizedProcessName,
       total: compactPipes.length,
+      snapshotMeta: snapshotResult.snapshotMeta || {},
       pipes: compactPipes
     };
   } catch (e) {
@@ -1493,6 +1495,7 @@ function getDashboardPassport(pipeNo) {
 
     return {
       success: true,
+      snapshotMeta: indexResult.snapshotMeta || {},
       pipe: passportByPipeNo[pipeKey]
     };
   } catch (e) {
@@ -1883,16 +1886,39 @@ function validateDashboardDrilldownIndexPayload_(indexPayload) {
   return { valid: true, error: "" };
 }
 
-function validateDashboardDrilldownFreshness_(manifest) {
-  if (!manifest || !manifest.builtAt) return { valid: true, error: "" };
+function getDashboardDrilldownSnapshotMeta_(manifest, source) {
+  const builtAt = manifest && manifest.builtAt ? manifest.builtAt : "";
+  const meta = {
+    stale: false,
+    ageMs: 0,
+    builtAt: builtAt,
+    source: source || "",
+    freshnessLimitMs: DASHBOARD_DRILLDOWN_MAX_AGE_MS,
+    valid: true,
+    error: ""
+  };
+  if (!builtAt) return meta;
   const builtAtMs = Date.parse(manifest.builtAt);
   if (!isFinite(builtAtMs)) {
-    return { valid: false, error: "Dashboard drilldown builtAt is invalid" };
+    meta.valid = false;
+    meta.error = "Dashboard drilldown builtAt is invalid";
+    return meta;
   }
-  if (Date.now() - builtAtMs > DASHBOARD_DRILLDOWN_MAX_AGE_MS) {
-    return { valid: false, error: "Dashboard drilldown snapshot is stale" };
-  }
-  return { valid: true, error: "" };
+  meta.ageMs = Math.max(0, Date.now() - builtAtMs);
+  meta.stale = meta.ageMs > DASHBOARD_DRILLDOWN_MAX_AGE_MS;
+  return meta;
+}
+
+function validateDashboardDrilldownFreshness_(manifest) {
+  const meta = getDashboardDrilldownSnapshotMeta_(manifest, "");
+  return {
+    valid: meta.valid,
+    error: meta.error,
+    stale: meta.stale,
+    ageMs: meta.ageMs,
+    builtAt: meta.builtAt,
+    freshnessLimitMs: meta.freshnessLimitMs
+  };
 }
 
 function readDashboardDrilldownIndexForUser_() {
@@ -1918,6 +1944,7 @@ function readDashboardDrilldownIndexForUser_() {
           source: "cache",
           bundleVersion: cacheEnvelope.bundleVersion,
           manifest: manifestResult.manifest,
+          snapshotMeta: getDashboardDrilldownSnapshotMeta_(manifestResult.manifest, "cache"),
           index: indexPayload
         };
       }
@@ -1947,6 +1974,7 @@ function readDashboardDrilldownIndexForUser_() {
       source: "durable",
       bundleVersion: manifestResult.manifest.bundleVersion,
       manifest: manifestResult.manifest,
+      snapshotMeta: getDashboardDrilldownSnapshotMeta_(manifestResult.manifest, "durable"),
       index: indexPayload
     };
   } catch (error) {
@@ -2523,9 +2551,30 @@ function adminGetDashboardDrilldownSnapshotStatus() {
       cacheSnapshot = null;
     }
     const selectedSnapshot = cacheSnapshot || durableSnapshot;
+    const snapshotSource = cacheSnapshot ? "cache" : durableSnapshot ? "durable" : "none";
+    const freshness = manifestResult.manifest
+      ? getDashboardDrilldownSnapshotMeta_(manifestResult.manifest, snapshotSource)
+      : getDashboardDrilldownSnapshotMeta_(null, snapshotSource);
+    const selectedSnapshotMeta = selectedSnapshot && selectedSnapshot.snapshotMeta
+      ? selectedSnapshot.snapshotMeta
+      : {};
+    const enrichedSnapshotMeta = Object.assign({}, selectedSnapshotMeta, {
+      builtAt: freshness.builtAt || selectedSnapshotMeta.builtAt || "",
+      stale: freshness.stale,
+      ageMs: freshness.ageMs,
+      freshnessLimitMs: freshness.freshnessLimitMs,
+      source: snapshotSource
+    });
     const metaText = PropertiesService.getScriptProperties()
       .getProperty(DASHBOARD_DRILLDOWN_PROP_META_KEY);
     const lastAttempt = metaText ? JSON.parse(metaText) : {};
+    const lastRefreshStatus = {
+      success: lastAttempt.success === true,
+      state: lastAttempt.state || "",
+      builtAt: lastAttempt.builtAt || "",
+      durationMs: Number(lastAttempt.durationMs || 0),
+      error: lastAttempt.error || ""
+    };
     const sizeExceeded = !!lastAttempt.sizeExceeded || manifestResult.code === "sizeExceeded";
     const quotaExceeded = !!lastAttempt.quotaExceeded;
     const limitBlocked = sizeExceeded || quotaExceeded;
@@ -2533,19 +2582,28 @@ function adminGetDashboardDrilldownSnapshotStatus() {
       (manifestResult.manifest && !durableSnapshot
         ? "Drilldown snapshot chunks or checksum invalid"
         : "");
+    const freshnessError = freshness.valid ? "" : freshness.error;
     const error = limitBlocked
       ? (lastAttempt.error || manifestResult.error || "Dashboard drilldown write blocked by size/quota limit")
-      : readError;
+      : (readError || freshnessError);
+    const payloadBytes = manifestResult.manifest
+      ? Number(manifestResult.manifest.totalPayloadBytes || 0)
+      : 0;
     const result = {
       success: !error && !limitBlocked,
+      state: enrichedSnapshotMeta.state || (manifestResult.manifest ? manifestResult.manifest.state : ""),
+      builtAt: enrichedSnapshotMeta.builtAt,
+      ageMs: enrichedSnapshotMeta.ageMs,
+      freshnessLimitMs: enrichedSnapshotMeta.freshnessLimitMs,
+      stale: enrichedSnapshotMeta.stale,
       hasSnapshot: !!durableSnapshot,
       hasDurableSnapshot: !!durableSnapshot,
       hasCacheSnapshot: !!cacheSnapshot,
       schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
-      snapshotMeta: selectedSnapshot && selectedSnapshot.snapshotMeta
-        ? selectedSnapshot.snapshotMeta
-        : {},
-      snapshotSource: cacheSnapshot ? "cache" : durableSnapshot ? "durable" : "none",
+      snapshotMeta: enrichedSnapshotMeta,
+      snapshotSource: snapshotSource,
+      payloadBytes: payloadBytes,
+      lastRefreshStatus: lastRefreshStatus,
       lastAttempt: lastAttempt,
       manifest: manifestResult.manifest || {},
       manifestStatus: manifestResult.code,
@@ -2558,11 +2616,19 @@ function adminGetDashboardDrilldownSnapshotStatus() {
   } catch (error) {
     const result = {
       success: false,
+      state: "",
+      builtAt: "",
+      ageMs: 0,
+      freshnessLimitMs: DASHBOARD_DRILLDOWN_MAX_AGE_MS,
+      stale: false,
       hasSnapshot: false,
       hasDurableSnapshot: false,
       hasCacheSnapshot: false,
       schemaVersion: DASHBOARD_DRILLDOWN_SCHEMA_VERSION,
       snapshotMeta: {},
+      snapshotSource: "none",
+      payloadBytes: 0,
+      lastRefreshStatus: {},
       lastAttempt: {},
       manifest: {},
       manifestStatus: "readError",
@@ -2573,6 +2639,52 @@ function adminGetDashboardDrilldownSnapshotStatus() {
     };
     return result;
   }
+}
+
+function runDashboardReadModelRefreshStep_(name, refreshFn) {
+  const startedAt = Date.now();
+  try {
+    if (typeof refreshFn !== "function") {
+      throw new Error(name + " refresh function missing");
+    }
+    const result = refreshFn();
+    const snapshotMeta = result && result.snapshotMeta ? result.snapshotMeta : {};
+    const success = !!(result && result.success === true);
+    return {
+      success: success,
+      state: snapshotMeta.state || (success ? "ready" : "failed"),
+      builtAt: snapshotMeta.builtAt || new Date(startedAt).toISOString(),
+      durationMs: Number(snapshotMeta.durationMs || (Date.now() - startedAt)),
+      error: success ? "" : (snapshotMeta.error || (result && result.error) || (name + " refresh failed")),
+      result: result || {}
+    };
+  } catch (error) {
+    return {
+      success: false,
+      state: "failed",
+      builtAt: new Date(startedAt).toISOString(),
+      durationMs: Date.now() - startedAt,
+      error: error && error.message ? error.message : error.toString(),
+      result: {}
+    };
+  }
+}
+
+function refreshDashboardReadModels_() {
+  const startedAt = Date.now();
+  const main = runDashboardReadModelRefreshStep_("main", function() {
+    return refreshDashboardSnapshot_();
+  });
+  const drilldown = runDashboardReadModelRefreshStep_("drilldown", function() {
+    return refreshDashboardDrilldownSnapshot_();
+  });
+  return {
+    success: main.success === true && drilldown.success === true,
+    builtAt: new Date(startedAt).toISOString(),
+    durationMs: Date.now() - startedAt,
+    main: main,
+    drilldown: drilldown
+  };
 }
 
 function adminValidateDashboardDrilldownParity() {
