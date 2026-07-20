@@ -1,104 +1,82 @@
 /**
- * Public read API used by PlanModule.html.
- * CRUD APIs are exposed separately; the current UI can keep this read contract unchanged.
+ * Public read API for the Production Plan Module foundation.
  */
 function getPlanModuleData() {
   try {
     var repositoryData = planRepositoryReadAll_();
-    var monthly = planServiceMapRows_(repositoryData.monthly, "thang");
-    var daily = planServiceMapRows_(repositoryData.daily, "ngay");
+    var daily = planServiceMapRows_(repositoryData.daily.rows, "ngay");
+    var monthly = planServiceMapRows_(repositoryData.monthly.rows, "thang");
     var sizes = planServiceGetActiveSizes_();
 
     return {
       success: true,
       data: {
-        monthly: monthly,
         daily: daily,
+        monthly: monthly,
         sizes: sizes
       },
       meta: {
-        monthlySheet: repositoryData.monthly.sheetName,
         dailySheet: repositoryData.daily.sheetName,
-        monthlyCount: monthly.length,
+        monthlySheet: repositoryData.monthly.sheetName,
         dailyCount: daily.length,
+        monthlyCount: monthly.length,
         readOnly: true
       }
     };
   } catch (error) {
-    var message = error && error.message ? error.message : String(error);
-    Logger.log("getPlanModuleData error: " + message);
-    throw new Error("Không đọc được dữ liệu kế hoạch: " + message);
+    planServiceThrowOperationError_("getPlanModuleData", "Khong doc duoc du lieu ke hoach", error);
   }
 }
 
 function createPlan(request) {
   try {
     var input = request || {};
-    var type = planServiceValidateType_(input.loai);
+    var type = planServiceValidateType_(input.loai || input.type);
+    var period = planServiceValidatePeriodByType_(type, input);
     var common = planServiceValidateCommonInput_(input);
-    var periods = type === "thang"
-      ? [planServiceValidateMonth_(input.thang || input.thoiGian)]
-      : planServiceValidateDailyRange_(input.tuNgay, input.denNgay);
+    var updatedBy = planServiceCurrentUser_();
+    var updatedAt = new Date();
 
-    var result = planServiceWithWriteLock_(function() {
-      var existing = planServiceListRepositoryByType_(type);
-      var conflicts = planServiceFindDuplicatePeriods_(existing, periods, common.size, type, "");
-
-      if (conflicts.length) {
-        throw new Error("Kế hoạch đã tồn tại: " + conflicts.join(", ") + ".");
+    return planServiceWithWriteLock_(function() {
+      if (planServiceExistsByType_(type, period, common.size, "")) {
+        throw new Error("Ke hoach da ton tai: " + period + " - " + common.size + ".");
       }
 
-      var records = periods.map(function(period) {
-        return {
-          period: period,
-          size: common.size,
-          inspectionPlan: common.inspectionPlan,
-          finishedPlan: common.finishedPlan,
-          note: common.note
-        };
+      var created = planServiceInsertRepositoryByType_(type, {
+        period: period,
+        size: common.size,
+        inspectionPlan: common.inspectionPlan,
+        finishedPlan: common.finishedPlan,
+        note: common.note,
+        updatedBy: updatedBy,
+        updatedAt: updatedAt
       });
-      var created = planServiceInsertRepositoryByType_(type, records);
 
       return {
         success: true,
         data: {
-          created: created.map(function(record) {
-            return planServiceMapRecord_(record, type);
-          })
-        },
-        meta: {
-          createdCount: created.length
+          created: planServiceMapRecord_(created, type)
         }
       };
     });
-    planServiceRefreshDashboardSnapshot_();
-    return result;
   } catch (error) {
-    planServiceThrowOperationError_("createPlan", "Không thể tạo kế hoạch", error);
+    planServiceThrowOperationError_("createPlan", "Khong the tao ke hoach", error);
   }
 }
 
 function updatePlan(request) {
   try {
     var input = request || {};
-    var type = planServiceValidateType_(input.loai);
-    var id = planServiceRequiredText_(input.id, "ID kế hoạch");
+    var type = planServiceValidateType_(input.loai || input.type);
+    var id = planServiceRequiredText_(input.id, "ID ke hoach");
+    var period = planServiceValidatePeriodByType_(type, input);
     var common = planServiceValidateCommonInput_(input);
-    var period = type === "thang"
-      ? planServiceValidateMonth_(input.thoiGian || input.thang)
-      : planServiceValidateSingleDay_(input.thoiGian || input.ngay);
+    var updatedBy = planServiceCurrentUser_();
+    var updatedAt = new Date();
 
-    var result = planServiceWithWriteLock_(function() {
-      var existing = planServiceListRepositoryByType_(type);
-      var current = existing.find(function(record) {
-        return String(record.id || "") === id;
-      });
-
-      if (!current) throw new Error("Không tìm thấy kế hoạch ID " + id + ".");
-
-      var conflicts = planServiceFindDuplicatePeriods_(existing, [period], common.size, type, id);
-      if (conflicts.length) {
-        throw new Error("Kế hoạch đã tồn tại: " + conflicts.join(", ") + ".");
+    return planServiceWithWriteLock_(function() {
+      if (planServiceExistsByType_(type, period, common.size, id)) {
+        throw new Error("Ke hoach da ton tai: " + period + " - " + common.size + ".");
       }
 
       var updated = planServiceUpdateRepositoryByType_(type, id, {
@@ -106,7 +84,9 @@ function updatePlan(request) {
         size: common.size,
         inspectionPlan: common.inspectionPlan,
         finishedPlan: common.finishedPlan,
-        note: common.note
+        note: common.note,
+        updatedBy: updatedBy,
+        updatedAt: updatedAt
       });
 
       return {
@@ -116,43 +96,16 @@ function updatePlan(request) {
         }
       };
     });
-    planServiceRefreshDashboardSnapshot_();
-    return result;
   } catch (error) {
-    planServiceThrowOperationError_("updatePlan", "Không thể cập nhật kế hoạch", error);
+    planServiceThrowOperationError_("updatePlan", "Khong the cap nhat ke hoach", error);
   }
 }
 
-function deletePlan(request) {
-  try {
-    var input = request || {};
-    var type = planServiceValidateType_(input.loai);
-    var id = planServiceRequiredText_(input.id, "ID kế hoạch");
-
-    var result = planServiceWithWriteLock_(function() {
-      var deleted = planServiceDeleteRepositoryByType_(type, id);
-      return {
-        success: true,
-        data: {
-          deleted: planServiceMapRecord_(deleted, type)
-        }
-      };
-    });
-    planServiceRefreshDashboardSnapshot_();
-    return result;
-  } catch (error) {
-    planServiceThrowOperationError_("deletePlan", "Không thể xóa kế hoạch", error);
-  }
-}
-
-function planServiceMapRows_(sheetData, type) {
+function planServiceMapRows_(rows, type) {
   var result = [];
-  var rows = sheetData && Array.isArray(sheetData.rows) ? sheetData.rows : [];
-
-  for (var index = 0; index < rows.length; index++) {
-    result.push(planServiceMapRecord_(rows[index], type));
-  }
-
+  (Array.isArray(rows) ? rows : []).forEach(function(row) {
+    result.push(planServiceMapRecord_(row, type));
+  });
   return result;
 }
 
@@ -160,34 +113,44 @@ function planServiceMapRecord_(repositoryRow, type) {
   return {
     id: repositoryRow.id,
     loai: type,
-    thoiGian: planServiceText_("", repositoryRow.period),
-    size: planServiceText_("", repositoryRow.size),
+    thoiGian: planServiceText_(repositoryRow.period),
+    size: planServiceText_(repositoryRow.size),
     kiemTra: planServiceNumber_(repositoryRow.inspectionPlan),
     thanhPham: planServiceNumber_(repositoryRow.finishedPlan),
-    ghiChu: planServiceText_("", repositoryRow.note),
-    capNhatLuc: planServiceText_("", repositoryRow.updatedAt),
-    capNhatBoi: ""
+    ghiChu: planServiceText_(repositoryRow.note),
+    nguoiCapNhat: planServiceText_(repositoryRow.updatedBy),
+    capNhatLuc: planServiceText_(repositoryRow.updatedAt)
   };
 }
 
 function planServiceValidateType_(value) {
-  var type = planServiceText_("", value);
-  if (type !== "thang" && type !== "ngay") {
-    throw new Error("Loại kế hoạch phải là thang hoặc ngay.");
+  var type = planServiceText_(value).toLowerCase();
+  if (type === "ngay" || type === "daily" || type === "day") return "ngay";
+  if (type === "thang" || type === "monthly" || type === "month") return "thang";
+  throw new Error("Loai ke hoach phai la ngay hoac thang.");
+}
+
+function planServiceValidatePeriodByType_(type, input) {
+  if (type === "ngay") {
+    return planServiceValidateSingleDay_(planServiceFirstDefined_(input.ngay, input.Ngay, input.thoiGian, input.date));
   }
-  return type;
+  return planServiceValidateMonth_(planServiceFirstDefined_(input.thang, input.Thang, input.thoiGian, input.month));
 }
 
 function planServiceValidateCommonInput_(input) {
-  var note = input.ghiChu === null || input.ghiChu === undefined
-    ? ""
-    : String(input.ghiChu).trim();
-  if (note.length > 500) throw new Error("Ghi chú không được vượt quá 500 ký tự.");
+  var note = planServiceText_(planServiceFirstDefined_(input.ghiChu, input.GhiChu, input.note));
+  if (note.length > 500) throw new Error("GhiChu khong duoc vuot qua 500 ky tu.");
 
   return {
     size: planServiceRequireActiveSize_(input.size),
-    inspectionPlan: planServiceValidateNonNegativeNumber_(input.kiemTra, "KH kiểm tra"),
-    finishedPlan: planServiceValidateNonNegativeNumber_(input.thanhPham, "KH thành phẩm"),
+    inspectionPlan: planServiceValidateNonNegativeNumber_(
+      planServiceFirstDefined_(input.kiemTra, input.KH_KiemTra, input.khKiemTra, input.inspectionPlan),
+      "KH_KiemTra"
+    ),
+    finishedPlan: planServiceValidateNonNegativeNumber_(
+      planServiceFirstDefined_(input.thanhPham, input.KH_ThanhPham, input.khThanhPham, input.finishedPlan),
+      "KH_ThanhPham"
+    ),
     note: note
   };
 }
@@ -202,12 +165,9 @@ function planServiceRequireActiveSize_(value) {
     if (canonical.toLocaleLowerCase("vi") === normalized) return canonical;
   }
 
-  throw new Error("Size không tồn tại hoặc không hoạt động: " + requested + ".");
+  throw new Error("Size khong ton tai hoac khong hoat dong: " + requested + ".");
 }
 
-/**
- * Planning chỉ dùng danh mục Size chuẩn DANH_MUC_SIZE.
- */
 function planServiceGetActiveSizes_() {
   var catalog = getActiveSizeCatalog();
   var catalogSizes = catalog && catalog.success === true && catalog.data &&
@@ -215,7 +175,7 @@ function planServiceGetActiveSizes_() {
   catalogSizes = planServiceUniqueSizes_(catalogSizes);
 
   if (!catalogSizes.length) {
-    throw new Error("Danh mục Size DANH_MUC_SIZE chưa có Size đang hoạt động.");
+    throw new Error("Danh muc Size DANH_MUC_SIZE chua co Size dang hoat dong.");
   }
 
   return catalogSizes;
@@ -226,7 +186,7 @@ function planServiceUniqueSizes_(values) {
   var sizes = [];
 
   (Array.isArray(values) ? values : []).forEach(function(value) {
-    var size = value === null || value === undefined ? "" : String(value).trim();
+    var size = planServiceText_(value);
     if (!size) return;
     var key = size.toLocaleLowerCase("vi");
     if (seen[key]) return;
@@ -239,58 +199,40 @@ function planServiceUniqueSizes_(values) {
 
 function planServiceValidateNonNegativeNumber_(value, fieldName) {
   if (value === null || value === undefined || String(value).trim() === "") {
-    throw new Error(fieldName + " là bắt buộc.");
+    throw new Error(fieldName + " la bat buoc.");
   }
   var number = Number(value);
   if (!isFinite(number) || number < 0 || Math.floor(number) !== number) {
-    throw new Error(fieldName + " phải là số nguyên lớn hơn hoặc bằng 0.");
+    throw new Error(fieldName + " phai la so nguyen >= 0.");
   }
   return number;
 }
 
 function planServiceValidateMonth_(value) {
-  var text = planServiceRequiredText_(value, "Tháng");
+  var text = planServiceRequiredText_(value, "Thang");
   var match = text.match(/^(\d{4})-(\d{2})$/);
   if (!match || Number(match[2]) < 1 || Number(match[2]) > 12) {
-    throw new Error("Tháng không hợp lệ. Định dạng yêu cầu: yyyy-MM.");
+    throw new Error("Thang khong hop le. Dinh dang yeu cau: yyyy-MM.");
   }
   return match[1] + "-" + match[2];
 }
 
 function planServiceValidateSingleDay_(value) {
-  return planServiceParseDay_(planServiceRequiredText_(value, "Ngày")).value;
+  return planServiceParseDay_(planServiceRequiredText_(value, "Ngay")).value;
 }
 
-function planServiceValidateDailyRange_(fromValue, toValue) {
-  var from = planServiceParseDay_(planServiceRequiredText_(fromValue, "Từ ngày"));
-  var to = planServiceParseDay_(planServiceRequiredText_(toValue, "Đến ngày"));
-  if (to.time < from.time) throw new Error("Đến ngày phải bằng hoặc sau Từ ngày.");
-
-  var dayCount = Math.floor((to.time - from.time) / 86400000) + 1;
-  if (dayCount > 31) throw new Error("Khoảng ngày không được vượt quá 31 ngày.");
-
-  var periods = [];
-  for (var time = from.time; time <= to.time; time += 86400000) {
-    periods.push(new Date(time).toISOString().slice(0, 10));
-  }
-  return periods;
-}
 
 function planServiceParseDay_(text) {
   var match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) throw new Error("Ngày không hợp lệ. Định dạng yêu cầu: yyyy-MM-dd.");
+  if (!match) throw new Error("Ngay khong hop le. Dinh dang yeu cau: yyyy-MM-dd.");
 
   var year = Number(match[1]);
   var month = Number(match[2]);
   var day = Number(match[3]);
   var time = Date.UTC(year, month - 1, day);
   var date = new Date(time);
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    throw new Error("Ngày không hợp lệ: " + text + ".");
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error("Ngay khong hop le: " + text + ".");
   }
 
   return {
@@ -299,41 +241,17 @@ function planServiceParseDay_(text) {
   };
 }
 
-function planServiceFindDuplicatePeriods_(records, periods, size, type, excludedId) {
-  var requestedKeys = {};
-  periods.forEach(function(period) {
-    requestedKeys[planServiceBusinessKey_(period, size)] = period;
-  });
 
-  var conflicts = [];
-  records.forEach(function(record) {
-    if (excludedId && String(record.id || "") === excludedId) return;
-    var period = planServiceText_("", record.period);
-    var key = planServiceBusinessKey_(period, record.size);
-    if (requestedKeys[key]) conflicts.push(requestedKeys[key] + " - " + size);
-  });
-  return conflicts;
-}
-
-function planServiceBusinessKey_(period, size) {
-  return String(period || "").trim() + "\u0001" +
-    String(size || "").trim().toLocaleLowerCase("vi");
-}
-
-function planServiceRequiredText_(value, fieldName) {
-  var text = value === null || value === undefined ? "" : String(value).trim();
-  if (!text) throw new Error(fieldName + " là bắt buộc.");
-  return text;
-}
-
-function planServiceListRepositoryByType_(type) {
-  return type === "thang" ? planRepositoryListMonthly() : planRepositoryListDaily();
-}
-
-function planServiceInsertRepositoryByType_(type, records) {
+function planServiceExistsByType_(type, period, size, excludedId) {
   return type === "thang"
-    ? planRepositoryInsertManyMonthly(records)
-    : planRepositoryInsertManyDaily(records);
+    ? planRepositoryExistsMonthly(period, size, excludedId)
+    : planRepositoryExistsDaily(period, size, excludedId);
+}
+
+function planServiceInsertRepositoryByType_(type, record) {
+  return type === "thang"
+    ? planRepositoryInsertMonthly(record)
+    : planRepositoryInsertDaily(record);
 }
 
 function planServiceUpdateRepositoryByType_(type, id, record) {
@@ -342,13 +260,8 @@ function planServiceUpdateRepositoryByType_(type, id, record) {
     : planRepositoryUpdateDailyById(id, record);
 }
 
-function planServiceDeleteRepositoryByType_(type, id) {
-  return type === "thang"
-    ? planRepositoryDeleteMonthlyById(id)
-    : planRepositoryDeleteDailyById(id);
-}
-
 function planServiceWithWriteLock_(callback) {
+  if (typeof LockService === "undefined" || !LockService.getScriptLock) return callback();
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
@@ -358,46 +271,44 @@ function planServiceWithWriteLock_(callback) {
   }
 }
 
-function planServiceRefreshDashboardSnapshot_() {
+function planServiceCurrentUser_() {
   try {
-    var result = refreshDashboardSnapshot_();
-    if (!result || result.success !== true) {
-      Logger.log("Planning dashboard snapshot rebuild failed: " + JSON.stringify(result));
-    }
+    var user = Session.getActiveUser && Session.getActiveUser();
+    var email = user && user.getEmail ? user.getEmail() : "";
+    return email || "unknown";
   } catch (error) {
-    Logger.log("Planning dashboard snapshot rebuild error: " +
-      (error && error.message ? error.message : String(error)));
+    return "unknown";
   }
+}
+
+function planServiceFirstDefined_() {
+  for (var index = 0; index < arguments.length; index++) {
+    var value = arguments[index];
+    if (value === null || value === undefined) continue;
+    if (String(value).trim() === "") continue;
+    return value;
+  }
+  return "";
+}
+
+function planServiceRequiredText_(value, fieldName) {
+  var text = planServiceText_(value);
+  if (!text) throw new Error(fieldName + " la bat buoc.");
+  return text;
 }
 
 function planServiceThrowOperationError_(operation, prefix, error) {
   var message = error && error.message ? error.message : String(error);
-  Logger.log(operation + " error: " + message);
+  if (typeof Logger !== "undefined" && Logger.log) Logger.log(operation + " error: " + message);
   throw new Error(prefix + ": " + message);
 }
 
-function planServiceIsEmptyRow_(values, displayValues) {
-  for (var index = 0; index < PLAN_REPOSITORY_CONFIG.columnCount; index++) {
-    var rawValue = values[index];
-    var displayValue = displayValues[index];
-    if (rawValue !== "" && rawValue !== null && rawValue !== undefined) return false;
-    if (String(displayValue || "").trim()) return false;
-  }
-  return true;
-}
-
-function planServiceText_(displayValue, rawValue) {
-  var value = displayValue !== "" && displayValue !== null && displayValue !== undefined
-    ? displayValue
-    : rawValue;
+function planServiceText_(value) {
   return value === null || value === undefined ? "" : String(value).trim();
 }
 
 function planServiceNumber_(value) {
   if (typeof value === "number" && isFinite(value)) return value;
-  var normalized = String(value === null || value === undefined ? "" : value)
-    .replace(/\s/g, "")
-    .replace(/,/g, "");
-  var number = Number(normalized);
+  var number = Number(String(value === null || value === undefined ? "" : value).replace(/\s/g, "").replace(/,/g, ""));
   return isFinite(number) ? number : 0;
 }
