@@ -435,10 +435,12 @@ function parseDashboardDate(value) {
 /**
  * 1. Đọc dữ liệu thô từ Sheet Data
  */
-function getRawTransactions() {
+function getRawTransactions(options) {
+  options = options || {};
+  const useCache = options.disableCache !== true;
   const totalStartedAt = performanceTimerStart_();
   const cacheStartedAt = performanceTimerStart_();
-  const cachedTransactions = readDashboardDataCache_();
+  const cachedTransactions = useCache ? readDashboardDataCache_() : null;
   if (cachedTransactions !== null) {
     performanceLog_("getRawTransactions", "cache_read", cacheStartedAt, {
       cache: "hit",
@@ -450,35 +452,35 @@ function getRawTransactions() {
     });
     return cachedTransactions;
   }
-  performanceLog_("getRawTransactions", "cache_read", cacheStartedAt, { cache: "miss" });
+  performanceLog_("getRawTransactions", "cache_read", cacheStartedAt, { cache: useCache ? "miss" : "disabled" });
 
   const spreadsheetStartedAt = performanceTimerStart_();
   const ss = getSpreadsheet();
   performanceLog_("getRawTransactions", "acquire_spreadsheet", spreadsheetStartedAt, {
     success: !!ss,
-    cache: "miss"
+    cache: useCache ? "miss" : "disabled"
   });
   if (!ss) {
-    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: false, cache: "miss", rowCount: 0 });
+    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: false, cache: useCache ? "miss" : "disabled", rowCount: 0 });
     return [];
   }
   const sheetStartedAt = performanceTimerStart_();
   const sheet = ss.getSheetByName(SHEET_DATA);
-  performanceLog_("getRawTransactions", "get_sheet", sheetStartedAt, { success: !!sheet, cache: "miss" });
+  performanceLog_("getRawTransactions", "get_sheet", sheetStartedAt, { success: !!sheet, cache: useCache ? "miss" : "disabled" });
   if (!sheet) {
-    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: false, cache: "miss", rowCount: 0 });
+    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: false, cache: useCache ? "miss" : "disabled", rowCount: 0 });
     return [];
   }
 
   const rangeStartedAt = performanceTimerStart_();
   const dataRange = sheet.getDataRange();
-  performanceLog_("getRawTransactions", "get_data_range", rangeStartedAt, { success: !!dataRange, cache: "miss" });
+  performanceLog_("getRawTransactions", "get_data_range", rangeStartedAt, { success: !!dataRange, cache: useCache ? "miss" : "disabled" });
   const valuesStartedAt = performanceTimerStart_();
   const data = dataRange.getValues();
-  performanceLog_("getRawTransactions", "get_values", valuesStartedAt, { cache: "miss", rowCount: data.length });
+  performanceLog_("getRawTransactions", "get_values", valuesStartedAt, { cache: useCache ? "miss" : "disabled", rowCount: data.length });
   if (data.length <= 1) {
-    writeDashboardDataCache_([], "getRawTransactions");
-    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: true, cache: "miss", rowCount: 0 });
+    if (useCache) writeDashboardDataCache_([], "getRawTransactions");
+    performanceLog_("getRawTransactions", "total", totalStartedAt, { success: true, cache: useCache ? "miss" : "disabled", rowCount: 0 });
     return [];
   }
 
@@ -527,13 +529,13 @@ function getRawTransactions() {
   }
 
   performanceLog_("getRawTransactions", "normalize", normalizeStartedAt, {
-    cache: "miss",
+    cache: useCache ? "miss" : "disabled",
     rowCount: transactions.length
   });
-  writeDashboardDataCache_(transactions, "getRawTransactions");
+  if (useCache) writeDashboardDataCache_(transactions, "getRawTransactions");
   performanceLog_("getRawTransactions", "total", totalStartedAt, {
     success: true,
-    cache: "miss",
+    cache: useCache ? "miss" : "disabled",
     rowCount: transactions.length
   });
   return transactions;

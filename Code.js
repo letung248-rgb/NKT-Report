@@ -22,6 +22,10 @@ function doGet(e) {
     return renderWebAppHtml_('MonthReport', 'Báo cáo tháng', 'width=device-width, initial-scale=1.0');
   }
 
+  if (view === 'nhat-ky-san-xuat' || view === 'production-journal') {
+    return renderWebAppHtml_('ProductionJournal', 'Nhật ký sản xuất', 'width=device-width, initial-scale=1.0');
+  }
+
   if (view === 'dashboard-v2') {
     return renderWebAppHtml_('DashboardV2', 'NMS Dashboard v2', 'width=device-width, initial-scale=1.0');
   }
@@ -693,5 +697,336 @@ function _monthReportSortedKeys_(map) {
 }
 
 function _monthReportTrim_(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function getProductionJournalData(filters) {
+  const startedAt = Date.now();
+  try {
+    filters = filters || {};
+    const criteria = _productionJournalBuildCriteria_(filters);
+    if (!criteria.valid) {
+      return { success: false, message: criteria.message };
+    }
+
+    const transactions = typeof getRawTransactions === 'function'
+      ? getRawTransactions({ disableCache: true })
+      : [];
+    const pipeObjects = typeof buildPipeEngine === 'function' ? buildPipeEngine(transactions) : [];
+    const rows = [];
+    const pipeMap = {};
+    const bundleMap = {};
+
+    pipeObjects.forEach(function(pipe) {
+      const history = Array.isArray(pipe && pipe.history) ? pipe.history : [];
+      const matchedHistory = history.filter(function(txn) {
+        return _productionJournalMatchTransaction_(txn, criteria, pipe);
+      });
+      if (matchedHistory.length === 0) return;
+
+      const pipeNo = _productionJournalTrim_(pipe && pipe.pipeNo);
+      if (pipeNo) {
+        pipeMap[pipeNo] = _productionJournalBuildPipeSummary_(pipe, matchedHistory);
+      }
+
+      matchedHistory.forEach(function(txn) {
+        const row = _productionJournalBuildRow_(txn, pipe);
+        rows.push(row);
+        if (row.bundleCode) bundleMap[row.bundleCode] = true;
+      });
+    });
+
+    rows.sort(_productionJournalCompareRows_);
+
+    return {
+      success: true,
+      generatedAt: _productionJournalFormatDateTime_(new Date()),
+      durationMs: Date.now() - startedAt,
+      filters: {
+        pipeId: criteria.pipeId,
+        bundleCode: criteria.bundleCode,
+        fromDate: criteria.fromDateKey,
+        toDate: criteria.toDateKey
+      },
+      summary: {
+        pipeCount: Object.keys(pipeMap).length,
+        transactionCount: rows.length,
+        bundleCodes: Object.keys(bundleMap).sort(function(left, right) {
+          return left.localeCompare(right);
+        })
+      },
+      pipes: Object.keys(pipeMap).sort(function(left, right) {
+        return left.localeCompare(right);
+      }).map(function(pipeNo) {
+        return pipeMap[pipeNo];
+      }),
+      rows: rows
+    };
+  } catch (error) {
+    Logger.log('getProductionJournalData error: ' + (error && error.stack ? error.stack : error));
+    return {
+      success: false,
+      message: 'Không tải được Nhật ký sản xuất: ' + (error && error.message ? error.message : error)
+    };
+  }
+}
+
+function _productionJournalBuildCriteria_(filters) {
+  const pipeId = _productionJournalTrim_(filters.pipeId || filters.pipeNo);
+  const bundleCode = _productionJournalTrim_(filters.bundleCode);
+  const fromDate = _productionJournalParseDate_(filters.fromDate);
+  const toDate = _productionJournalParseDate_(filters.toDate);
+
+  if (filters.fromDate && !fromDate) {
+    return { valid: false, message: 'Từ ngày không hợp lệ.' };
+  }
+  if (filters.toDate && !toDate) {
+    return { valid: false, message: 'Đến ngày không hợp lệ.' };
+  }
+  if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
+    return { valid: false, message: 'Khoảng thời gian không hợp lệ.' };
+  }
+  if (!pipeId && !bundleCode && !fromDate && !toDate) {
+    return { valid: false, message: 'Nhập PipeID, Mã bó hoặc khoảng thời gian để tra cứu.' };
+  }
+
+  return {
+    valid: true,
+    pipeId: pipeId,
+    pipeKey: _productionJournalKey_(pipeId),
+    bundleCode: bundleCode,
+    bundleKey: _productionJournalKey_(bundleCode),
+    fromDate: fromDate,
+    toDate: toDate,
+    fromDateKey: fromDate ? _productionJournalDateKey_(fromDate) : '',
+    toDateKey: toDate ? _productionJournalDateKey_(toDate) : ''
+  };
+}
+
+function _productionJournalMatchTransaction_(txn, criteria, pipe) {
+  txn = txn || {};
+  pipe = pipe || {};
+  const pipeNo = _productionJournalTrim_(txn.pipeNo || pipe.pipeNo);
+  if (criteria.pipeKey && _productionJournalKey_(pipeNo) !== criteria.pipeKey) return false;
+  if (criteria.bundleKey && _productionJournalKey_(txn.bundleCode) !== criteria.bundleKey) return false;
+
+  const txnDate = _productionJournalParseDate_(txn.date);
+  if ((criteria.fromDate || criteria.toDate) && !txnDate) return false;
+  if (criteria.fromDate && txnDate.getTime() < criteria.fromDate.getTime()) return false;
+  if (criteria.toDate && txnDate.getTime() > criteria.toDate.getTime()) return false;
+  return true;
+}
+
+function _productionJournalBuildPipeSummary_(pipe, matchedHistory) {
+  const first = matchedHistory[0] || {};
+  const last = matchedHistory[matchedHistory.length - 1] || {};
+  const bundleCodes = {};
+  matchedHistory.forEach(function(txn) {
+    const code = _productionJournalTrim_(txn && txn.bundleCode);
+    if (code) bundleCodes[code] = true;
+  });
+
+  const statusKey = typeof getPipeDashboardStatusKey_ === 'function' ? getPipeDashboardStatusKey_(pipe) : '';
+  return {
+    pipeNo: _productionJournalTrim_(pipe && pipe.pipeNo),
+    size: _productionJournalTrim_(pipe && pipe.size),
+    rig: _productionJournalTrim_(pipe && pipe.rig),
+    well: _productionJournalTrim_(pipe && pipe.well),
+    wellProfile: _productionJournalTrim_(pipe && pipe.wellProfile),
+    bundleCodes: Object.keys(bundleCodes).sort(function(left, right) { return left.localeCompare(right); }),
+    currentProcess: _productionJournalTrim_(pipe && pipe.currentProcess),
+    currentStatus: _productionJournalTrim_(pipe && pipe.currentStatus),
+    currentBusinessStatus: _productionJournalTrim_(pipe && pipe.currentBusinessStatus),
+    remark: _productionJournalBuildCurrentRemark_(pipe, statusKey),
+    statusKey: statusKey,
+    statusLabel: _productionJournalStatusLabel_(statusKey),
+    firstDate: _productionJournalDateKey_(first.date),
+    lastDate: _productionJournalDateKey_(last.date),
+    transactionCount: matchedHistory.length
+  };
+}
+
+function _productionJournalBuildCurrentRemark_(pipe, statusKey) {
+  if (statusKey !== 'cs' && statusKey !== 'hong') return '';
+  if (typeof getBusinessCurrentState_ !== 'function') return '';
+
+  const currentEntryNo = pipe && pipe.currentEntryNo;
+  const entries = pipe && pipe.entries ? pipe.entries : {};
+  const source = Array.isArray(entries[currentEntryNo])
+    ? entries[currentEntryNo].slice()
+    : (pipe && Array.isArray(pipe.history) ? pipe.history.slice() : []);
+  if (source.length === 0) return '';
+
+  source.sort(_productionJournalCompareTransactions_);
+
+  const targetState = _productionJournalTrim_(pipe && pipe.currentBusinessStatus);
+  const workingState = {
+    pressureTestCount: 0,
+    threadRepairCount: 0,
+    couplingChangeCount: 0
+  };
+  let previousState = '';
+  let matchedTxn = null;
+
+  source.forEach(function(txn) {
+    const process = typeof normalizeString === 'function'
+      ? normalizeString(txn && txn.process)
+      : _productionJournalKey_(txn && txn.process);
+    if (process.indexOf('ep thuy luc') !== -1) {
+      workingState.pressureTestCount++;
+    } else if (process.indexOf('tien ren') !== -1 || process.indexOf('sua ren') !== -1) {
+      workingState.threadRepairCount++;
+    } else if (process.indexOf('thay coupling') !== -1) {
+      workingState.couplingChangeCount++;
+    }
+
+    const nextState = getBusinessCurrentState_(txn, previousState, workingState);
+    if (nextState === targetState && nextState !== previousState) {
+      matchedTxn = txn;
+    }
+    previousState = nextState;
+  });
+
+  if (!matchedTxn) return '';
+  const reason = _productionJournalCleanRemark_(matchedTxn.defectReason);
+  if (reason) return reason;
+  return _productionJournalCleanRemark_(matchedTxn.notes);
+}
+
+function _productionJournalCleanRemark_(value) {
+  let text = _productionJournalTrim_(value);
+  if (!text) return '';
+
+  const markers = ['| Số đã nhập BC:', 'Số đã nhập BC:'];
+  const lowerText = text.toLowerCase();
+  let cutAt = -1;
+  markers.forEach(function(marker) {
+    const index = lowerText.indexOf(marker.toLowerCase());
+    if (index !== -1 && (cutAt === -1 || index < cutAt)) cutAt = index;
+  });
+  if (cutAt !== -1) text = text.substring(0, cutAt);
+
+  return _productionJournalTrim_(text)
+    .replace(/^[\s|,;:\-]+/, '')
+    .replace(/[\s|,;:\-]+$/, '')
+    .trim();
+}
+
+function _productionJournalCompareTransactions_(left, right) {
+  const leftTime = _productionJournalTransactionTime_(left);
+  const rightTime = _productionJournalTransactionTime_(right);
+  if (leftTime !== rightTime) return leftTime - rightTime;
+  const leftId = _productionJournalTrim_(left && left.id);
+  const rightId = _productionJournalTrim_(right && right.id);
+  if (leftId !== rightId) return leftId.localeCompare(rightId);
+  return (Number(left && left.rowIdx) || 0) - (Number(right && right.rowIdx) || 0);
+}
+
+function _productionJournalTransactionTime_(txn) {
+  const date = _productionJournalParseDate_(txn && txn.date);
+  if (!date) return Number(txn && txn.rowIdx) || 0;
+  const receiveTime = txn && txn.receiveTime;
+  if (receiveTime instanceof Date && !isNaN(receiveTime.getTime())) {
+    date.setHours(receiveTime.getHours(), receiveTime.getMinutes(), receiveTime.getSeconds(), 0);
+    return date.getTime();
+  }
+  const time = _productionJournalTrim_(receiveTime).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (time) {
+    date.setHours(Number(time[1]), Number(time[2]), Number(time[3] || 0), 0);
+  }
+  return date.getTime();
+}
+
+function _productionJournalBuildRow_(txn, pipe) {
+  const statusKey = typeof getTransactionDashboardStatusKey_ === 'function'
+    ? getTransactionDashboardStatusKey_(txn, '', {})
+    : '';
+  return {
+    date: _productionJournalDateKey_(txn.date),
+    time: _productionJournalFormatTime_(txn.receiveTime),
+    shift: _productionJournalTrim_(txn.shift),
+    pipeNo: _productionJournalTrim_(txn.pipeNo || (pipe && pipe.pipeNo)),
+    bundleCode: _productionJournalTrim_(txn.bundleCode),
+    entryNo: _productionJournalTrim_(txn.entryNo),
+    process: _productionJournalTrim_(txn.process),
+    status: _productionJournalTrim_(txn.status),
+    statusKey: statusKey,
+    statusLabel: _productionJournalStatusLabel_(statusKey),
+    defectReason: _productionJournalTrim_(txn.defectReason),
+    worker1: _productionJournalTrim_(txn.worker1),
+    worker2: _productionJournalTrim_(txn.worker2),
+    size: _productionJournalTrim_(txn.size || (pipe && pipe.size)),
+    rig: _productionJournalTrim_(txn.rig || (pipe && pipe.rig)),
+    well: _productionJournalTrim_(txn.well || (pipe && pipe.well)),
+    notes: _productionJournalCleanRemark_(txn.notes),
+    id: _productionJournalTrim_(txn.id),
+    rowIdx: Number(txn.rowIdx) || 0
+  };
+}
+
+function _productionJournalCompareRows_(left, right) {
+  const leftTime = _productionJournalRowTime_(left);
+  const rightTime = _productionJournalRowTime_(right);
+  if (leftTime !== rightTime) return leftTime - rightTime;
+  return (Number(left.rowIdx) || 0) - (Number(right.rowIdx) || 0);
+}
+
+function _productionJournalRowTime_(row) {
+  const date = _productionJournalParseDate_(row && row.date);
+  if (!date) return Number(row && row.rowIdx) || 0;
+  const time = _productionJournalTrim_(row && row.time).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (time) {
+    date.setHours(Number(time[1]), Number(time[2]), Number(time[3] || 0), 0);
+  }
+  return date.getTime();
+}
+
+function _productionJournalParseDate_(value) {
+  const text = _productionJournalTrim_(value);
+  if (!text) return null;
+  let parsed = null;
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  } else if (typeof parseDashboardDate === 'function') {
+    parsed = parseDashboardDate(text);
+  } else {
+    parsed = new Date(text);
+  }
+  if (!parsed || isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+function _productionJournalDateKey_(value) {
+  const date = value instanceof Date && !isNaN(value.getTime())
+    ? value
+    : (typeof parseDashboardDate === 'function' ? parseDashboardDate(value) : null);
+  if (!date || isNaN(date.getTime())) return _productionJournalTrim_(value);
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function _productionJournalFormatTime_(value) {
+  const date = value instanceof Date ? value : null;
+  if (!date || isNaN(date.getTime())) return _productionJournalTrim_(value);
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'HH:mm:ss');
+}
+
+function _productionJournalFormatDateTime_(value) {
+  return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+}
+
+function _productionJournalStatusLabel_(statusKey) {
+  if (statusKey === 'tp') return 'Thành phẩm';
+  if (statusKey === 'cs') return 'Chờ sửa';
+  if (statusKey === 'hong') return 'Hỏng';
+  if (statusKey === 'dxl') return 'Đang xử lý';
+  return '';
+}
+
+function _productionJournalKey_(value) {
+  return _productionJournalTrim_(value).toLowerCase();
+}
+
+function _productionJournalTrim_(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
