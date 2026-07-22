@@ -982,6 +982,7 @@ function resetWorkerFormAfterSubmit() {
 }
 
 async function submitWorkerReport() {
+    const submitClickStartedAt = Date.now();
     const form = document.getElementById('worker-form');
     if (form && typeof form.reportValidity === 'function' && !form.reportValidity()) {
         return;
@@ -1037,9 +1038,21 @@ async function submitWorkerReport() {
 
     try {
         if (typeof google !== 'undefined' && google.script && google.script.run) {
+            const rpcStartedAt = Date.now();
             google.script.run
                 .withSuccessHandler(function(res) {
+                    const callbackAt = Date.now();
                     if (overlay) overlay.style.display = 'none';
+                    const overlayHiddenAt = Date.now();
+                    if (window.console && console.info) {
+                        console.info('WORKER_SUBMIT_TIMING', {
+                            clickToRpcStartMs: rpcStartedAt - submitClickStartedAt,
+                            rpcDurationMs: callbackAt - rpcStartedAt,
+                            callbackToOverlayHideMs: overlayHiddenAt - callbackAt,
+                            overlayDurationMs: overlayHiddenAt - submitClickStartedAt,
+                            serverTiming: res && res.timing
+                        });
+                    }
                     if (!res || res.success === false) {
                         alert('❌ Lỗi: ' + (res && res.message ? res.message : 'Không ghi được dữ liệu.'));
                         return;
@@ -1048,7 +1061,18 @@ async function submitWorkerReport() {
                     resetWorkerFormAfterSubmit();
                 })
                 .withFailureHandler(function(err) {
+                    const callbackAt = Date.now();
                     if (overlay) overlay.style.display = 'none';
+                    const overlayHiddenAt = Date.now();
+                    if (window.console && console.info) {
+                        console.info('WORKER_SUBMIT_TIMING', {
+                            clickToRpcStartMs: rpcStartedAt - submitClickStartedAt,
+                            rpcDurationMs: callbackAt - rpcStartedAt,
+                            callbackToOverlayHideMs: overlayHiddenAt - callbackAt,
+                            overlayDurationMs: overlayHiddenAt - submitClickStartedAt,
+                            error: getErrorMessage(err)
+                        });
+                    }
                     alert('❌ Lỗi: ' + getErrorMessage(err));
                 })
                 .submitReport(payload);

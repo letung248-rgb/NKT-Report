@@ -16,9 +16,11 @@ function submitReport(payload) {
   try {
     payload = payload || {};
 
+    var tValidate = Date.now();
     var dataSheetName = _submitGetDataSheetName_();
     var data = _submitReadPayload_(payload);
     var pipeList = _submitParsePipeList_(data.pipeNoStr);
+    timing.validateMs = Date.now() - tValidate;
     if (pipeList.length === 0) return _submitError_('Thieu so ong hop le.', timing, tStart);
 
     var now = new Date();
@@ -31,16 +33,14 @@ function submitReport(payload) {
 
     var fastAppend = _submitAppendRowsFast_(dataSheetName, fastRows, timing);
     if (fastAppend.success) {
-      try {
-        var fastSnapshotResult = refreshDashboardSnapshot_();
-        if (!fastSnapshotResult || !fastSnapshotResult.success) {
-          Logger.log('submitReport dashboard snapshot rebuild failed: ' + JSON.stringify(fastSnapshotResult));
-        }
-      } catch (snapshotError) {
-        Logger.log('submitReport dashboard snapshot rebuild error: ' + (snapshotError && snapshotError.stack ? snapshotError.stack : snapshotError));
-      }
+      timing.writeMs = timing.fastAppend || 0;
+      timing.lockWaitMs = 0;
+      timing.businessUpdateMs = 0;
+      timing.syncMs = 0;
+      timing.flushMs = 0;
       timing.mode = 'fast_append';
       timing.total = Date.now() - tStart;
+      timing.totalMs = timing.total;
       Logger.log('submitReport timing: ' + JSON.stringify(timing));
       return _submitSuccess_(fastRows.length, fastAppend.startRow, timing);
     }
@@ -68,6 +68,7 @@ function submitReport(payload) {
     lock = LockService.getDocumentLock() || LockService.getScriptLock();
     lock.waitLock(10000);
     timing.waitLock = Date.now() - tLock;
+    timing.lockWaitMs = timing.waitLock;
 
     var tLastRow = Date.now();
     var startRow = sheet.getLastRow() + 1;
@@ -82,6 +83,7 @@ function submitReport(payload) {
     var tSet = Date.now();
     sheet.getRange(startRow, 1, rows.length, 23).setValues(rows);
     timing.setValues = Date.now() - tSet;
+    timing.writeMs = timing.setValues;
     invalidateDashboardDataCache_();
 
     if (lock) {
@@ -89,16 +91,11 @@ function submitReport(payload) {
       lock = null;
     }
 
-    try {
-      var fallbackSnapshotResult = refreshDashboardSnapshot_();
-      if (!fallbackSnapshotResult || !fallbackSnapshotResult.success) {
-        Logger.log('submitReport dashboard snapshot rebuild failed: ' + JSON.stringify(fallbackSnapshotResult));
-      }
-    } catch (snapshotError) {
-      Logger.log('submitReport dashboard snapshot rebuild error: ' + (snapshotError && snapshotError.stack ? snapshotError.stack : snapshotError));
-    }
-
+    timing.businessUpdateMs = 0;
+    timing.syncMs = 0;
+    timing.flushMs = 0;
     timing.total = Date.now() - tStart;
+    timing.totalMs = timing.total;
     timing.mode = 'spreadsheet_fallback';
     Logger.log('submitReport timing: ' + JSON.stringify(timing));
     return _submitSuccess_(rows.length, startRow, timing);
@@ -806,6 +803,7 @@ function _submitQueuedSuccess_(rowCount, timing) {
 function _submitError_(message, timing, tStart) {
   timing = timing || {};
   timing.total = Date.now() - tStart;
+  timing.totalMs = timing.total;
   return {
     success: false,
     message: message,
