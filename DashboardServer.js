@@ -811,6 +811,107 @@ function getDashboardOverviewDateData_(dateKey, context, source) {
   return applyDashboardOverviewDateContext_(core, context);
 }
 
+function getProductionKpiData(reportDateText) {
+  const totalStartedAt = Date.now();
+  const timings = {};
+  const counts = {};
+
+  function measure_(name, callback) {
+    const startedAt = Date.now();
+    const value = callback();
+    timings[name] = Date.now() - startedAt;
+    return value;
+  }
+
+  try {
+    const parsed = measure_("parse_report_date", function() {
+      const requestedText = (reportDateText || "").toString().trim();
+      if (!requestedText) return null;
+      return parseDashboardOverviewDate_(requestedText);
+    });
+    if (!parsed) return { success: false, error: "Ngày báo cáo không hợp lệ." };
+
+    const reportDate = parsed.date;
+    const dateKey = parsed.dateKey;
+    const monthKey = Utilities.formatDate(reportDate, PRODUCTION_DASHBOARD_V2_TIME_ZONE, "yyyy-MM");
+
+    timings.cache_read = 0;
+    const transactions = measure_("actual_read", function() {
+      return getRawTransactions();
+    });
+    counts.actualRows = Array.isArray(transactions) ? transactions.length : 0;
+
+    const plans = measure_("plan_read", function() {
+      return getDashboardCanonicalPlans_();
+    });
+    counts.dailyPlanSizes = plans && plans.dailyByDate && plans.dailyByDate[dateKey]
+      ? Object.keys(plans.dailyByDate[dateKey]).length
+      : 0;
+    counts.monthlyPlanSizes = plans && plans.monthlyByMonth && plans.monthlyByMonth[monthKey]
+      ? Object.keys(plans.monthlyByMonth[monthKey]).length
+      : 0;
+
+    let dailyProductionRows = 0;
+    const historyTransactions = measure_("actual_filter", function() {
+      return transactions.filter(function(transaction) {
+        const transactionDateKey = getDashboardOverviewDateKey_(transaction && transaction.date);
+        if (transactionDateKey === dateKey) dailyProductionRows++;
+        return transactionDateKey && transactionDateKey <= dateKey;
+      });
+    });
+    counts.historyRows = historyTransactions.length;
+    counts.dailyProductionRows = dailyProductionRows;
+
+    const pipeObjects = measure_("pipe_engine", function() {
+      return buildPipeEngine(historyTransactions);
+    });
+    counts.pipeCount = pipeObjects.length;
+
+    const planStats = measure_("kpi_build", function() {
+      return buildDashboardMonthlyPlanStats_(pipeObjects, reportDate, plans);
+    });
+
+    const response = {
+      success: true,
+      reportDate: {
+        date: dateKey,
+        displayDate: formatDashboardDate_(reportDate),
+        hasDailyPlan: counts.dailyPlanSizes > 0,
+        hasDailyProduction: dailyProductionRows > 0,
+        productionRows: dailyProductionRows,
+        noData: counts.dailyPlanSizes === 0 && dailyProductionRows === 0
+      },
+      planStats: planStats,
+      meta: {
+        source: "production_kpi_minimal",
+        dateKey: dateKey,
+        monthKey: monthKey,
+        timingsMs: timings,
+        counts: counts
+      }
+    };
+
+    const serializeStartedAt = Date.now();
+    response.meta.payloadBytes = Utilities.newBlob(JSON.stringify(response), "application/json").getBytes().length;
+    timings.serialize = Date.now() - serializeStartedAt;
+    response.meta.totalMs = Date.now() - totalStartedAt;
+    return response;
+  } catch (error) {
+    timings.total_before_error = Date.now() - totalStartedAt;
+    return {
+      success: false,
+      error: error && error.message ? error.message : error.toString(),
+      stack: error && error.stack ? error.stack : "",
+      meta: {
+        source: "production_kpi_minimal",
+        timingsMs: timings,
+        counts: counts,
+        totalMs: Date.now() - totalStartedAt
+      }
+    };
+  }
+}
+
 function applyDashboardCurrentPlans_(snapshot) {
   try {
     const planStats = snapshot && snapshot.planStats;
@@ -967,8 +1068,13 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf, plansOverride) {
   Object.keys(monthlyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
   Object.keys(dailyPlansBySize).forEach(function(size) { sizeSet[size] = true; });
   Object.keys(actuals.bySize || {}).forEach(function(size) {
-    const dailyActual = actuals.bySize[size] && actuals.bySize[size].today ? actuals.bySize[size].today : {};
-    if (Number(dailyActual.checked || 0) > 0 || Number(dailyActual.finished || 0) > 0) {
+    const actual = actuals.bySize[size] || {};
+    const dailyActual = actual.today || {};
+    const monthlyActual = actual.monthly || {};
+    if (Number(dailyActual.checked || 0) > 0 ||
+        Number(dailyActual.finished || 0) > 0 ||
+        Number(monthlyActual.checked || 0) > 0 ||
+        Number(monthlyActual.finished || 0) > 0) {
       sizeSet[size] = true;
     }
   });
@@ -983,30 +1089,35 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf, plansOverride) {
     const dailyPlan = dailyPlansBySize[size] || null;
     const hasMonthlySizePlan = Object.prototype.hasOwnProperty.call(monthlyPlansBySize, size);
     const hasDailySizePlan = Object.prototype.hasOwnProperty.call(dailyPlansBySize, size);
-    const hasDailySizeActual = Number(dailyActual.checked || 0) > 0 || Number(dailyActual.finished || 0) > 0;
+    const checkedDailyActual = Number(dailyActual.checked || 0);
+    const finishedDailyActual = Number(dailyActual.finished || 0);
+    const checkedMonthlyActual = Number(monthlyActual.checked || 0);
+    const finishedMonthlyActual = Number(monthlyActual.finished || 0);
+    const hasDailySizeActual = checkedDailyActual > 0 || finishedDailyActual > 0;
+    const hasMonthlySizeActual = checkedMonthlyActual > 0 || finishedMonthlyActual > 0;
     const comparisonPlan = dailyPlan || {};
-    const checkedActual = Number(monthlyActual.checked || 0);
-    const finishedActual = Number(monthlyActual.finished || 0);
 
-    if (hasMonthlySizePlan) {
-      checkedActualTotal += checkedActual;
-      finishedActualTotal += finishedActual;
+    dailyCheckedActualTotal += checkedDailyActual;
+    dailyFinishedActualTotal += finishedDailyActual;
+    checkedActualTotal += checkedMonthlyActual;
+    finishedActualTotal += finishedMonthlyActual;
 
+    if (hasMonthlySizePlan || hasMonthlySizeActual) {
       const checkedRow = buildDashboardPlanComparisonRow_(
-        size + " · Kiểm tra", size, "checked", monthlyPlan.checked, checkedActual, true, monthKey
+        size + " · Kiểm tra", size, "checked", monthlyPlan.checked, checkedMonthlyActual, hasMonthlySizePlan, monthKey
       );
       const finishedRow = buildDashboardPlanComparisonRow_(
-        size + " · Thành phẩm", size, "finished", monthlyPlan.finished, finishedActual, true, monthKey
+        size + " · Thành phẩm", size, "finished", monthlyPlan.finished, finishedMonthlyActual, hasMonthlySizePlan, monthKey
       );
       bySize.push(checkedRow, finishedRow);
     }
 
     if (hasDailySizePlan || hasDailySizeActual) {
       const checkedComparison = buildDashboardPlanComparisonRow_(
-        size + " · Kiểm tra", size, "checked", comparisonPlan.checked, Number(dailyActual.checked || 0), hasDailySizePlan, dayKey
+        size + " · Kiểm tra", size, "checked", comparisonPlan.checked, checkedDailyActual, hasDailySizePlan, dayKey
       );
       const finishedComparison = buildDashboardPlanComparisonRow_(
-        size + " · Thành phẩm", size, "finished", comparisonPlan.finished, Number(dailyActual.finished || 0), hasDailySizePlan, dayKey
+        size + " · Thành phẩm", size, "finished", comparisonPlan.finished, finishedDailyActual, hasDailySizePlan, dayKey
       );
       sizeComparison.push({
         size: size,
@@ -1028,11 +1139,6 @@ function buildDashboardMonthlyPlanStats_(pipeObjects, asOf, plansOverride) {
     }
   });
 
-  Object.keys(dailyPlansBySize).forEach(function(size) {
-    const actual = actuals.bySize[size] && actuals.bySize[size].today ? actuals.bySize[size].today : {};
-    dailyCheckedActualTotal += Number(actual.checked || 0);
-    dailyFinishedActualTotal += Number(actual.finished || 0);
-  });
 
   const hasDailyPlan = Object.keys(dailyPlansBySize).length > 0;
   const hasMonthlyPlan = Object.keys(monthlyPlansBySize).length > 0;
@@ -3122,11 +3228,6 @@ function readMonthlyReportFinalCache_(monthKey) {
       return fresh;
     }
 
-    const stale = parseMonthlyReportFinalCache_(cache.get(getMonthlyReportFinalStaleCacheKey_(monthKey)));
-    if (stale) {
-      Logger.log("MONTHLY_CACHE | key=" + monthKey + " | status=stale_hit");
-      return stale;
-    }
   } catch (error) {
     // CacheService is best effort; a read failure falls through to the existing build path.
   }
@@ -3203,13 +3304,18 @@ function summarizeMonthlyQtyList_(items, field) {
 
 function getDailyReportData(dateText) {
   try {
-    const reportDate = parseDailyReportDate_(dateText);
+    const isFilterRequest = dateText && typeof dateText === "object" && !(dateText instanceof Date);
+    const filters = isFilterRequest ? dateText : {};
+    const reportDate = parseDailyReportDate_(isFilterRequest ? filters.date : dateText);
     if (!reportDate) {
       return { success: false, error: "Ngày báo cáo không hợp lệ." };
     }
 
     const transactions = getRawTransactions();
     const dailyTransactions = transactions.filter(txn => isSameDashboardDay_(txn.date, reportDate));
+    const shiftFilter = isFilterRequest ? (filters.shift || "").toString().trim() : "";
+    const processFilter = isFilterRequest ? (filters.process || "").toString().trim() : "";
+    const statusFilter = isFilterRequest ? (filters.status || "").toString().trim() : "";
 
     dailyTransactions.sort((a, b) => {
       let timeA = getDashboardTime_(a.receiveTime);
@@ -3225,8 +3331,20 @@ function getDailyReportData(dateText) {
     let totalQty = 0;
     let okCount = 0;
     let repairOrRejectCount = 0;
+    const latestByPipe = {};
+    const optionShifts = {};
+    const optionProcesses = {};
+    const optionStatuses = {};
 
-    const rows = dailyTransactions.map(txn => {
+    const rows = dailyTransactions.filter(txn => {
+      if (txn.shift) optionShifts[txn.shift] = true;
+      if (txn.process) optionProcesses[txn.process] = true;
+      if (txn.status) optionStatuses[txn.status] = true;
+      if (shiftFilter && (txn.shift || "").toString().trim() !== shiftFilter) return false;
+      if (processFilter && (txn.process || "").toString().trim() !== processFilter) return false;
+      if (statusFilter && (txn.status || "").toString().trim() !== statusFilter) return false;
+      return true;
+    }).map(txn => {
       if (txn.pipeNo) pipeMap[txn.pipeNo] = true;
       totalQty += Number(txn.qty || 0);
 
@@ -3235,8 +3353,11 @@ function getDailyReportData(dateText) {
       if (statusGroup === "tp" || statusText === "ok" || statusText.includes("dat")) okCount++;
       if (statusGroup === "cs" || statusGroup === "hong") repairOrRejectCount++;
 
-      return {
+      const row = {
         date: formatDashboardDate_(txn.date),
+        time: txn.receiveTime instanceof Date && !isNaN(txn.receiveTime.getTime())
+          ? Utilities.formatDate(txn.receiveTime, Session.getScriptTimeZone(), "HH:mm:ss")
+          : (txn.receiveTime || "").toString().trim(),
         receiveTime: formatDashboardDateTime_(txn.receiveTime),
         shift: txn.shift,
         process: txn.process,
@@ -3245,13 +3366,48 @@ function getDailyReportData(dateText) {
         size: txn.size,
         status: txn.status,
         statusGroup: statusGroup,
+        statusKey: statusGroup,
+        statusLabel: _dailyReportStatusLabel_(statusGroup),
         defectReason: txn.defectReason,
+        bundleCode: txn.bundleCode,
+        compartment: txn.compartment,
+        well: txn.well,
         rig: txn.rig,
         worker1: txn.worker1,
         worker2: txn.worker2,
+        notes: txn.notes,
         rowIdx: txn.rowIdx
       };
+      if (row.pipeNo) {
+        const previous = latestByPipe[row.pipeNo];
+        if (!previous || Number(row.rowIdx || 0) > Number(previous.rowIdx || 0)) {
+          latestByPipe[row.pipeNo] = row;
+        }
+      }
+      return row;
     });
+
+    if (isFilterRequest) {
+      const dateKey = Utilities.formatDate(reportDate, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      return {
+        success: true,
+        date: dateKey,
+        generatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss"),
+        filters: {
+          date: dateKey,
+          shift: shiftFilter,
+          process: processFilter,
+          status: statusFilter
+        },
+        options: {
+          shifts: Object.keys(optionShifts).sort((left, right) => left.localeCompare(right)),
+          processes: Object.keys(optionProcesses).sort((left, right) => left.localeCompare(right)),
+          statuses: Object.keys(optionStatuses).sort((left, right) => left.localeCompare(right))
+        },
+        summary: buildDailyReportModuleSummary_(rows, latestByPipe),
+        rows: rows
+      };
+    }
 
     return {
       success: true,
@@ -3272,7 +3428,135 @@ function getDailyReportData(dateText) {
     return { success: false, error: e.toString(), stack: e.stack };
   }
 }
+function buildDailyReportModuleSummary_(rows, latestByPipe) {
+  const summary = {
+    totalPipes: Object.keys(latestByPipe || {}).length,
+    totalRows: rows.length,
+    thanhPham: 0,
+    choSua: 0,
+    hong: 0
+  };
 
+  Object.keys(latestByPipe || {}).forEach(function(pipeNo) {
+    const row = latestByPipe[pipeNo];
+    if (row.statusKey === "tp") summary.thanhPham++;
+    if (row.statusKey === "cs") summary.choSua++;
+    if (row.statusKey === "hong") summary.hong++;
+  });
+  return summary;
+}
+function getMonthlyReportDateLiteral_(date) {
+  return date.getFullYear() + "-" +
+    (date.getMonth() + 1).toString().padStart(2, "0") + "-" +
+    date.getDate().toString().padStart(2, "0");
+}
+
+function getMonthlyReportBounds_(monthInfo) {
+  const start = new Date(monthInfo.year, monthInfo.monthIndex, 1);
+  const end = new Date(monthInfo.year, monthInfo.monthIndex + 1, 1);
+  return {
+    start: start,
+    end: end,
+    startLiteral: getMonthlyReportDateLiteral_(start),
+    endLiteral: getMonthlyReportDateLiteral_(end)
+  };
+}
+
+function buildMonthlyReportQueryRequest_(sheetName, query, reqId) {
+  return {
+    url: "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID + "/gviz/tq?sheet=" +
+      encodeURIComponent(sheetName) +
+      "&tqx=" + encodeURIComponent("out:json;reqId:" + reqId) +
+      "&tq=" + encodeURIComponent(query),
+    muteHttpExceptions: true,
+    headers: {
+      Authorization: "Bearer " + ScriptApp.getOAuthToken(),
+      "Cache-Control": "no-cache"
+    }
+  };
+}
+
+function parseMonthlyReportQueryResponse_(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error("Invalid Sheets query response");
+  const payload = JSON.parse(text.substring(start, end + 1));
+  if (payload.status && payload.status !== "ok") {
+    throw new Error("Sheets query failed: " + JSON.stringify(payload.errors || payload.status));
+  }
+  return payload.table && Array.isArray(payload.table.rows) ? payload.table.rows : [];
+}
+
+function getMonthlyReportQueryCellValue_(cell) {
+  if (!cell) return null;
+  let value = cell.v !== undefined && cell.v !== null ? cell.v : cell.f;
+  if (typeof value === "string") {
+    const match = value.match(/^Date\((\d+),(\d+),(\d+)\)$/);
+    if (match) {
+      return new Date(Number(match[1]), Number(match[2]), Number(match[3]));
+    }
+  }
+  return value;
+}
+
+function readMonthlyReportSourcesViaQuery_(monthInfo) {
+  const bounds = getMonthlyReportBounds_(monthInfo);
+  const reqId = Date.now();
+  const dataQuery = "select A,C,D,E,L where A >= date '" + bounds.startLiteral +
+    "' and A < date '" + bounds.endLiteral + "'";
+  const planQuery = "select A,B,C where A >= date '" + bounds.startLiteral +
+    "' and A < date '" + bounds.endLiteral + "'";
+  const responses = UrlFetchApp.fetchAll([
+    buildMonthlyReportQueryRequest_(SHEET_DATA, dataQuery, reqId + ":data"),
+    buildMonthlyReportQueryRequest_(SHEET_PLAN, planQuery, reqId + ":plan")
+  ]);
+
+  const dataResponse = responses[0];
+  const planResponse = responses[1];
+  if (dataResponse.getResponseCode() >= 400) {
+    throw new Error("Data query HTTP " + dataResponse.getResponseCode());
+  }
+  if (planResponse.getResponseCode() >= 400) {
+    throw new Error("Plan query HTTP " + planResponse.getResponseCode());
+  }
+
+  const dataRows = parseMonthlyReportQueryResponse_(dataResponse.getContentText());
+  const planRows = parseMonthlyReportQueryResponse_(planResponse.getContentText());
+  const transactions = dataRows.map(function(row) {
+    const cells = row.c || [];
+    const dateVal = getMonthlyReportQueryCellValue_(cells[0]);
+    const process = (getMonthlyReportQueryCellValue_(cells[1]) || "").toString().trim();
+    const qty = parseFloat(getMonthlyReportQueryCellValue_(cells[2])) || 1;
+    const pipeNo = (getMonthlyReportQueryCellValue_(cells[3]) || "").toString().trim();
+    const size = (getMonthlyReportQueryCellValue_(cells[4]) || "").toString().trim();
+    return {
+      date: dateVal,
+      process: process,
+      qty: qty,
+      pipeNo: pipeNo,
+      size: size
+    };
+  }).filter(function(txn) {
+    return txn.date || txn.process || txn.pipeNo || txn.size;
+  });
+
+  const plans = planRows.map(function(row) {
+    const cells = row.c || [];
+    const dateVal = getMonthlyReportQueryCellValue_(cells[0]);
+    const size = (getMonthlyReportQueryCellValue_(cells[1]) || "").toString().trim();
+    const qty = parseFloat(getMonthlyReportQueryCellValue_(cells[2])) || 0;
+    return {
+      date: dateVal instanceof Date ? formatDashboardDate_(dateVal) : (dateVal || "").toString().trim(),
+      month: dateVal instanceof Date ? ((dateVal.getMonth() + 1) + "/" + dateVal.getFullYear()) : (dateVal || "").toString().trim(),
+      size: size,
+      qty: qty
+    };
+  }).filter(function(plan) {
+    return plan.date && Number(plan.qty || 0) !== 0;
+  });
+
+  return { transactions: transactions, plans: plans };
+}
 function getMonthlyReportData(monthText, bypassFinalCache, cacheWriteSummary) {
   const totalStartedAt = performanceTimerStart_();
   try {
@@ -3298,29 +3582,16 @@ function getMonthlyReportData(monthText, bypassFinalCache, cacheWriteSummary) {
       }
     }
 
-    const rawTransactionsStartedAt = performanceTimerStart_();
-    const transactions = getRawTransactions();
-    performanceLog_("getMonthlyReportData", "getRawTransactions", rawTransactionsStartedAt, {
-      rowCount: transactions.length
-    });
-    const transactionFilterStartedAt = performanceTimerStart_();
-    const monthlyTransactions = transactions.filter(txn => isSameDashboardMonth_(txn.date, reportMonth));
-    performanceLog_("getMonthlyReportData", "filter_transactions", transactionFilterStartedAt, {
-      rowCount: monthlyTransactions.length
-    });
-    const planDataStartedAt = performanceTimerStart_();
-    const allPlans = getPlanData();
-    performanceLog_("getMonthlyReportData", "getPlanData", planDataStartedAt, {
-      rowCount: allPlans.length
-    });
-    const planFilterStartedAt = performanceTimerStart_();
-    const plans = allPlans.filter(plan => {
+    const sourceReadStartedAt = performanceTimerStart_();
+    const monthlySources = readMonthlyReportSourcesViaQuery_(reportMonth);
+    const monthlyTransactions = monthlySources.transactions.filter(txn => isSameDashboardMonth_(txn.date, reportMonth));
+    const plans = monthlySources.plans.filter(plan => {
       return isSameDashboardMonth_(plan.month, reportMonth) || isSameDashboardMonth_(plan.date, reportMonth);
     });
-    performanceLog_("getMonthlyReportData", "filter_plans", planFilterStartedAt, {
-      rowCount: plans.length
+    performanceLog_("getMonthlyReportData", "read_month_sources", sourceReadStartedAt, {
+      rowCount: monthlyTransactions.length,
+      sizeCount: plans.length
     });
-
     const aggregationStartedAt = performanceTimerStart_();
     const pipeMap = {};
     let totalQty = 0;

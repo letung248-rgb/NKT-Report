@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
     <base target="_top">
@@ -69,7 +69,7 @@
         .main-content { flex: 1; padding: 1.75rem 2rem 2.5rem; overflow-y: auto; position: relative; }
 
         /* Loading */
-        #loader { position: absolute; inset: 0; background: rgba(255,255,255,0.8); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: var(--text-primary); }
+        #loader { position: absolute; inset: 0; background: rgba(255,255,255,0.8); z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: var(--text-primary); }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: var(--accent-primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
@@ -658,7 +658,7 @@
             <a class="menu-item" id="menu-daily-report" title="Báo cáo ngày" onclick="showDailyReport()"><i class="ph ph-calendar-blank"></i><span class="menu-label">Báo cáo ngày</span></a>
             <a class="menu-item" id="menu-monthly-report" title="Báo cáo tháng" onclick="showMonthlyReport()"><i class="ph ph-calendar"></i><span class="menu-label">Báo cáo tháng</span></a>
             <a class="menu-item" id="menu-error-analysis" title="Phân tích lỗi" onclick="showErrorAnalysis()"><i class="ph ph-warning-circle"></i><span class="menu-label">Phân tích lỗi</span></a>
-            <a class="menu-item disabled" title="Lịch sử" aria-disabled="true"><i class="ph ph-clock-counter-clockwise"></i><span class="menu-label">Lịch sử</span></a>
+            <a class="menu-item" id="menu-production-journal" title="Nhật ký sản xuất" href="<?= appUrl ?>?view=nhat-ky-san-xuat" target="_top"><i class="ph ph-clock-counter-clockwise"></i><span class="menu-label">Nhật ký sản xuất</span></a>
             <a class="menu-item" id="menu-export-report" title="Xuất báo cáo" href="<?= appUrl ?>?view=xuat-bao-cao" target="_top"><i class="ph ph-file-arrow-down"></i><span class="menu-label">Xuất báo cáo</span></a>
             <a class="menu-item" id="menu-about" title="Giới thiệu" onclick="showAbout()"><i class="ph ph-info"></i><span class="menu-label">Giới thiệu</span></a>
         </nav>
@@ -710,7 +710,7 @@
 
             <div id="errorAlert" class="alert"></div>
 
-            <section id="view-dashboard" style="display: none;">
+            <section id="view-dashboard" style="display: block;">
                 <div class="report-date-message" id="dashboardReportDateMessage" role="status" aria-live="polite"></div>
                 <section class="executive-summary-card" aria-labelledby="commandCenterTitle">
                     <div class="executive-topline">
@@ -1329,6 +1329,7 @@
         let currentListTitle = "";
         let currentQueueStatus = null;
         let dashboardReportLoadedDate = "";
+        let dashboardLoadSequence = 0;
         let dailyReportLoadedDate = "";
         let monthlyReportLoadedMonth = "";
         let charts = {};
@@ -1768,7 +1769,12 @@
 
         function onDashboardReportDateChange() {
             const input = document.getElementById('dashboardReportDate');
-            loadDashboard(input ? input.value : '');
+            const dateText = input ? input.value : '';
+            if (typeof ProductionKpiView !== 'undefined' && ProductionKpiView.isOpen && ProductionKpiView.isOpen()) {
+                ProductionKpiView.reloadForDate(dateText);
+                return;
+            }
+            loadDashboard(dateText);
         }
 
         function renderDashboardReportDateState(data) {
@@ -1932,15 +1938,27 @@
             }
         }
 
+        function hideDashboardLoader() {
+            document.getElementById('loader').style.display = 'none';
+        }
+
         function loadDashboard(dateText) {
             const requestedDate = dateText !== undefined ? dateText : getDashboardReportDateInputValue();
             const requestToken = requestedDate || '__default__';
             if (typeof google !== 'undefined' && google.script) {
-                toggleLoader(true);
+                const loadId = ++dashboardLoadSequence;
+                hideDashboardLoader();
+                showError('');
                 dashboardReportLoadedDate = requestToken;
+                const dashboardLoadTimeout = window.setTimeout(() => {
+                    if (loadId !== dashboardLoadSequence || requestToken !== dashboardReportLoadedDate) return;
+                    hideDashboardLoader();
+                    showError('Dashboard đang tải lâu hơn bình thường. Bạn vẫn có thể chuyển module khác; dữ liệu Tổng quan sẽ tự cập nhật khi server phản hồi.');
+                }, 12000);
                 google.script.run
                     .withSuccessHandler(res => {
-                        if (requestToken !== dashboardReportLoadedDate) return;
+                        window.clearTimeout(dashboardLoadTimeout);
+                        if (loadId !== dashboardLoadSequence || requestToken !== dashboardReportLoadedDate) return;
                         try {
                             if (!res) {
                                 showError("Server trả về dữ liệu rỗng. Kiểm tra getDashboardData().");
@@ -1960,17 +1978,18 @@
                         } catch (err) {
                             showError("Lỗi render Dashboard: " + err.message);
                         } finally {
-                            toggleLoader(false);
+                            hideDashboardLoader();
                         }
                     })
                     .withFailureHandler(err => {
-                        if (requestToken !== dashboardReportLoadedDate) return;
-                        toggleLoader(false);
+                        window.clearTimeout(dashboardLoadTimeout);
+                        if (loadId !== dashboardLoadSequence || requestToken !== dashboardReportLoadedDate) return;
+                        hideDashboardLoader();
                         showError("Lỗi kết nối Server: " + err);
                     })
                     .getDashboardData(requestedDate);
             } else {
-                toggleLoader(false);
+                hideDashboardLoader();
                 showError("Ứng dụng cần chạy trên Google Apps Script môi trường thật.");
             }
         }
@@ -2663,6 +2682,10 @@
         }
 
         const ProductionKpiView = (function() {
+            let loadSequence = 0;
+            let rpcCount = 0;
+            let currentKpiData = null;
+
             function element(suffix) {
                 return document.getElementById('production-kpi-' + suffix);
             }
@@ -2674,6 +2697,10 @@
 
             function hasPlan(metric) {
                 return metric && metric.plan !== null && metric.plan !== undefined && Number.isFinite(Number(metric.plan));
+            }
+
+            function hasActual(metric) {
+                return metric && metric.actual !== null && metric.actual !== undefined && Number.isFinite(Number(metric.actual));
             }
 
             function difference(metric) {
@@ -2688,13 +2715,14 @@
 
             function differenceLabel(metric) {
                 const diff = difference(metric);
-                if (diff === null) return '--';
+                if (diff === null) return hasActual(metric) ? 'Chưa có KH' : '--';
                 if (diff > 0) return 'Dư ' + valueOrDash(diff);
                 if (diff < 0) return 'Thiếu ' + valueOrDash(Math.abs(diff));
                 return 'Đúng KH';
             }
 
             function metricValue(metric, key) {
+                if (key === 'actual') return hasActual(metric) ? valueOrDash(metric.actual) : '--';
                 if (!hasPlan(metric)) return '--';
                 return valueOrDash(metric[key]);
             }
@@ -2717,6 +2745,36 @@
                 status.textContent = message;
                 status.className = 'production-kpi-status' + (isError ? ' is-error' : '');
                 status.style.display = 'block';
+            }
+
+            function getDataDateKey(data) {
+                if (!data) return '';
+                if (data.reportDate && data.reportDate.date) return String(data.reportDate.date);
+                if (data.planStats && data.planStats.day) return String(data.planStats.day);
+                return '';
+            }
+
+            function isReusableKpiData(data, requestedDate) {
+                const dateKey = (requestedDate || '').toString().trim();
+                return !!(data && data.success !== false && data.planStats && dateKey && getDataDateKey(data) === dateKey);
+            }
+
+            function logKpiTiming(timing) {
+                if (window.console && console.info) console.info('KPI_TIMING', timing);
+            }
+
+            function renderReusableData(data, source, clickStartedAt, viewReadyAt) {
+                const renderStartedAt = Date.now();
+                currentKpiData = data;
+                renderFromDashboardData(data);
+                logKpiTiming({
+                    source: source,
+                    clickToViewMs: viewReadyAt - clickStartedAt,
+                    clientRenderMs: Date.now() - renderStartedAt,
+                    clientTotalMs: Date.now() - clickStartedAt,
+                    rpcCount: 0,
+                    reused: true
+                });
             }
 
             function renderCards(suffix, cards) {
@@ -2876,9 +2934,17 @@
 
                 const dailyRows = planStats.byDate || [];
                 const monthlyRows = planStats.byMonth || [];
-                setText('built-at', data.reportDate && data.reportDate.label || 'Snapshot hiện tại');
+                const reportDate = data && data.reportDate ? data.reportDate : {};
+                const reportDateText = reportDate.date || planStats.day || '';
+                const reportDateLabel = reportDate.displayDate || (reportDateText ? formatDashboardDisplayDate(reportDateText, false) : 'Snapshot hiện tại');
+                if (reportDateText && planStats.day && planStats.day !== reportDateText) {
+                    setStatus('KPI date mismatch: reportDate=' + reportDateText + ', planStats.day=' + planStats.day, true);
+                    element('content').style.display = 'none';
+                    return;
+                }
+                setText('built-at', reportDateLabel);
                 setText('plan-version', planStats.source || 'PlanService');
-                setText('daily-period', planStats.day ? '(' + formatDashboardDisplayDate(planStats.day, false) + ')' : '');
+                setText('daily-period', reportDateText ? '(' + formatDashboardDisplayDate(reportDateText, false) + ')' : '');
                 setText('monthly-period', planStats.month ? '(' + formatDashboardDisplayMonth(planStats.month) + ')' : '');
                 renderCards('daily-cards', cardsForPeriod(dailyRows));
                 renderCards('monthly-cards', cardsForPeriod(monthlyRows));
@@ -2887,8 +2953,82 @@
                 const topRows = buildTopRows(planStats);
                 renderTopTable('shortage-body', topRows, true);
                 renderTopTable('surplus-body', topRows, false);
-                element('status').style.display = 'none';
+                const notices = [];
+                const hasDailyPlan = dailyRows.some(function(row) { return hasPlan(normalizeMetric(row)); });
+                const hasMonthlyPlan = monthlyRows.some(function(row) { return hasPlan(normalizeMetric(row)); });
+                if (!hasDailyPlan && reportDateText) notices.push('Chưa có kế hoạch ngày ' + formatDashboardDisplayDate(reportDateText, false) + '. Đang hiển thị số thực hiện; KH/%/Thiếu-Dư không tính khi thiếu kế hoạch.');
+                if (!hasMonthlyPlan && planStats.month) notices.push('Chưa có kế hoạch tháng ' + formatDashboardDisplayMonth(planStats.month) + '. Đang hiển thị số thực hiện tháng nếu có.');
+                if (notices.length) setStatus(notices.join(' '), false);
+                else element('status').style.display = 'none';
                 element('content').style.display = 'block';
+            }
+
+            function loadFromServer(dateText, clickStartedAt) {
+                if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                    setStatus('Ứng dụng cần chạy trên Google Apps Script môi trường thật.', true);
+                    element('content').style.display = 'none';
+                    return;
+                }
+
+                const requestedDate = dateText !== undefined ? dateText : getDashboardReportDateInputValue();
+                const interactionStartedAt = clickStartedAt || Date.now();
+                const loadId = ++loadSequence;
+                setStatus('Đang tải dữ liệu KPI sản xuất' + (requestedDate ? ' cho ngày ' + formatDashboardDisplayDate(requestedDate, false) : '') + '...', false);
+                element('content').style.display = 'none';
+
+                const rpcStartedAt = Date.now();
+                const requestNumber = ++rpcCount;
+                google.script.run
+                    .withSuccessHandler(res => {
+                        const responseAt = Date.now();
+                        if (loadId !== loadSequence) return;
+                        if (!res || !res.success) {
+                            setStatus(getUserSafeDashboardError(res && res.error, 'Không tải được dữ liệu KPI sản xuất.'), true);
+                            element('content').style.display = 'none';
+                            logKpiTiming({
+                                source: 'production_kpi_minimal',
+                                clickToRpcMs: rpcStartedAt - interactionStartedAt,
+                                rpcMs: responseAt - rpcStartedAt,
+                                clientTotalMs: Date.now() - interactionStartedAt,
+                                rpcCount: 1,
+                                totalKpiRpcCount: requestNumber,
+                                error: res && res.error ? res.error : 'empty response'
+                            });
+                            return;
+                        }
+                        currentKpiData = res;
+                        const renderStartedAt = Date.now();
+                        renderFromDashboardData(res);
+                        logKpiTiming({
+                            source: res.meta && res.meta.source || 'production_kpi_minimal',
+                            clickToRpcMs: rpcStartedAt - interactionStartedAt,
+                            rpcMs: responseAt - rpcStartedAt,
+                            clientRenderMs: Date.now() - renderStartedAt,
+                            clientTotalMs: Date.now() - interactionStartedAt,
+                            rpcCount: 1,
+                            totalKpiRpcCount: requestNumber,
+                            serverTotalMs: res.meta && res.meta.totalMs,
+                            serverTimingsMs: res.meta && res.meta.timingsMs,
+                            payloadBytes: res.meta && res.meta.payloadBytes,
+                            counts: res.meta && res.meta.counts
+                        });
+                    })
+                    .withFailureHandler(err => {
+                        const responseAt = Date.now();
+                        if (loadId !== loadSequence) return;
+                        setStatus('Lỗi kết nối Server: ' + err, true);
+                        element('content').style.display = 'none';
+                        logKpiTiming({
+                            source: 'production_kpi_minimal',
+                            clickToRpcMs: rpcStartedAt - interactionStartedAt,
+                            rpcMs: responseAt - rpcStartedAt,
+                            clientTotalMs: Date.now() - interactionStartedAt,
+                            rpcCount: 1,
+                            totalKpiRpcCount: requestNumber,
+                            error: String(err)
+                        });
+                    })
+                    .getProductionKpiData(requestedDate);
             }
 
             function hide() {
@@ -2898,7 +3038,8 @@
                 if (menu) menu.classList.remove('active');
             }
 
-            function open() {
+            function open(clickStartedAt) {
+                const interactionStartedAt = clickStartedAt || Date.now();
                 ['view-dashboard', 'view-pipe-list', 'view-pipe-passport', 'view-daily-report',
                     'view-monthly-report', 'view-error-analysis', 'view-about'].forEach(function(id) {
                     const view = document.getElementById(id);
@@ -2911,14 +3052,31 @@
                 });
                 document.getElementById('view-production-kpi').style.display = 'block';
                 document.getElementById('menu-production-kpi').classList.add('active');
-                renderFromDashboardData(globalDashboardData);
+                showError('');
+
+                const requestedDate = getDashboardReportDateInputValue();
+                const viewReadyAt = Date.now();
+                if (isReusableKpiData(currentKpiData, requestedDate)) {
+                    renderReusableData(currentKpiData, 'client_kpi_reuse', interactionStartedAt, viewReadyAt);
+                    return;
+                }
+                if (isReusableKpiData(globalDashboardData, requestedDate)) {
+                    renderReusableData(globalDashboardData, 'client_dashboard_reuse', interactionStartedAt, viewReadyAt);
+                    return;
+                }
+                loadFromServer(requestedDate, interactionStartedAt);
             }
 
-            return { open: open, hide: hide, renderFromDashboardData: renderFromDashboardData };
+            function isOpen() {
+                const view = document.getElementById('view-production-kpi');
+                return !!(view && view.style.display !== 'none');
+            }
+
+            return { open: open, hide: hide, renderFromDashboardData: renderFromDashboardData, reloadForDate: loadFromServer, isOpen: isOpen };
         })();
 
         function showProductionKpi() {
-            ProductionKpiView.open();
+            ProductionKpiView.open(Date.now());
         }
 
         function showPipeList(title, pipeArray, isLoading) {
