@@ -169,6 +169,7 @@
     .danh-sach { margin-top: 16px; overflow: hidden; }
     .dau-danh-sach { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 18px 12px; }
     .so-luong { color: var(--mau-chu-phu); font-size: 13px; }
+    .ghi-chu-thang { padding: 0 18px 12px; color: var(--mau-chu-phu); font-size: 13px; }
     .boc-bang { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { padding: 11px 12px; border-top: 1px solid var(--mau-duong-bang); text-align: left; vertical-align: middle; }
@@ -377,6 +378,7 @@
         <h2 id="tieu-de-danh-sach">Danh sách kế hoạch tháng</h2>
         <span class="so-luong" id="so-luong-ke-hoach">0 kế hoạch</span>
       </div>
+      <p class="ghi-chu-thang" id="ghi-chu-tong-hop-thang">Kế hoạch tháng được tự động tổng hợp từ kế hoạch ngày.</p>
       <div class="boc-bang">
         <table>
           <thead>
@@ -484,12 +486,16 @@
       idDangSua: '',
       idChoXoa: '',
       duLieu: [],
+      duLieuThang: [],
+      duLieuNgay: [],
+      duLieuThangLegacy: [],
       dangTaiDuLieu: true,
       loiTaiDuLieu: '',
       dangLuu: false,
       dangXoa: false
     };
     var phanTuTraTieuDiem = null;
+    var boDemTimKiem = null;
 
     function layPhanTu(id) {
       return document.getElementById(id);
@@ -540,9 +546,11 @@
 
       var duLieuThang = Array.isArray(ketQua.data.monthly) ? ketQua.data.monthly : [];
       var duLieuNgay = Array.isArray(ketQua.data.daily) ? ketQua.data.daily : [];
-      trangThai.duLieu = duLieuThang.concat(duLieuNgay).map(function(dong) {
-        return Object.assign({}, dong);
-      });
+      var duLieuThangLegacy = Array.isArray(ketQua.data.legacyMonthly) ? ketQua.data.legacyMonthly : [];
+      trangThai.duLieuThang = duLieuThang.map(function(dong) { return Object.assign({}, dong); });
+      trangThai.duLieuNgay = duLieuNgay.map(function(dong) { return Object.assign({}, dong); });
+      trangThai.duLieuThangLegacy = duLieuThangLegacy.map(function(dong) { return Object.assign({}, dong); });
+      trangThai.duLieu = trangThai.duLieuThang.concat(trangThai.duLieuNgay);
       trangThai.dangTaiDuLieu = false;
       trangThai.loiTaiDuLieu = '';
       apDungDanhMucSize(ketQua.data.sizes);
@@ -553,6 +561,9 @@
       var thongDiep = loi && loi.message ? loi.message : String(loi || 'Không xác định');
       console.error('Không tải được dữ liệu kế hoạch:', loi);
       trangThai.duLieu = [];
+      trangThai.duLieuThang = [];
+      trangThai.duLieuNgay = [];
+      trangThai.duLieuThangLegacy = [];
       trangThai.dangTaiDuLieu = false;
       trangThai.loiTaiDuLieu = 'Không tải được dữ liệu kế hoạch. ' + thongDiep;
       apDungDanhMucSize([]);
@@ -582,6 +593,10 @@
         .getPlanModuleData();
     }
 
+    function layDuLieuTheoLoai(loai) {
+      return loai === 'thang' ? trangThai.duLieuThang : trangThai.duLieuNgay;
+    }
+
     function layDuLieuDaLoc() {
       var loai = trangThai.loaiDangChon;
       var thang = layPhanTu('loc-thang').value;
@@ -590,8 +605,7 @@
       var size = layPhanTu('loc-size').value;
       var tuKhoa = layPhanTu('loc-tu-khoa').value.trim().toLocaleLowerCase('vi-VN');
 
-      return trangThai.duLieu.filter(function(dong) {
-        if (dong.loai !== loai) return false;
+      return layDuLieuTheoLoai(loai).filter(function(dong) {
         if (loai === 'thang' && thang && dong.thoiGian !== thang) return false;
         if (loai === 'ngay' && tuNgay && dong.thoiGian < tuNgay) return false;
         if (loai === 'ngay' && denNgay && dong.thoiGian > denNgay) return false;
@@ -602,8 +616,24 @@
         }
         return true;
       }).sort(function(a, b) {
-        return a.thoiGian === b.thoiGian ? a.size.localeCompare(b.size) : b.thoiGian.localeCompare(a.thoiGian);
+        return a.thoiGian === b.thoiGian ? a.size.localeCompare(b.size, 'vi') : b.thoiGian.localeCompare(a.thoiGian);
       });
+    }
+
+    function capNhatTieuDeBang() {
+      var laThang = trangThai.loaiDangChon === 'thang';
+      var tieuDe = document.querySelectorAll('thead th');
+      if (tieuDe.length < 6) return;
+      tieuDe[0].textContent = laThang ? 'Tháng' : 'Thời gian';
+      tieuDe[2].textContent = laThang ? 'Tổng KH kiểm tra' : 'Kế hoạch kiểm tra';
+      tieuDe[3].textContent = laThang ? 'Tổng KH thành phẩm' : 'Kế hoạch thành phẩm';
+      tieuDe[4].textContent = laThang ? 'Số ngày đã lập KH' : 'Ghi chú';
+      tieuDe[5].textContent = laThang ? 'Nguồn' : 'Thao tác';
+    }
+
+    function hienThiBangCham() {
+      clearTimeout(boDemTimKiem);
+      boDemTimKiem = setTimeout(hienThiBang, 250);
     }
 
     function taoNutThaoTac(nhan, lop, hanhDong, id) {
@@ -629,8 +659,8 @@
       var soBoLoc = giaTriLoc.filter(Boolean).length;
       var trangThaiLoc = layPhanTu('trang-thai-bo-loc');
       trangThaiLoc.textContent = soBoLoc
-        ? soBoLoc + ' b\u1ed9 l\u1ecdc \u0111ang \u00e1p d\u1ee5ng'
-        : 'Ch\u01b0a \u00e1p d\u1ee5ng b\u1ed9 l\u1ecdc';
+        ? soBoLoc + ' bộ lọc đang áp dụng'
+        : 'Chưa áp dụng bộ lọc';
       trangThaiLoc.classList.toggle('dang-loc', soBoLoc > 0);
       layPhanTu('nut-xoa-bo-loc').disabled = soBoLoc === 0;
 
@@ -643,7 +673,7 @@
           soTab.setAttribute('aria-hidden', 'true');
           tab.appendChild(soTab);
         }
-        soTab.textContent = trangThai.duLieu.filter(function(dong) { return dong.loai === loai; }).length;
+        soTab.textContent = layDuLieuTheoLoai(loai).length;
       });
     }
 
@@ -655,8 +685,11 @@
     function hienThiBang() {
       var thanBang = layPhanTu('than-bang-ke-hoach');
       var duLieu = layDuLieuDaLoc();
+      var laThang = trangThai.loaiDangChon === 'thang';
       thanBang.replaceChildren();
-      layPhanTu('so-luong-ke-hoach').textContent = duLieu.length + ' kế hoạch';
+      capNhatTieuDeBang();
+      layPhanTu('ghi-chu-tong-hop-thang').classList.toggle('an', !laThang);
+      layPhanTu('so-luong-ke-hoach').textContent = duLieu.length + (laThang ? ' dòng tổng hợp' : ' kế hoạch');
 
       capNhatTongQuan(duLieu);
       if (!duLieu.length) {
@@ -664,16 +697,14 @@
         dongRong.className = 'trang-thai-rong';
         var oRong = dongRong.insertCell();
         oRong.colSpan = 6;
-        var coDuLieuLoai = trangThai.duLieu.some(function(dong) {
-          return dong.loai === trangThai.loaiDangChon;
-        });
+        var coDuLieuLoai = layDuLieuTheoLoai(trangThai.loaiDangChon).length > 0;
         if (trangThai.dangTaiDuLieu) {
           oRong.textContent = 'Đang tải dữ liệu kế hoạch...';
         } else if (trangThai.loiTaiDuLieu) {
           oRong.textContent = trangThai.loiTaiDuLieu;
         } else if (!coDuLieuLoai) {
-          oRong.textContent = trangThai.loaiDangChon === 'thang'
-            ? 'Chưa có kế hoạch tháng.'
+          oRong.textContent = laThang
+            ? 'Chưa có dữ liệu tổng hợp tháng từ kế hoạch ngày.'
             : 'Chưa có kế hoạch ngày.';
         } else {
           oRong.textContent = 'Không có kế hoạch phù hợp với bộ lọc.';
@@ -686,32 +717,38 @@
         var oThoiGian = hang.insertCell();
         oThoiGian.className = 'cot-thoi-gian';
         oThoiGian.textContent = dinhDangThoiGian(dong.thoiGian, dong.loai);
+        oThoiGian.dataset.label = laThang ? 'Tháng' : 'Thời gian';
 
-        oThoiGian.dataset.label = 'Th\u1eddi gian';
         var oSize = hang.insertCell();
         oSize.className = 'cot-size';
         oSize.textContent = dong.size;
+        oSize.dataset.label = 'Size ống';
 
-        oSize.dataset.label = 'Size \u1ed1ng';
         var oKiemTra = hang.insertCell();
         oKiemTra.className = 'cot-so';
         oKiemTra.textContent = dinhDangSo(dong.kiemTra);
+        oKiemTra.dataset.label = laThang ? 'Tổng KH kiểm tra' : 'Kế hoạch kiểm tra';
 
-        oKiemTra.dataset.label = 'K\u1ebf ho\u1ea1ch ki\u1ec3m tra';
         var oThanhPham = hang.insertCell();
         oThanhPham.className = 'cot-so';
         oThanhPham.textContent = dinhDangSo(dong.thanhPham);
+        oThanhPham.dataset.label = laThang ? 'Tổng KH thành phẩm' : 'Kế hoạch thành phẩm';
 
-        oThanhPham.dataset.label = 'K\u1ebf ho\u1ea1ch th\u00e0nh ph\u1ea9m';
         var oGhiChu = hang.insertCell();
         oGhiChu.className = 'cot-ghi-chu';
-        oGhiChu.textContent = dong.ghiChu || '—';
+        oGhiChu.textContent = laThang ? dinhDangSo(dong.soNgay || 0) : (dong.ghiChu || '—');
+        oGhiChu.dataset.label = laThang ? 'Số ngày đã lập KH' : 'Ghi chú';
 
-        oGhiChu.dataset.label = 'Ghi ch\u00fa';
         var oThaoTac = hang.insertCell();
         oThaoTac.className = 'cot-thao-tac';
-        oThaoTac.appendChild(taoNutThaoTac('Sửa', 'nut-sua quyen-sua', 'sua', dong.id));
-        oThaoTac.appendChild(taoNutThaoTac('Xóa', 'nut-xoa quyen-xoa', 'xoa', dong.id));
+        if (laThang && dong.tuDongTongHop) {
+          oThaoTac.textContent = 'Tự động';
+          oThaoTac.dataset.label = 'Nguồn';
+        } else {
+          oThaoTac.dataset.label = 'Thao tác';
+          oThaoTac.appendChild(taoNutThaoTac('Sửa', 'nut-sua quyen-sua', 'sua', dong.id));
+          oThaoTac.appendChild(taoNutThaoTac('Xóa', 'nut-xoa quyen-xoa', 'xoa', dong.id));
+        }
       });
     }
 
@@ -728,6 +765,9 @@
       layPhanTu('loc-ngay-wrap').classList.toggle('an', laThang);
       document.querySelector('.luoi-loc').classList.toggle('dang-loc-ngay', !laThang);
       layPhanTu('tieu-de-danh-sach').textContent = laThang ? 'Danh sách kế hoạch tháng' : 'Danh sách kế hoạch ngày';
+      var nutThem = layPhanTu('nut-them-ke-hoach');
+      nutThem.disabled = laThang;
+      nutThem.title = laThang ? 'Kế hoạch tháng được tự động tổng hợp từ kế hoạch ngày.' : '';
       hienThiBang();
     }
 
@@ -771,6 +811,10 @@
     }
 
     function moBieuMauThem() {
+      if (trangThai.loaiDangChon === 'thang') {
+        hienThongBao('Kế hoạch tháng được tự động tổng hợp từ kế hoạch ngày.');
+        return;
+      }
       trangThai.cheDoBieuMau = 'them';
       trangThai.idDangSua = '';
       datGiaTriMacDinh();
@@ -1050,7 +1094,7 @@
       ['loc-thang', 'loc-tu-ngay', 'loc-den-ngay', 'loc-size'].forEach(function(id) {
         layPhanTu(id).addEventListener('change', hienThiBang);
       });
-      layPhanTu('loc-tu-khoa').addEventListener('input', hienThiBang);
+      layPhanTu('loc-tu-khoa').addEventListener('input', hienThiBangCham);
       layPhanTu('nut-xoa-bo-loc').addEventListener('click', xoaBoLoc);
       layPhanTu('nut-them-ke-hoach').addEventListener('click', moBieuMauThem);
       layPhanTu('nut-huy-bieu-mau').addEventListener('click', dongBieuMau);

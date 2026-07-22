@@ -5,14 +5,16 @@
 function getPlanModuleData() {
   try {
     var repositoryData = planRepositoryReadAll_();
-    var monthly = planServiceMapRows_(repositoryData.monthly, "thang");
+    var legacyMonthly = planServiceMapRows_(repositoryData.monthly, "thang");
     var daily = planServiceMapRows_(repositoryData.daily, "ngay");
+    var monthly = planServiceBuildMonthlyAggregates_(daily);
     var sizes = planServiceGetActiveSizes_();
 
     return {
       success: true,
       data: {
         monthly: monthly,
+        legacyMonthly: legacyMonthly,
         daily: daily,
         sizes: sizes
       },
@@ -20,6 +22,7 @@ function getPlanModuleData() {
         monthlySheet: repositoryData.monthly.sheetName,
         dailySheet: repositoryData.daily.sheetName,
         monthlyCount: monthly.length,
+        legacyMonthlyCount: legacyMonthly.length,
         dailyCount: daily.length,
         readOnly: true
       }
@@ -154,6 +157,52 @@ function planServiceMapRows_(sheetData, type) {
   }
 
   return result;
+}
+
+function planServiceBuildMonthlyAggregates_(dailyPlans) {
+  var groups = {};
+  var source = Array.isArray(dailyPlans) ? dailyPlans : [];
+
+  source.forEach(function(plan) {
+    var day = planServiceText_("", plan && plan.thoiGian);
+    var size = planServiceText_("", plan && plan.size);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !size) return;
+
+    var month = day.substring(0, 7);
+    var key = month + "\u0001" + size.toLocaleLowerCase("vi");
+    if (!groups[key]) {
+      groups[key] = {
+        id: "auto:" + month + ":" + size,
+        loai: "thang",
+        thoiGian: month,
+        size: size,
+        kiemTra: 0,
+        thanhPham: 0,
+        ghiChu: "",
+        capNhatLuc: "",
+        capNhatBoi: "",
+        soNgay: 0,
+        tuDongTongHop: true,
+        ngayDaLap: {}
+      };
+    }
+
+    groups[key].kiemTra += planServiceNumber_(plan.kiemTra);
+    groups[key].thanhPham += planServiceNumber_(plan.thanhPham);
+    groups[key].ngayDaLap[day] = true;
+  });
+
+  return Object.keys(groups).map(function(key) {
+    var item = groups[key];
+    item.soNgay = Object.keys(item.ngayDaLap).length;
+    item.ghiChu = "Tự động tổng hợp từ " + item.soNgay + " ngày kế hoạch";
+    delete item.ngayDaLap;
+    return item;
+  }).sort(function(a, b) {
+    return a.thoiGian === b.thoiGian
+      ? a.size.localeCompare(b.size, "vi")
+      : b.thoiGian.localeCompare(a.thoiGian);
+  });
 }
 
 function planServiceMapRecord_(repositoryRow, type) {
