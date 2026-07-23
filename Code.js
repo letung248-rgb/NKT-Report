@@ -710,7 +710,7 @@ function getProductionJournalData(filters) {
     }
 
     const transactions = typeof getRawTransactions === 'function'
-      ? getRawTransactions({ disableCache: true })
+      ? getRawTransactions()
       : [];
     const pipeObjects = typeof buildPipeEngine === 'function' ? buildPipeEngine(transactions) : [];
     const rows = [];
