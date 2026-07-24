@@ -481,13 +481,10 @@ const DASHBOARD_OVERVIEW_DATE_CACHE_MAX_BYTES = 90 * 1024;
 function getDashboardData(reportDateText) {
   try {
     const requestedText = (reportDateText || "").toString().trim();
+    let requestedDate = null;
     if (requestedText) {
-      const requestedDate = parseDashboardOverviewDate_(requestedText);
+      requestedDate = parseDashboardOverviewDate_(requestedText);
       if (!requestedDate) return { success: false, error: "Ngày báo cáo không hợp lệ." };
-      return getDashboardOverviewDateData_(requestedDate.dateKey, {
-        userSelected: true,
-        usedNearestDate: false
-      });
     }
 
     const isObject = function(value) {
@@ -551,21 +548,36 @@ function getDashboardData(reportDateText) {
       });
     };
 
+    let availableSnapshot = null;
     try {
       const cachedSnapshot = readDashboardSnapshotCache_();
-      if (isValidSnapshot(cachedSnapshot)) return cachedSnapshot;
-
-      const durableSnapshot = readDashboardSnapshot_();
-      if (isValidSnapshot(durableSnapshot)) {
-        try {
-          writeDashboardSnapshotCache_(durableSnapshot);
-        } catch (cacheError) {
-          Logger.log("DASH_SNAPSHOT L1 repopulate error: " + cacheError);
+      if (isValidSnapshot(cachedSnapshot)) {
+        availableSnapshot = cachedSnapshot;
+      } else {
+        const durableSnapshot = readDashboardSnapshot_();
+        if (isValidSnapshot(durableSnapshot)) {
+          try {
+            writeDashboardSnapshotCache_(durableSnapshot);
+          } catch (cacheError) {
+            Logger.log("DASH_SNAPSHOT L1 repopulate error: " + cacheError);
+          }
+          availableSnapshot = durableSnapshot;
         }
-        return durableSnapshot;
       }
     } catch (snapshotError) {
       Logger.log("DASH_SNAPSHOT default read error: " + snapshotError);
+    }
+
+    if (availableSnapshot &&
+        (!requestedDate || availableSnapshot.reportDate.date === requestedDate.dateKey)) {
+      return availableSnapshot;
+    }
+
+    if (requestedDate) {
+      return getDashboardOverviewDateData_(requestedDate.dateKey, {
+        userSelected: true,
+        usedNearestDate: false
+      });
     }
 
     return {

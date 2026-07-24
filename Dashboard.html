@@ -1913,7 +1913,7 @@
                     if (res.queueStatus) renderQueueStatus(res.queueStatus);
                     setSyncButtonLoading(false);
                     pendingSyncSuccessToast = true;
-                    loadDashboard();
+                    loadDashboard('', { skipQueueStatus: !!res.queueStatus });
                 })
                 .withFailureHandler(err => {
                     showSyncStatus('Lỗi đồng bộ dữ liệu: ' + err, 'error');
@@ -1942,9 +1942,10 @@
             document.getElementById('loader').style.display = 'none';
         }
 
-        function loadDashboard(dateText) {
+        function loadDashboard(dateText, options) {
             const requestedDate = dateText !== undefined ? dateText : getDashboardReportDateInputValue();
             const requestToken = requestedDate || '__default__';
+            const loadOptions = options || {};
             if (typeof google !== 'undefined' && google.script) {
                 const loadId = ++dashboardLoadSequence;
                 hideDashboardLoader();
@@ -1970,7 +1971,7 @@
                             }
                             globalDashboardData = res;
                             renderDashboard(res);
-                            loadQueueStatus();
+                            if (!loadOptions.skipQueueStatus) loadQueueStatus();
                             if (pendingSyncSuccessToast) {
                                 showSyncSuccessToast(res);
                                 pendingSyncSuccessToast = false;
