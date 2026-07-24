@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Ghi kết quả debug ra Sheet "DEBUG"
  */
 function classifyBusinessStatus(transaction, previousStatus, currentPipeState) {
@@ -475,6 +475,67 @@ const DASHBOARD_OVERVIEW_DATE_CACHE_PREFIX = "dashboard:overview-date:v2:";
 const DASHBOARD_OVERVIEW_DATE_CACHE_TTL_SECONDS = 300;
 const DASHBOARD_OVERVIEW_DATE_CACHE_MAX_BYTES = 90 * 1024;
 
+function isValidDashboardMinimalSnapshot_(snapshot) {
+  const isObject = function(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  };
+  const hasOwn = function(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key);
+  };
+  const hasNamedCountRows = function(rows) {
+    return Array.isArray(rows) && rows.every(function(row) {
+      return isObject(row) && typeof row.name === "string" && hasOwn(row, "count");
+    });
+  };
+
+  if (!isObject(snapshot) || snapshot.success !== true) return false;
+  if (!isObject(snapshot.reportDate) ||
+      typeof snapshot.reportDate.date !== "string" ||
+      !snapshot.reportDate.date ||
+      typeof snapshot.reportDate.displayDate !== "string" ||
+      typeof snapshot.reportDate.note !== "string" ||
+      typeof snapshot.reportDate.emptyMessage !== "string") return false;
+
+  const meta = snapshot.snapshotMeta;
+  if (!isObject(meta) ||
+      meta.success !== true ||
+      meta.reportDate !== snapshot.reportDate.date ||
+      typeof meta.builtAt !== "string" ||
+      !meta.builtAt ||
+      typeof meta.version !== "string" ||
+      !meta.version ||
+      !Number.isFinite(Number(meta.durationMs)) ||
+      Number(meta.durationMs) < 0) return false;
+
+  const kpi = snapshot.kpi;
+  const requiredKpiFields = ["total", "tp", "cs", "hong", "dxl", "tpPercent"];
+  if (!isObject(kpi) || requiredKpiFields.some(function(field) { return !hasOwn(kpi, field); })) return false;
+  if (typeof snapshot.factoryHealth !== "string" ||
+      !Array.isArray(snapshot.alerts) ||
+      !snapshot.alerts.every(function(alert) { return typeof alert === "string"; }) ||
+      !isObject(snapshot.planStats) ||
+      !Array.isArray(snapshot.planStats.byDate) ||
+      !Array.isArray(snapshot.planStats.byMonth) ||
+      !Array.isArray(snapshot.planStats.sizeComparison) ||
+      !Array.isArray(snapshot.planStats.trend7Days) ||
+      !hasNamedCountRows(snapshot.processStats) ||
+      !hasNamedCountRows(snapshot.queueStats) ||
+      !isObject(snapshot.processQueueSummary) ||
+      !isObject(snapshot.sizeStats) ||
+      !hasNamedCountRows(snapshot.errorStats) ||
+      !isObject(snapshot.qualityAnalysis) ||
+      !hasNamedCountRows(snapshot.rigStats) ||
+      !hasNamedCountRows(snapshot.shiftStats) ||
+      !Array.isArray(snapshot.recent)) return false;
+
+  const recentFields = [
+    "date", "shift", "process", "pipeNo", "qty", "size",
+    "status", "statusGroup", "errorCode", "rig", "worker1", "worker2"
+  ];
+  return snapshot.recent.every(function(row) {
+    return isObject(row) && recentFields.every(function(field) { return hasOwn(row, field); });
+  });
+}
 /**
  * 6. Hàm lấy dữ liệu cho Dashboard theo ngày báo cáo.
  */
@@ -487,75 +548,14 @@ function getDashboardData(reportDateText) {
       if (!requestedDate) return { success: false, error: "Ngày báo cáo không hợp lệ." };
     }
 
-    const isObject = function(value) {
-      return !!value && typeof value === "object" && !Array.isArray(value);
-    };
-    const hasOwn = function(value, key) {
-      return Object.prototype.hasOwnProperty.call(value, key);
-    };
-    const hasNamedCountRows = function(rows) {
-      return Array.isArray(rows) && rows.every(function(row) {
-        return isObject(row) && typeof row.name === "string" && hasOwn(row, "count");
-      });
-    };
-    const isValidSnapshot = function(snapshot) {
-      if (!isObject(snapshot) || snapshot.success !== true) return false;
-      if (!isObject(snapshot.reportDate) ||
-          typeof snapshot.reportDate.date !== "string" ||
-          !snapshot.reportDate.date ||
-          typeof snapshot.reportDate.displayDate !== "string" ||
-          typeof snapshot.reportDate.note !== "string" ||
-          typeof snapshot.reportDate.emptyMessage !== "string") return false;
-
-      const meta = snapshot.snapshotMeta;
-      if (!isObject(meta) ||
-          meta.success !== true ||
-          meta.reportDate !== snapshot.reportDate.date ||
-          typeof meta.builtAt !== "string" ||
-          !meta.builtAt ||
-          typeof meta.version !== "string" ||
-          !meta.version ||
-          !Number.isFinite(Number(meta.durationMs)) ||
-          Number(meta.durationMs) < 0) return false;
-
-      const kpi = snapshot.kpi;
-      const requiredKpiFields = ["total", "tp", "cs", "hong", "dxl", "tpPercent"];
-      if (!isObject(kpi) || requiredKpiFields.some(function(field) { return !hasOwn(kpi, field); })) return false;
-      if (typeof snapshot.factoryHealth !== "string" ||
-          !Array.isArray(snapshot.alerts) ||
-          !snapshot.alerts.every(function(alert) { return typeof alert === "string"; }) ||
-          !isObject(snapshot.planStats) ||
-          !Array.isArray(snapshot.planStats.byDate) ||
-          !Array.isArray(snapshot.planStats.byMonth) ||
-          !Array.isArray(snapshot.planStats.sizeComparison) ||
-          !Array.isArray(snapshot.planStats.trend7Days) ||
-          !hasNamedCountRows(snapshot.processStats) ||
-          !hasNamedCountRows(snapshot.queueStats) ||
-          !isObject(snapshot.processQueueSummary) ||
-          !isObject(snapshot.sizeStats) ||
-          !hasNamedCountRows(snapshot.errorStats) ||
-          !isObject(snapshot.qualityAnalysis) ||
-          !hasNamedCountRows(snapshot.rigStats) ||
-          !hasNamedCountRows(snapshot.shiftStats) ||
-          !Array.isArray(snapshot.recent)) return false;
-
-      const recentFields = [
-        "date", "shift", "process", "pipeNo", "qty", "size",
-        "status", "statusGroup", "errorCode", "rig", "worker1", "worker2"
-      ];
-      return snapshot.recent.every(function(row) {
-        return isObject(row) && recentFields.every(function(field) { return hasOwn(row, field); });
-      });
-    };
-
     let availableSnapshot = null;
     try {
       const cachedSnapshot = readDashboardSnapshotCache_();
-      if (isValidSnapshot(cachedSnapshot)) {
+      if (isValidDashboardMinimalSnapshot_(cachedSnapshot)) {
         availableSnapshot = cachedSnapshot;
       } else {
         const durableSnapshot = readDashboardSnapshot_();
-        if (isValidSnapshot(durableSnapshot)) {
+        if (isValidDashboardMinimalSnapshot_(durableSnapshot)) {
           try {
             writeDashboardSnapshotCache_(durableSnapshot);
           } catch (cacheError) {
@@ -574,10 +574,20 @@ function getDashboardData(reportDateText) {
     }
 
     if (requestedDate) {
-      return getDashboardOverviewDateData_(requestedDate.dateKey, {
-        userSelected: true,
-        usedNearestDate: false
-      });
+      const historicalSnapshot = readDashboardHistoricalSnapshotForDate_(requestedDate.dateKey);
+      if (isValidDashboardMinimalSnapshot_(historicalSnapshot) &&
+          historicalSnapshot.reportDate.date === requestedDate.dateKey) {
+        return historicalSnapshot;
+      }
+      return {
+        success: false,
+        error: "Dashboard snapshot cho ngày " + requestedDate.dateKey + " chưa sẵn sàng.",
+        snapshotMeta: {
+          state: "missing",
+          schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+          reportDate: requestedDate.dateKey
+        }
+      };
     }
 
     return {
@@ -1629,6 +1639,21 @@ const DASHBOARD_SNAPSHOT_PROP_CHUNK_PREFIX = "DASHBOARD_SNAPSHOT_V1_CHUNK_";
 const DASHBOARD_SNAPSHOT_PROP_CHUNK_SIZE = 8000;
 const DASHBOARD_SNAPSHOT_CACHE_MAX_BYTES = 90 * 1024;
 const DASHBOARD_SNAPSHOT_DURABLE_MAX_BYTES = 450 * 1024;
+
+const DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION = "dashboard-history-v1";
+const DASHBOARD_HISTORY_SNAPSHOT_CACHE_KEY_PREFIX = "dashboard:history-snapshot:v1:";
+const DASHBOARD_HISTORY_SNAPSHOT_CACHE_TTL_SECONDS = 300;
+const DASHBOARD_HISTORY_SNAPSHOT_CACHE_MAX_BYTES = 90 * 1024;
+const DASHBOARD_HISTORY_SNAPSHOT_CATALOG_KEY = "DASHBOARD_HISTORY_V1_CATALOG";
+const DASHBOARD_HISTORY_SNAPSHOT_CHUNK_PREFIX = "DASHBOARD_HISTORY_V1_";
+const DASHBOARD_HISTORY_SNAPSHOT_CHUNK_SIZE = 8000;
+const DASHBOARD_HISTORY_SNAPSHOT_MAX_ENTRIES = 14;
+const DASHBOARD_HISTORY_SNAPSHOT_MAX_PAYLOAD_BYTES = 24 * 1024;
+const DASHBOARD_HISTORY_SNAPSHOT_MAX_TOTAL_PAYLOAD_BYTES = 88 * 1024;
+const DASHBOARD_HISTORY_SNAPSHOT_CATALOG_MAX_BYTES = 8 * 1024;
+const DASHBOARD_HISTORY_SNAPSHOT_STORAGE_BUDGET_BYTES = 96 * 1024;
+const DASHBOARD_HISTORY_SNAPSHOT_ROTATION_BUDGET_BYTES = 120 * 1024;
+const DASHBOARD_HISTORY_SNAPSHOT_PROPERTY_STORE_BUDGET_BYTES = 480 * 1024;
 
 function extractDashboardSnapshot_(fullResponse) {
   fullResponse = fullResponse || {};
@@ -2824,6 +2849,731 @@ function deserializeDashboardSnapshot_(payload) {
   return JSON.parse(json);
 }
 
+function getDashboardHistoricalSnapshotPayloadBytes_(payload) {
+  return Utilities.newBlob(payload || "", "text/plain").getBytes().length;
+}
+
+function getDashboardHistoricalSnapshotPropertyBytes_(key, value) {
+  return getDashboardHistoricalSnapshotPayloadBytes_(key) +
+    getDashboardHistoricalSnapshotPayloadBytes_(value);
+}
+
+function getDashboardHistoricalSnapshotCacheKey_(dateKey) {
+  return DASHBOARD_HISTORY_SNAPSHOT_CACHE_KEY_PREFIX + dateKey;
+}
+
+function getDashboardHistoricalSnapshotChunkPrefix_(dateKey, generation) {
+  return DASHBOARD_HISTORY_SNAPSHOT_CHUNK_PREFIX + dateKey + "_" + generation + "_CHUNK_";
+}
+
+function createDashboardHistoricalSnapshotCatalog_() {
+  return {
+    schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+    state: "ready",
+    updatedAt: "",
+    entries: {}
+  };
+}
+
+function validateDashboardHistoricalSnapshotCatalog_(catalog) {
+  if (!catalog || typeof catalog !== "object" || Array.isArray(catalog) ||
+      catalog.schemaVersion !== DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION ||
+      catalog.state !== "ready" || !catalog.entries ||
+      typeof catalog.entries !== "object" || Array.isArray(catalog.entries)) {
+    return { valid: false, error: "Historical snapshot catalog invalid", totalPayloadBytes: 0 };
+  }
+
+  const dateKeys = Object.keys(catalog.entries);
+  if (dateKeys.length > DASHBOARD_HISTORY_SNAPSHOT_MAX_ENTRIES) {
+    return { valid: false, error: "Historical snapshot catalog exceeds retention", totalPayloadBytes: 0 };
+  }
+
+  let totalPayloadBytes = 0;
+  for (let i = 0; i < dateKeys.length; i++) {
+    const dateKey = dateKeys[i];
+    const entry = catalog.entries[dateKey];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !entry ||
+        entry.state !== "ready" || entry.reportDate !== dateKey ||
+        typeof entry.generation !== "string" || !entry.generation ||
+        typeof entry.builtAt !== "string" || !entry.builtAt ||
+        typeof entry.publishedAt !== "string" || !entry.publishedAt ||
+        Number(entry.chunkCount || 0) <= 0 ||
+        Number(entry.payloadBytes || 0) <= 0 ||
+        Number(entry.payloadBytes) > DASHBOARD_HISTORY_SNAPSHOT_MAX_PAYLOAD_BYTES ||
+        typeof entry.checksum !== "string" || !entry.checksum) {
+      return { valid: false, error: "Historical snapshot catalog entry invalid: " + dateKey, totalPayloadBytes: 0 };
+    }
+    totalPayloadBytes += Number(entry.payloadBytes);
+  }
+
+  if (totalPayloadBytes > DASHBOARD_HISTORY_SNAPSHOT_MAX_TOTAL_PAYLOAD_BYTES) {
+    return { valid: false, error: "Historical snapshot catalog exceeds payload budget", totalPayloadBytes: totalPayloadBytes };
+  }
+  return { valid: true, error: "", totalPayloadBytes: totalPayloadBytes };
+}
+
+function readDashboardHistoricalSnapshotCatalog_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const catalogText = props.getProperty(DASHBOARD_HISTORY_SNAPSHOT_CATALOG_KEY);
+    if (!catalogText) {
+      return {
+        success: true,
+        missing: true,
+        catalog: createDashboardHistoricalSnapshotCatalog_(),
+        totalPayloadBytes: 0,
+        catalogBytes: 0
+      };
+    }
+
+    const catalogBytes = getDashboardHistoricalSnapshotPayloadBytes_(catalogText);
+    if (catalogBytes > DASHBOARD_HISTORY_SNAPSHOT_CATALOG_MAX_BYTES) {
+      return { success: false, error: "Historical snapshot catalog exceeds size limit", catalog: null };
+    }
+    const catalog = JSON.parse(catalogText);
+    const validation = validateDashboardHistoricalSnapshotCatalog_(catalog);
+    if (!validation.valid) return { success: false, error: validation.error, catalog: null };
+    return {
+      success: true,
+      missing: false,
+      catalog: catalog,
+      totalPayloadBytes: validation.totalPayloadBytes,
+      catalogBytes: catalogBytes
+    };
+  } catch (error) {
+    Logger.log("DASH_HISTORY catalog read error: " + error);
+    return { success: false, error: error.toString(), catalog: null };
+  }
+}
+
+function validateDashboardHistoricalSnapshotEnvelope_(envelope, dateKey) {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope) ||
+      envelope.schemaVersion !== DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION ||
+      envelope.state !== "ready" || envelope.reportDate !== dateKey ||
+      typeof envelope.builtAt !== "string" || !envelope.builtAt ||
+      !isValidDashboardMinimalSnapshot_(envelope.snapshot) ||
+      envelope.snapshot.reportDate.date !== dateKey ||
+      envelope.snapshot.snapshotMeta.reportDate !== dateKey ||
+      envelope.snapshot.snapshotMeta.schemaVersion !== DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION ||
+      envelope.snapshot.snapshotMeta.state !== "ready" ||
+      envelope.snapshot.snapshotMeta.builtAt !== envelope.builtAt) {
+    return { valid: false, error: "Historical snapshot envelope invalid for " + dateKey };
+  }
+  return { valid: true, error: "" };
+}
+
+function readDashboardHistoricalSnapshotCache_(dateKey) {
+  try {
+    const envelopeText = CacheService.getScriptCache()
+      .get(getDashboardHistoricalSnapshotCacheKey_(dateKey));
+    if (envelopeText === null) return null;
+
+    const cacheEnvelope = JSON.parse(envelopeText);
+    if (cacheEnvelope.schemaVersion !== DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION ||
+        cacheEnvelope.state !== "ready" || cacheEnvelope.reportDate !== dateKey ||
+        typeof cacheEnvelope.generation !== "string" || !cacheEnvelope.generation ||
+        !cacheEnvelope.payload || Number(cacheEnvelope.payloadBytes || 0) <= 0 ||
+        typeof cacheEnvelope.checksum !== "string" || !cacheEnvelope.checksum) {
+      throw new Error("Historical snapshot cache envelope invalid");
+    }
+    if (getDashboardHistoricalSnapshotPayloadBytes_(cacheEnvelope.payload) !== Number(cacheEnvelope.payloadBytes)) {
+      throw new Error("Historical snapshot cache payload size mismatch");
+    }
+    if (computeDashboardDrilldownChecksum_(cacheEnvelope.payload) !== cacheEnvelope.checksum) {
+      throw new Error("Historical snapshot cache checksum mismatch");
+    }
+
+    const historicalEnvelope = deserializeDashboardSnapshot_(cacheEnvelope.payload);
+    const validation = validateDashboardHistoricalSnapshotEnvelope_(historicalEnvelope, dateKey);
+    if (!validation.valid) throw new Error(validation.error);
+    return historicalEnvelope.snapshot;
+  } catch (error) {
+    Logger.log("DASH_HISTORY cache read error | reportDate=" + dateKey + " | " + error);
+    return null;
+  }
+}
+
+function writeDashboardHistoricalSnapshotCachePrepared_(prepared) {
+  try {
+    const cacheEnvelope = {
+      schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+      state: "ready",
+      reportDate: prepared.reportDate,
+      generation: prepared.generation,
+      payloadBytes: prepared.payloadBytes,
+      checksum: prepared.checksum,
+      payload: prepared.payload
+    };
+    const envelopeText = JSON.stringify(cacheEnvelope);
+    const cacheBytes = getDashboardHistoricalSnapshotPayloadBytes_(envelopeText);
+    if (cacheBytes > DASHBOARD_HISTORY_SNAPSHOT_CACHE_MAX_BYTES) {
+      return { success: false, skipped: true, cacheBytes: cacheBytes, error: "Historical snapshot cache payload exceeds limit" };
+    }
+    CacheService.getScriptCache().put(
+      getDashboardHistoricalSnapshotCacheKey_(prepared.reportDate),
+      envelopeText,
+      DASHBOARD_HISTORY_SNAPSHOT_CACHE_TTL_SECONDS
+    );
+    return { success: true, cacheBytes: cacheBytes, payloadBytes: prepared.payloadBytes };
+  } catch (error) {
+    Logger.log("DASH_HISTORY cache write error | reportDate=" + prepared.reportDate + " | " + error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+function readDashboardHistoricalSnapshotDurableResult_(dateKey) {
+  try {
+    const catalogResult = readDashboardHistoricalSnapshotCatalog_();
+    if (!catalogResult.success || !catalogResult.catalog) {
+      return { success: false, snapshot: null, error: catalogResult.error || "Historical snapshot catalog unavailable" };
+    }
+    const entry = catalogResult.catalog.entries[dateKey];
+    if (!entry) return { success: false, missing: true, snapshot: null, error: "Historical snapshot missing" };
+
+    const props = PropertiesService.getScriptProperties();
+    const prefix = getDashboardHistoricalSnapshotChunkPrefix_(dateKey, entry.generation);
+    let payload = "";
+    for (let i = 0; i < Number(entry.chunkCount); i++) {
+      const chunk = props.getProperty(prefix + i);
+      if (chunk === null) throw new Error("Missing historical snapshot chunk " + i);
+      payload += chunk;
+    }
+    if (getDashboardHistoricalSnapshotPayloadBytes_(payload) !== Number(entry.payloadBytes)) {
+      throw new Error("Historical snapshot durable payload size mismatch");
+    }
+    if (computeDashboardDrilldownChecksum_(payload) !== entry.checksum) {
+      throw new Error("Historical snapshot durable checksum mismatch");
+    }
+
+    const historicalEnvelope = deserializeDashboardSnapshot_(payload);
+    const validation = validateDashboardHistoricalSnapshotEnvelope_(historicalEnvelope, dateKey);
+    if (!validation.valid) throw new Error(validation.error);
+    return {
+      success: true,
+      snapshot: historicalEnvelope.snapshot,
+      entry: entry,
+      payload: payload,
+      catalog: catalogResult.catalog
+    };
+  } catch (error) {
+    Logger.log("DASH_HISTORY durable read error | reportDate=" + dateKey + " | " + error);
+    return { success: false, snapshot: null, error: error.toString() };
+  }
+}
+
+function readDashboardHistoricalSnapshotForDate_(dateKey) {
+  const cachedSnapshot = readDashboardHistoricalSnapshotCache_(dateKey);
+  if (cachedSnapshot && cachedSnapshot.reportDate.date === dateKey) return cachedSnapshot;
+
+  const durableResult = readDashboardHistoricalSnapshotDurableResult_(dateKey);
+  if (!durableResult.success || !durableResult.snapshot ||
+      durableResult.snapshot.reportDate.date !== dateKey) return null;
+  writeDashboardHistoricalSnapshotCachePrepared_({
+    reportDate: dateKey,
+    generation: durableResult.entry.generation,
+    payloadBytes: durableResult.entry.payloadBytes,
+    checksum: durableResult.entry.checksum,
+    payload: durableResult.payload
+  });
+  return durableResult.snapshot;
+}
+
+function prepareDashboardHistoricalSnapshot_(snapshot) {
+  try {
+    const minimalSnapshot = JSON.parse(JSON.stringify(extractDashboardSnapshot_(snapshot)));
+    const dateKey = minimalSnapshot && minimalSnapshot.reportDate
+      ? minimalSnapshot.reportDate.date
+      : "";
+    const parsedDate = dateKey ? parseDashboardOverviewDate_(dateKey) : null;
+    if (!parsedDate || parsedDate.dateKey !== dateKey) {
+      return { success: false, error: "Historical snapshot reportDate invalid" };
+    }
+
+    minimalSnapshot.snapshotMeta = Object.assign({}, minimalSnapshot.snapshotMeta || {}, {
+      schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+      state: "ready",
+      success: true,
+      reportDate: dateKey
+    });
+    if (!isValidDashboardMinimalSnapshot_(minimalSnapshot)) {
+      return { success: false, error: "Historical snapshot contract validation failed" };
+    }
+
+    const historicalEnvelope = {
+      schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+      state: "ready",
+      reportDate: dateKey,
+      builtAt: minimalSnapshot.snapshotMeta.builtAt,
+      snapshot: minimalSnapshot
+    };
+    const envelopeValidation = validateDashboardHistoricalSnapshotEnvelope_(historicalEnvelope, dateKey);
+    if (!envelopeValidation.valid) return { success: false, error: envelopeValidation.error };
+
+    const payload = serializeDashboardSnapshot_(historicalEnvelope);
+    const payloadBytes = getDashboardHistoricalSnapshotPayloadBytes_(payload);
+    if (payloadBytes > DASHBOARD_HISTORY_SNAPSHOT_MAX_PAYLOAD_BYTES) {
+      return {
+        success: false,
+        sizeExceeded: true,
+        reportDate: dateKey,
+        payloadBytes: payloadBytes,
+        maxBytes: DASHBOARD_HISTORY_SNAPSHOT_MAX_PAYLOAD_BYTES,
+        error: "Historical snapshot payload exceeds per-date limit"
+      };
+    }
+    return {
+      success: true,
+      reportDate: dateKey,
+      generation: String(Date.now()) + "-" + Utilities.getUuid().slice(0, 8),
+      builtAt: minimalSnapshot.snapshotMeta.builtAt,
+      publishedAt: new Date().toISOString(),
+      snapshot: minimalSnapshot,
+      payload: payload,
+      payloadBytes: payloadBytes,
+      chunkCount: Math.ceil(payload.length / DASHBOARD_HISTORY_SNAPSHOT_CHUNK_SIZE),
+      checksum: computeDashboardDrilldownChecksum_(payload)
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+function compareDashboardMinimalSnapshots_(expected, actual) {
+  const expectedJson = JSON.stringify(stableDashboardDrilldownValue_(expected || {}));
+  const actualJson = JSON.stringify(stableDashboardDrilldownValue_(actual || {}));
+  return {
+    parity: expectedJson === actualJson,
+    expectedChecksum: computeDashboardDrilldownChecksum_(expectedJson),
+    actualChecksum: computeDashboardDrilldownChecksum_(actualJson)
+  };
+}
+function buildDashboardHistoricalSnapshotCatalogPlan_(catalogResult, prepared) {
+  const existingEntries = JSON.parse(JSON.stringify(catalogResult.catalog.entries || {}));
+  existingEntries[prepared.reportDate] = {
+    state: "ready",
+    reportDate: prepared.reportDate,
+    generation: prepared.generation,
+    builtAt: prepared.builtAt,
+    publishedAt: prepared.publishedAt,
+    chunkCount: prepared.chunkCount,
+    payloadBytes: prepared.payloadBytes,
+    checksum: prepared.checksum
+  };
+
+  const orderedDates = Object.keys(existingEntries).sort(function(left, right) {
+    if (left === prepared.reportDate) return -1;
+    if (right === prepared.reportDate) return 1;
+    const leftPublishedAt = existingEntries[left].publishedAt || "";
+    const rightPublishedAt = existingEntries[right].publishedAt || "";
+    if (leftPublishedAt !== rightPublishedAt) return rightPublishedAt.localeCompare(leftPublishedAt);
+    return right.localeCompare(left);
+  });
+
+  const retainedEntries = {};
+  let totalPayloadBytes = 0;
+  for (let i = 0; i < orderedDates.length; i++) {
+    const dateKey = orderedDates[i];
+    const entry = existingEntries[dateKey];
+    if (Object.keys(retainedEntries).length >= DASHBOARD_HISTORY_SNAPSHOT_MAX_ENTRIES) continue;
+    if (totalPayloadBytes + Number(entry.payloadBytes) > DASHBOARD_HISTORY_SNAPSHOT_MAX_TOTAL_PAYLOAD_BYTES) continue;
+    retainedEntries[dateKey] = entry;
+    totalPayloadBytes += Number(entry.payloadBytes);
+  }
+  if (!retainedEntries[prepared.reportDate] ||
+      retainedEntries[prepared.reportDate].generation !== prepared.generation) {
+    return { success: false, sizeExceeded: true, error: "Historical snapshot cannot fit retention budget" };
+  }
+
+  const catalog = {
+    schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+    state: "ready",
+    updatedAt: new Date().toISOString(),
+    entries: retainedEntries
+  };
+  const validation = validateDashboardHistoricalSnapshotCatalog_(catalog);
+  if (!validation.valid) return { success: false, error: validation.error };
+
+  const catalogText = JSON.stringify(catalog);
+  const catalogBytes = getDashboardHistoricalSnapshotPayloadBytes_(catalogText);
+  if (catalogBytes > DASHBOARD_HISTORY_SNAPSHOT_CATALOG_MAX_BYTES) {
+    return { success: false, sizeExceeded: true, error: "Historical snapshot catalog exceeds property limit" };
+  }
+  if (validation.totalPayloadBytes + catalogBytes > DASHBOARD_HISTORY_SNAPSHOT_STORAGE_BUDGET_BYTES) {
+    return { success: false, sizeExceeded: true, error: "Historical snapshot catalog exceeds storage budget" };
+  }
+
+  const rotationBytes = Number(catalogResult.totalPayloadBytes || 0) + prepared.payloadBytes + catalogBytes;
+  if (rotationBytes > DASHBOARD_HISTORY_SNAPSHOT_ROTATION_BUDGET_BYTES) {
+    return { success: false, sizeExceeded: true, error: "Historical snapshot rotation exceeds temporary budget" };
+  }
+
+  const evictedEntries = [];
+  Object.keys(catalogResult.catalog.entries || {}).forEach(function(dateKey) {
+    const oldEntry = catalogResult.catalog.entries[dateKey];
+    const retainedEntry = retainedEntries[dateKey];
+    if (!retainedEntry || retainedEntry.generation !== oldEntry.generation) {
+      evictedEntries.push(oldEntry);
+    }
+  });
+  return {
+    success: true,
+    catalog: catalog,
+    catalogText: catalogText,
+    catalogBytes: catalogBytes,
+    totalPayloadBytes: validation.totalPayloadBytes,
+    rotationBytes: rotationBytes,
+    evictedEntries: evictedEntries
+  };
+}
+
+function writeDashboardHistoricalSnapshotArtifact_(props, prepared) {
+  const prefix = getDashboardHistoricalSnapshotChunkPrefix_(prepared.reportDate, prepared.generation);
+  const values = {};
+  for (let i = 0; i < prepared.chunkCount; i++) {
+    values[prefix + i] = prepared.payload.substring(
+      i * DASHBOARD_HISTORY_SNAPSHOT_CHUNK_SIZE,
+      (i + 1) * DASHBOARD_HISTORY_SNAPSHOT_CHUNK_SIZE
+    );
+  }
+  props.setProperties(values);
+
+  let persistedPayload = "";
+  for (let i = 0; i < prepared.chunkCount; i++) {
+    const chunk = props.getProperty(prefix + i);
+    if (chunk === null) throw new Error("Missing written historical snapshot chunk " + i);
+    persistedPayload += chunk;
+  }
+  if (getDashboardHistoricalSnapshotPayloadBytes_(persistedPayload) !== prepared.payloadBytes) {
+    throw new Error("Written historical snapshot payload size mismatch");
+  }
+  if (computeDashboardDrilldownChecksum_(persistedPayload) !== prepared.checksum) {
+    throw new Error("Written historical snapshot checksum mismatch");
+  }
+  return persistedPayload;
+}
+
+function validateDashboardHistoricalSnapshotPropertyStoreBudget_(props, prepared, catalogPlan) {
+  const currentProperties = props.getProperties();
+  let projectedBytes = 0;
+  Object.keys(currentProperties).forEach(function(key) {
+    if (key === DASHBOARD_HISTORY_SNAPSHOT_CATALOG_KEY) return;
+    projectedBytes += getDashboardHistoricalSnapshotPropertyBytes_(key, currentProperties[key]);
+  });
+  projectedBytes += getDashboardHistoricalSnapshotPropertyBytes_(
+    DASHBOARD_HISTORY_SNAPSHOT_CATALOG_KEY,
+    catalogPlan.catalogText
+  );
+
+  const prefix = getDashboardHistoricalSnapshotChunkPrefix_(prepared.reportDate, prepared.generation);
+  for (let i = 0; i < prepared.chunkCount; i++) {
+    const chunk = prepared.payload.substring(
+      i * DASHBOARD_HISTORY_SNAPSHOT_CHUNK_SIZE,
+      (i + 1) * DASHBOARD_HISTORY_SNAPSHOT_CHUNK_SIZE
+    );
+    projectedBytes += getDashboardHistoricalSnapshotPropertyBytes_(prefix + i, chunk);
+  }
+  return {
+    success: projectedBytes <= DASHBOARD_HISTORY_SNAPSHOT_PROPERTY_STORE_BUDGET_BYTES,
+    projectedBytes: projectedBytes,
+    budgetBytes: DASHBOARD_HISTORY_SNAPSHOT_PROPERTY_STORE_BUDGET_BYTES,
+    error: projectedBytes <= DASHBOARD_HISTORY_SNAPSHOT_PROPERTY_STORE_BUDGET_BYTES
+      ? ""
+      : "Historical snapshot would exceed property store safety budget"
+  };
+}
+
+function deleteDashboardHistoricalSnapshotChunks_(props, entry) {
+  if (!entry || !entry.reportDate || !entry.generation) return;
+  const prefix = getDashboardHistoricalSnapshotChunkPrefix_(entry.reportDate, entry.generation);
+  for (let i = 0; i < Number(entry.chunkCount || 0); i++) {
+    try {
+      props.deleteProperty(prefix + i);
+    } catch (error) {
+      Logger.log("DASH_HISTORY chunk cleanup error | reportDate=" + entry.reportDate + " | " + error);
+    }
+  }
+}
+
+function archiveDashboardHistoricalSnapshot_(snapshot) {
+  const prepared = prepareDashboardHistoricalSnapshot_(snapshot);
+  if (!prepared.success) return prepared;
+
+  const catalogResult = readDashboardHistoricalSnapshotCatalog_();
+  if (!catalogResult.success || !catalogResult.catalog) {
+    return { success: false, reportDate: prepared.reportDate, error: catalogResult.error || "Historical snapshot catalog unavailable" };
+  }
+  const catalogPlan = buildDashboardHistoricalSnapshotCatalogPlan_(catalogResult, prepared);
+  if (!catalogPlan.success) return Object.assign({ reportDate: prepared.reportDate }, catalogPlan);
+
+  const props = PropertiesService.getScriptProperties();
+  const storeBudget = validateDashboardHistoricalSnapshotPropertyStoreBudget_(
+    props,
+    prepared,
+    catalogPlan
+  );
+  if (!storeBudget.success) {
+    return {
+      success: false,
+      reportDate: prepared.reportDate,
+      sizeExceeded: true,
+      projectedPropertyStoreBytes: storeBudget.projectedBytes,
+      propertyStoreBudgetBytes: storeBudget.budgetBytes,
+      error: storeBudget.error
+    };
+  }
+  let artifactWritten = false;
+  let catalogPublished = false;
+  try {
+    artifactWritten = true;
+    const persistedPayload = writeDashboardHistoricalSnapshotArtifact_(props, prepared);
+    const persistedEnvelope = deserializeDashboardSnapshot_(persistedPayload);
+    const envelopeValidation = validateDashboardHistoricalSnapshotEnvelope_(persistedEnvelope, prepared.reportDate);
+    if (!envelopeValidation.valid) throw new Error(envelopeValidation.error);
+    const parity = compareDashboardMinimalSnapshots_(prepared.snapshot, persistedEnvelope.snapshot);
+    if (!parity.parity) throw new Error("Historical snapshot parity mismatch before publish");
+
+    props.setProperty(DASHBOARD_HISTORY_SNAPSHOT_CATALOG_KEY, catalogPlan.catalogText);
+    catalogPublished = true;
+
+    catalogPlan.evictedEntries.forEach(function(entry) {
+      deleteDashboardHistoricalSnapshotChunks_(props, entry);
+      if (entry.reportDate !== prepared.reportDate) {
+        try {
+          CacheService.getScriptCache().remove(getDashboardHistoricalSnapshotCacheKey_(entry.reportDate));
+        } catch (cacheError) {
+          Logger.log("DASH_HISTORY cache cleanup error | reportDate=" + entry.reportDate + " | " + cacheError);
+        }
+      }
+    });
+    const cacheResult = writeDashboardHistoricalSnapshotCachePrepared_(prepared);
+    Logger.log(
+      "DASH_HISTORY publish ok | reportDate=" + prepared.reportDate +
+      " | generation=" + prepared.generation +
+      " | payloadBytes=" + prepared.payloadBytes +
+      " | retained=" + Object.keys(catalogPlan.catalog.entries).length
+    );
+    return {
+      success: true,
+      reportDate: prepared.reportDate,
+      schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+      generation: prepared.generation,
+      builtAt: prepared.builtAt,
+      parity: true,
+      expectedChecksum: parity.expectedChecksum,
+      actualChecksum: parity.actualChecksum,
+      payloadBytes: prepared.payloadBytes,
+      catalogBytes: catalogPlan.catalogBytes,
+      totalPayloadBytes: catalogPlan.totalPayloadBytes,
+      retainedEntries: Object.keys(catalogPlan.catalog.entries).length,
+      maxEntries: DASHBOARD_HISTORY_SNAPSHOT_MAX_ENTRIES,
+      storageBudgetBytes: DASHBOARD_HISTORY_SNAPSHOT_STORAGE_BUDGET_BYTES,
+      projectedPropertyStoreBytes: storeBudget.projectedBytes,
+      propertyStoreBudgetBytes: storeBudget.budgetBytes,
+      cache: cacheResult
+    };
+  } catch (error) {
+    if (artifactWritten && !catalogPublished) {
+      deleteDashboardHistoricalSnapshotChunks_(props, {
+        reportDate: prepared.reportDate,
+        generation: prepared.generation,
+        chunkCount: prepared.chunkCount
+      });
+    }
+    Logger.log("DASH_HISTORY publish error | reportDate=" + prepared.reportDate + " | " + error);
+    return { success: false, reportDate: prepared.reportDate, error: error.toString() };
+  }
+}
+
+function buildDashboardHistoricalSnapshotForDate_(dateKey) {
+  const startedAt = Date.now();
+  const source = getDashboardOverviewSource_();
+  const coreResponse = buildDashboardOverviewDateCore_(dateKey, source);
+  const fullResponse = applyDashboardOverviewDateContext_(coreResponse, {
+    userSelected: true,
+    usedNearestDate: false
+  });
+  if (!fullResponse || fullResponse.success !== true) {
+    return {
+      success: false,
+      reportDate: dateKey,
+      durationMs: Date.now() - startedAt,
+      error: fullResponse && fullResponse.error ? fullResponse.error : "Historical snapshot build failed"
+    };
+  }
+
+  const snapshot = extractDashboardSnapshot_(fullResponse);
+  snapshot.snapshotMeta = {
+    schemaVersion: DASHBOARD_HISTORY_SNAPSHOT_SCHEMA_VERSION,
+    builtAt: new Date(startedAt).toISOString(),
+    durationMs: Date.now() - startedAt,
+    version: "history-" + dateKey + "-" + startedAt,
+    success: true,
+    state: "ready",
+    reportDate: dateKey,
+    error: ""
+  };
+  if (!isValidDashboardMinimalSnapshot_(snapshot) || snapshot.reportDate.date !== dateKey) {
+    return {
+      success: false,
+      reportDate: dateKey,
+      durationMs: Date.now() - startedAt,
+      error: "Historical snapshot build contract validation failed"
+    };
+  }
+  return { success: true, reportDate: dateKey, durationMs: Date.now() - startedAt, snapshot: snapshot };
+}
+
+function adminBackfillDashboardHistoricalSnapshot(reportDateText) {
+  const totalStartedAt = Date.now();
+  const requestedText = (reportDateText || "").toString().trim();
+  const parsed = parseDashboardOverviewDate_(requestedText);
+  if (!parsed || parsed.dateKey !== requestedText) {
+    return { success: false, error: "Ngày backfill không hợp lệ. Dùng định dạng yyyy-MM-dd." };
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    return { success: false, reportDate: parsed.dateKey, error: "Historical snapshot backfill lock busy" };
+  }
+  try {
+    const buildStartedAt = Date.now();
+    const buildResult = buildDashboardHistoricalSnapshotForDate_(parsed.dateKey);
+    const buildMs = Date.now() - buildStartedAt;
+    if (!buildResult.success) {
+      Logger.log("DASH_HISTORY backfill build failed | reportDate=" + parsed.dateKey + " | " + buildResult.error);
+      return Object.assign(buildResult, {
+        timingsMs: { build: buildMs, total: Date.now() - totalStartedAt }
+      });
+    }
+
+    const archiveStartedAt = Date.now();
+    const archiveResult = archiveDashboardHistoricalSnapshot_(buildResult.snapshot);
+    const archiveMs = Date.now() - archiveStartedAt;
+    if (!archiveResult.success) {
+      Logger.log("DASH_HISTORY backfill archive failed | reportDate=" + parsed.dateKey + " | " + archiveResult.error);
+      return Object.assign(archiveResult, {
+        timingsMs: { build: buildMs, archive: archiveMs, total: Date.now() - totalStartedAt }
+      });
+    }
+
+    const storedResult = readDashboardHistoricalSnapshotDurableResult_(parsed.dateKey);
+    const parity = storedResult.success
+      ? compareDashboardMinimalSnapshots_(buildResult.snapshot, storedResult.snapshot)
+      : { parity: false, expectedChecksum: "", actualChecksum: "" };
+    const result = Object.assign({}, archiveResult, {
+      success: storedResult.success && parity.parity,
+      parity: storedResult.success && parity.parity,
+      expectedChecksum: parity.expectedChecksum,
+      actualChecksum: parity.actualChecksum,
+      timingsMs: {
+        build: buildMs,
+        archive: archiveMs,
+        total: Date.now() - totalStartedAt
+      }
+    });
+    if (!result.success) result.error = storedResult.error || "Historical snapshot parity failed after publish";
+    Logger.log(
+      "DASH_HISTORY backfill complete | reportDate=" + parsed.dateKey +
+      " | success=" + result.success +
+      " | parity=" + result.parity +
+      " | durationMs=" + result.timingsMs.total
+    );
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      reportDate: parsed.dateKey,
+      durationMs: Date.now() - totalStartedAt,
+      error: error && error.message ? error.message : error.toString()
+    };
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (lockError) {
+      Logger.log("DASH_HISTORY backfill lock release error: " + lockError);
+    }
+  }
+}
+
+function adminGetDashboardHistoricalSnapshotStatus(reportDateText) {
+  const requestedText = (reportDateText || "").toString().trim();
+  const parsed = parseDashboardOverviewDate_(requestedText);
+  if (!parsed || parsed.dateKey !== requestedText) {
+    return { success: false, error: "Ngày snapshot không hợp lệ. Dùng định dạng yyyy-MM-dd." };
+  }
+
+  const cacheStartedAt = Date.now();
+  const cacheSnapshot = readDashboardHistoricalSnapshotCache_(parsed.dateKey);
+  const cacheMs = Date.now() - cacheStartedAt;
+  const durableStartedAt = Date.now();
+  const durableResult = readDashboardHistoricalSnapshotDurableResult_(parsed.dateKey);
+  const durableMs = Date.now() - durableStartedAt;
+  const selectedSnapshot = cacheSnapshot || durableResult.snapshot;
+  const catalogResult = readDashboardHistoricalSnapshotCatalog_();
+  return {
+    success: !!selectedSnapshot,
+    hasSnapshot: !!selectedSnapshot,
+    reportDate: parsed.dateKey,
+    cacheHit: !!cacheSnapshot,
+    durableHit: !!durableResult.snapshot,
+    exactDate: !!selectedSnapshot && selectedSnapshot.reportDate.date === parsed.dateKey,
+    snapshotMeta: selectedSnapshot ? selectedSnapshot.snapshotMeta : {},
+    timingsMs: { cacheRead: cacheMs, durableRead: durableMs },
+    retention: {
+      entries: catalogResult.success ? Object.keys(catalogResult.catalog.entries).length : 0,
+      maxEntries: DASHBOARD_HISTORY_SNAPSHOT_MAX_ENTRIES,
+      totalPayloadBytes: catalogResult.totalPayloadBytes || 0,
+      maxTotalPayloadBytes: DASHBOARD_HISTORY_SNAPSHOT_MAX_TOTAL_PAYLOAD_BYTES,
+      storageBudgetBytes: DASHBOARD_HISTORY_SNAPSHOT_STORAGE_BUDGET_BYTES
+    },
+    error: selectedSnapshot ? "" : (durableResult.error || "Historical snapshot missing")
+  };
+}
+
+function adminBenchmarkDashboardSnapshotReads(reportDateText) {
+  const requestedText = (reportDateText || "").toString().trim();
+  const parsed = parseDashboardOverviewDate_(requestedText);
+  if (!parsed || parsed.dateKey !== requestedText) {
+    return { success: false, error: "Ngày benchmark không hợp lệ. Dùng định dạng yyyy-MM-dd." };
+  }
+
+  const durableStatus = readDashboardHistoricalSnapshotDurableResult_(parsed.dateKey);
+  if (!durableStatus.success || !durableStatus.snapshot) {
+    return { success: false, reportDate: parsed.dateKey, error: durableStatus.error || "Historical snapshot missing" };
+  }
+
+  const currentStartedAt = Date.now();
+  const currentResponse = getDashboardData("");
+  const currentMs = Date.now() - currentStartedAt;
+
+  readDashboardHistoricalSnapshotForDate_(parsed.dateKey);
+  const l1StartedAt = Date.now();
+  const l1Response = getDashboardData(parsed.dateKey);
+  const l1Ms = Date.now() - l1StartedAt;
+
+  CacheService.getScriptCache().remove(getDashboardHistoricalSnapshotCacheKey_(parsed.dateKey));
+  const durableStartedAt = Date.now();
+  const durableResponse = getDashboardData(parsed.dateKey);
+  const durableMs = Date.now() - durableStartedAt;
+
+  return {
+    success: !!(currentResponse && currentResponse.success &&
+      l1Response && l1Response.success && durableResponse && durableResponse.success),
+    reportDate: parsed.dateKey,
+    currentReportDate: currentResponse && currentResponse.reportDate ? currentResponse.reportDate.date : "",
+    historicalL1ReportDate: l1Response && l1Response.reportDate ? l1Response.reportDate.date : "",
+    historicalDurableReportDate: durableResponse && durableResponse.reportDate ? durableResponse.reportDate.date : "",
+    exactDate: !!(l1Response && durableResponse &&
+      l1Response.reportDate && durableResponse.reportDate &&
+      l1Response.reportDate.date === parsed.dateKey &&
+      durableResponse.reportDate.date === parsed.dateKey),
+    timingsMs: {
+      currentSnapshot: currentMs,
+      historicalL1: l1Ms,
+      historicalL1MissDurableHit: durableMs
+    }
+  };
+}
 function readDashboardSnapshotCache_() {
   try {
     const payload = CacheService.getScriptCache().get(DASHBOARD_SNAPSHOT_CACHE_KEY);
@@ -2978,69 +3728,22 @@ function refreshDashboardSnapshot_() {
       error: ""
     };
 
-    const isObject = function(value) {
-      return !!value && typeof value === "object" && !Array.isArray(value);
-    };
-    const hasOwn = function(value, key) {
-      return Object.prototype.hasOwnProperty.call(value, key);
-    };
-    const hasNamedCountRows = function(rows) {
-      return Array.isArray(rows) && rows.every(function(row) {
-        return isObject(row) && typeof row.name === "string" && hasOwn(row, "count");
-      });
-    };
-    const requiredKpiFields = ["total", "tp", "cs", "hong", "dxl", "tpPercent"];
-    const recentFields = [
-      "date", "shift", "process", "pipeNo", "qty", "size",
-      "status", "statusGroup", "errorCode", "rig", "worker1", "worker2"
-    ];
-    const validSnapshot =
-      isObject(snapshot) &&
-      snapshot.success === true &&
-      isObject(snapshot.reportDate) &&
-      typeof snapshot.reportDate.date === "string" &&
-      !!snapshot.reportDate.date &&
-      typeof snapshot.reportDate.displayDate === "string" &&
-      typeof snapshot.reportDate.note === "string" &&
-      typeof snapshot.reportDate.emptyMessage === "string" &&
-      isObject(snapshot.snapshotMeta) &&
-      snapshot.snapshotMeta.success === true &&
-      snapshot.snapshotMeta.reportDate === snapshot.reportDate.date &&
-      typeof snapshot.snapshotMeta.builtAt === "string" &&
-      !!snapshot.snapshotMeta.builtAt &&
-      typeof snapshot.snapshotMeta.version === "string" &&
-      !!snapshot.snapshotMeta.version &&
-      Number.isFinite(Number(snapshot.snapshotMeta.durationMs)) &&
-      Number(snapshot.snapshotMeta.durationMs) >= 0 &&
-      typeof snapshot.factoryHealth === "string" &&
-      Array.isArray(snapshot.alerts) &&
-      snapshot.alerts.every(function(alert) { return typeof alert === "string"; }) &&
-      isObject(snapshot.planStats) &&
-      Array.isArray(snapshot.planStats.byDate) &&
-      Array.isArray(snapshot.planStats.byMonth) &&
-      Array.isArray(snapshot.planStats.sizeComparison) &&
-      Array.isArray(snapshot.planStats.trend7Days) &&
-      isObject(snapshot.kpi) &&
-      !requiredKpiFields.some(function(field) { return !hasOwn(snapshot.kpi, field); }) &&
-      hasNamedCountRows(snapshot.processStats) &&
-      hasNamedCountRows(snapshot.queueStats) &&
-      isObject(snapshot.processQueueSummary) &&
-      isObject(snapshot.sizeStats) &&
-      hasNamedCountRows(snapshot.errorStats) &&
-      isObject(snapshot.qualityAnalysis) &&
-      hasNamedCountRows(snapshot.rigStats) &&
-      hasNamedCountRows(snapshot.shiftStats) &&
-      Array.isArray(snapshot.recent) &&
-      snapshot.recent.every(function(row) {
-        return isObject(row) && recentFields.every(function(field) { return hasOwn(row, field); });
-      });
-    if (!validSnapshot) throw new Error("Dashboard snapshot contract validation failed");
+    if (!isValidDashboardMinimalSnapshot_(snapshot)) {
+      throw new Error("Dashboard snapshot contract validation failed");
+    }
 
     const durableResult = writeDashboardSnapshot_(snapshot);
     if (!durableResult.success) {
       throw new Error(durableResult.error || "Dashboard snapshot durable write failed");
     }
     const cacheResult = writeDashboardSnapshotCache_(snapshot);
+    const historicalResult = archiveDashboardHistoricalSnapshot_(snapshot);
+    if (!historicalResult.success) {
+      Logger.log(
+        "DASH_HISTORY archive skipped after current refresh | reportDate=" +
+        snapshot.reportDate.date + " | " + (historicalResult.error || "unknown error")
+      );
+    }
 
     Logger.log(
       "DASH_SNAPSHOT refresh ok | version=" + version +
@@ -3053,7 +3756,8 @@ function refreshDashboardSnapshot_() {
       success: true,
       snapshotMeta: snapshot.snapshotMeta,
       cache: cacheResult,
-      durable: durableResult
+      durable: durableResult,
+      historical: historicalResult
     };
   } catch (error) {
     const errorMeta = {
